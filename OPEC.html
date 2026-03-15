@@ -571,16 +571,21 @@ import { getDatabase, ref, set, onValue, get }    from 'https://www.gstatic.com/
 let _savedCfg = null;
 try{ _savedCfg = JSON.parse(localStorage.getItem('fb_user_config')||'null'); }catch(e){}
 
-const FB_CONFIG = _savedCfg || {"apiKey":"sistemas-fb","databaseURL":"https://sistemas-fb-default-rtdb.firebaseio.com/","projectId":"sistemas-fb","authDomain":"sistemas-fb.firebaseapp.com","storageBucket":"sistemas-fb.appspot.com","messagingSenderId":"0","appId":"auto-sistemas-fb"};
+const FB_FIXED = {"apiKey":"AIzaSyAuto-sistemas-fb","databaseURL":"https://sistemas-fb-default-rtdb.firebaseio.com/","projectId":"sistemas-fb","authDomain":"sistemas-fb.firebaseapp.com","storageBucket":"sistemas-fb.appspot.com","messagingSenderId":"0","appId":"auto-sistemas-fb"};
+const FB_CONFIG = FB_FIXED;
+// Garante que _savedCfg sempre aponte para o config embutido
+if(!_savedCfg || !_savedCfg.databaseURL){ 
+  _savedCfg = FB_FIXED;
+  try{ localStorage.setItem('opec_fb_config', JSON.stringify(FB_FIXED)); }catch(e){}
+}
 
 let app, db, _gradeRef, _fbReady=false, _fbLastTs=0, _fbIgnore=false, _unsubscribe=null;
 let _stationCode = localStorage.getItem('opec_station_code')||'';
 
-function _isConfigured(){ return true; } // URL embutida: https://sistemas-fb-default-rtdb.firebaseio.com/
+function _isConfigured(){ return true; }
 
 // ── Inicializar Firebase ──
 function _fbInit(){
-  if(!_isConfigured()) return;
   try{
     app = initializeApp(FB_CONFIG, 'opec-app');
     db  = getDatabase(app);
