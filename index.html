@@ -77,48 +77,34 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 
 /* ─── INSTALL SECTION ─── */
 .install-section{
-  width:100%;border-top:1px solid var(--border);padding-top:32px;margin-top:8px;
-  text-align:left;
+  width:100%;border-top:1px solid var(--border);padding-top:28px;margin-top:8px;
 }
-.install-tabs{
-  display:flex;gap:2px;margin-bottom:0;
-  background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:4px;
+.install-btns{
+  display:flex;gap:8px;flex-wrap:wrap;
 }
-.itab{
-  flex:1;padding:7px 10px;text-align:center;cursor:pointer;
-  font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:2px;
-  text-transform:uppercase;color:var(--text3);border-radius:5px;
-  transition:all .15s;
+.ibtn{
+  flex:1;min-width:140px;
+  padding:13px 20px;cursor:pointer;
+  font-family:var(--font-d);font-size:11px;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:8px;color:var(--text3);
+  transition:all .2s;
 }
-.itab:hover{color:var(--text2);background:var(--s2)}
-.itab.on{background:var(--s2);color:var(--text);border:1px solid var(--border)}
-.itab-sub{display:block;font-size:8px;color:var(--text3);letter-spacing:1px;margin-top:2px;font-family:var(--font-b);text-transform:none;font-weight:400}
-
-.panels{overflow:hidden;max-height:0;transition:max-height .3s ease,margin-top .3s ease;margin-top:0}
-.panels.open{max-height:400px;margin-top:20px}
-.panel{display:none}.panel.on{display:block}
-
-.steps{display:flex;flex-direction:column;gap:10px}
-.step{display:flex;align-items:flex-start;gap:12px}
-.snum{
-  font-family:var(--font-m);font-size:10px;color:var(--gold2);
-  background:var(--gold-dim);border:1px solid rgba(212,160,23,.2);
-  min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;
-  flex-shrink:0;border-radius:4px;font-weight:700;
+.ibtn:hover{
+  border-color:var(--gold);color:var(--gold2);
+  background:var(--gold-dim);
 }
-.stxt{font-family:var(--font-b);font-size:12px;color:var(--text2);line-height:1.7;padding-top:2px}
-.stxt b{color:var(--text)}
-.stxt code{
-  font-family:var(--font-m);font-size:10px;
-  background:var(--s3);border:1px solid var(--border);
-  padding:1px 6px;color:var(--gold2);border-radius:3px;word-break:break-all;
+.ibtn.done{
+  border-color:var(--green) !important;color:var(--green) !important;
+  background:rgba(31,170,90,.1) !important;
 }
-.tip{
-  margin-top:14px;padding:10px 14px;
-  background:rgba(212,160,23,.04);border:1px solid rgba(212,160,23,.12);
-  border-radius:6px;font-size:11px;color:var(--text3);line-height:1.7;
+.install-msg{
+  margin-top:12px;font-size:11px;color:var(--text3);
+  line-height:1.8;font-family:var(--font-b);
+  min-height:0;
 }
-.tip b{color:var(--gold2)}
+.install-msg b{color:var(--text2)}
 
 /* ─── FOOTER ─── */
 .land-foot{
@@ -200,54 +186,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 
   <!-- Install section -->
   <div class="install-section">
-    <div class="install-tabs">
-      <div class="itab" onclick="sw(this,'pc')">
-        Windows / Mac
-        <span class="itab-sub">Chrome ou Edge</span>
-      </div>
-      <div class="itab" onclick="sw(this,'android')">
-        Android
-        <span class="itab-sub">Chrome</span>
-      </div>
-      <div class="itab" onclick="sw(this,'ios')">
-        iPhone / iPad
-        <span class="itab-sub">Safari</span>
-      </div>
+    <div class="install-btns">
+      <button class="ibtn" id="ibtn-pc"      onclick="installApp('pc')">Instalar no PC / Mac</button>
+      <button class="ibtn" id="ibtn-android" onclick="installApp('android')">Instalar no Android</button>
+      <button class="ibtn" id="ibtn-ios"     onclick="installApp('ios')">Instalar no iPhone / iPad</button>
     </div>
-
-    <div class="panels">
-
-      <div class="panel on" id="p-pc">
-        <div class="steps">
-          <div class="step"><span class="snum">1</span><div class="stxt">Abra o <b>OPEC</b> ou <b>MASTER</b> no <b>Google Chrome</b> ou <b>Microsoft Edge</b></div></div>
-          <div class="step"><span class="snum">2</span><div class="stxt">Na barra de endereço, clique no ícone de <b>instalar</b> que aparece no canto direito</div></div>
-          <div class="step"><span class="snum">3</span><div class="stxt">Clique em <b>Instalar</b> — o sistema abre como janela independente, sem a barra do navegador</div></div>
-          <div class="step"><span class="snum">4</span><div class="stxt">Um atalho é criado automaticamente na <b>Área de Trabalho</b> e no menu Iniciar</div></div>
-        </div>
-        <div class="tip"><b>Dica:</b> Instale o OPEC no PC principal e o MASTER no secundário. Ambos sincronizam em tempo real via Firebase.</div>
-      </div>
-
-      <div class="panel" id="p-android">
-        <div class="steps">
-          <div class="step"><span class="snum">1</span><div class="stxt">Abra o link no <b>Chrome para Android</b></div></div>
-          <div class="step"><span class="snum">2</span><div class="stxt">Toque no menu de três pontos no canto superior direito da tela</div></div>
-          <div class="step"><span class="snum">3</span><div class="stxt">Toque em <b>Adicionar à tela inicial</b> e confirme</div></div>
-          <div class="step"><span class="snum">4</span><div class="stxt">O ícone aparece na tela inicial — abre direto, sem precisar do navegador</div></div>
-        </div>
-        <div class="tip"><b>Link do MASTER:</b><br><code>sistemasfb007.github.io/opec-master/MASTER.html</code></div>
-      </div>
-
-      <div class="panel" id="p-ios">
-        <div class="steps">
-          <div class="step"><span class="snum">1</span><div class="stxt">Abra o link no <b>Safari</b> — no iPhone a instalação só funciona pelo Safari</div></div>
-          <div class="step"><span class="snum">2</span><div class="stxt">Toque no botão de <b>compartilhar</b> na barra inferior do Safari</div></div>
-          <div class="step"><span class="snum">3</span><div class="stxt">Role e toque em <b>Adicionar à Tela de Início</b></div></div>
-          <div class="step"><span class="snum">4</span><div class="stxt">Toque em <b>Adicionar</b> — o ícone aparece na tela inicial como app nativo</div></div>
-        </div>
-        <div class="tip"><b>Atenção:</b> Sempre abra pelo <b>ícone instalado</b> ou pelo Safari. Abrir o arquivo direto pelo WhatsApp bloqueia o login.</div>
-      </div>
-
-    </div>
+    <div id="install-msg" class="install-msg"></div>
   </div>
 
 </div><!-- /land-wrap -->
@@ -258,24 +202,85 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 </div><!-- /land-outer -->
 
 <script>
-function sw(el, id){
-  const allTabs   = document.querySelectorAll('.itab');
-  const allPanels = document.querySelectorAll('.panel');
-  const panels    = document.querySelector('.panels');
-  const isOpen    = el.classList.contains('on');
+const _plat = (()=>{
+  const ua = navigator.userAgent.toLowerCase();
+  if(/iphone|ipad|ipod/.test(ua)) return 'ios';
+  if(/android/.test(ua)) return 'android';
+  return 'pc';
+})();
 
-  allTabs.forEach(t=>t.classList.remove('on'));
-  allPanels.forEach(p=>p.classList.remove('on'));
+let _pwaPrompt = null;
 
-  if(isOpen){
-    // clicking same tab closes it
-    panels.classList.remove('open');
-  } else {
-    el.classList.add('on');
-    document.getElementById('p-'+id).classList.add('on');
-    panels.classList.add('open');
-  }
+// Capturar prompt nativo do navegador
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  _pwaPrompt = e;
+  _updateBtn();
+});
+
+// App já instalado
+window.addEventListener('appinstalled', () => {
+  const btn = document.getElementById('ibtn-' + _plat);
+  if(btn){ btn.textContent = 'Instalado com sucesso'; btn.classList.add('done'); }
+  _pwaPrompt = null;
+});
+
+function _updateBtn(){
+  // Mostrar só o botão da plataforma atual, ocultar os outros
+  ['pc','android','ios'].forEach(p => {
+    const b = document.getElementById('ibtn-'+p);
+    if(!b) return;
+    if(p === _plat){
+      b.style.display = '';
+      if(_pwaPrompt || _plat === 'ios'){
+        b.style.borderColor = 'var(--gold)';
+        b.style.color       = 'var(--gold2)';
+        b.style.background  = 'var(--gold-dim)';
+      }
+    } else {
+      b.style.display = 'none';
+    }
+  });
 }
+
+function installApp(plat){
+  const btn = document.getElementById('ibtn-'+plat);
+  const msg = document.getElementById('install-msg');
+
+  // PC / Android — prompt nativo disponível → instala direto
+  if(_pwaPrompt && plat !== 'ios'){
+    _pwaPrompt.prompt();
+    _pwaPrompt.userChoice.then(r => {
+      if(r.outcome === 'accepted'){
+        if(btn){ btn.textContent = 'Instalando...'; btn.classList.add('done'); }
+      } else {
+        if(msg) msg.innerHTML = 'Instalação cancelada. Clique novamente para tentar.';
+      }
+      _pwaPrompt = null;
+    });
+    return;
+  }
+
+  // iOS — não tem como automático, instrução mínima
+  if(plat === 'ios'){
+    if(msg) msg.innerHTML = 'No Safari: toque em <b>Compartilhar</b> → <b>Adicionar à Tela de Início</b>';
+    setTimeout(()=>{ if(msg) msg.innerHTML=''; }, 8000);
+    return;
+  }
+
+  // PC/Android sem prompt — abrir MASTER direto para o navegador capturar o prompt
+  if(msg) msg.innerHTML = 'Abrindo o sistema... Quando aparecer o botão <b>Instalar</b> na barra do navegador, clique nele.';
+  setTimeout(() => { window.location.href = 'MASTER.html'; }, 1200);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  _updateBtn();
+  // Se já está instalado como PWA (standalone), esconder seção
+  if(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone){
+    const sec = document.querySelector('.install-section');
+    if(sec) sec.style.display = 'none';
+  }
+});
 </script>
 </body>
 </html>
