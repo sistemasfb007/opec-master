@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Roteiro Master</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23040d15'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-size='11' font-family='monospace' font-weight='bold' fill='%2300ff80'>MST</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=Azeret+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -187,7 +187,7 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 .prog-card.collapsed .prog-hdr{border-radius:10px}
 .prog-hdr:hover{filter:brightness(1.08)}
 .ph-time{font-family:var(--font-m);font-size:15px;color:var(--blue2);flex-shrink:0;white-space:nowrap}
-.ph-name{font-family:var(--font-d);font-size:18px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text);flex:1;min-width:0;word-break:normal;overflow-wrap:break-word;white-space:normal;line-height:1.2}
+.ph-name{font-family:var(--font-d);font-size:18px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text);flex:1;min-width:0;word-break:break-word;white-space:normal;line-height:1.2}
 .ph-badge-slot{flex-shrink:0}
 .ph-stat .ph-stat-brk{color:var(--gold2);font-weight:700}
 .ph-chev{font-size:13px;color:var(--text3);flex-shrink:0;transition:transform .18s;cursor:pointer;padding:4px 6px;border-radius:4px}
@@ -384,118 +384,6 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 .brk-hdr:hover .bh-opec-btn{opacity:.65}.brk-hdr.cur .bh-opec-btn{opacity:1}
 /* ══ fim hexagonal ══ */
 
-
-/* ═══════════════════════════════════════
-   MASTER — MOBILE RESPONSIVE
-═══════════════════════════════════════ */
-html{-webkit-text-size-adjust:100%}
-*{-webkit-tap-highlight-color:transparent}
-input,button{font-family:inherit;-webkit-appearance:none}
-
-/* ── Tablet (600–900px) ── */
-@media screen and (max-width:900px){
-  .topbar{height:auto;min-height:44px;flex-wrap:wrap;padding:6px 10px;gap:6px}
-  .tb-logo-wrap,.tb-left{flex:1}
-  .tb-right{gap:5px}
-  .tb-clock{font-size:14px;padding:2px 7px}
-}
-
-/* ── Mobile (<600px) ── */
-@media screen and (max-width:600px){
-  /* Topbar */
-  .topbar{
-    height:auto;min-height:44px;
-    padding:8px 10px;flex-wrap:wrap;gap:5px;
-    position:sticky;top:0;z-index:100;
-  }
-  .tb-left{flex:1;min-width:0;gap:6px}
-  .tb-right{gap:4px}
-  .tb-clock{font-size:13px;letter-spacing:1px;padding:2px 6px}
-  .tb-sep{display:none}
-
-  /* Sub-header / nav */
-  .sub-nav,.date-nav{
-    padding:5px 8px;gap:6px;font-size:11px;flex-wrap:wrap;
-  }
-  .date-nav-btn{padding:3px 8px;font-size:10px}
-
-  /* Programa — corrigir quebra de texto */
-  .prog-hdr{
-    gap:8px !important;
-    padding:10px 12px !important;
-  }
-  .ph-time{
-    font-size:13px !important;
-    min-width:50px !important;
-    flex-shrink:0 !important;
-  }
-  .ph-name{
-    font-size:14px !important;
-    letter-spacing:1px !important;
-    word-break:normal !important;
-    overflow-wrap:anywhere !important;
-    white-space:normal !important;
-    line-height:1.3 !important;
-  }
-  .ph-badge-slot{flex-shrink:0}
-  .ph-stat{font-size:10px !important}
-
-  /* Break */
-  .brk-hdr{padding:8px 12px !important;gap:6px !important}
-  .bh-name{font-size:10px !important;letter-spacing:1px !important}
-  .bh-tot,.bh-ct{font-size:10px !important}
-
-  /* Item ativo em destaque */
-  .item-active .ia-name{font-size:clamp(14px,4vw,20px) !important}
-  .ia-title{font-size:clamp(11px,3vw,14px) !important}
-
-  /* Item row */
-  .item-row{padding:7px 10px !important;gap:7px !important}
-  .ir-seq{font-size:10px !important;min-width:20px !important}
-  .ir-name{font-size:11px !important}
-  .ir-dur{font-size:10px !important}
-
-  /* Rolagem suave */
-  .master-scroll,.roteiro-list{
-    -webkit-overflow-scrolling:touch;
-  }
-
-  /* Login */
-  #master-login-screen{padding:16px}
-  #master-login-screen > div{
-    width:100% !important;
-    max-width:360px;
-    padding:28px 20px !important;
-    border-radius:14px !important;
-  }
-  #master-login-screen input{font-size:16px !important;padding:13px 14px !important}
-  #master-login-screen button{font-size:14px !important;padding:13px !important}
-
-  /* Controles superiores */
-  .top-controls{flex-wrap:wrap;gap:5px;padding:6px 8px}
-  .ctrl-btn{font-size:9px;padding:4px 8px}
-
-  /* Modais bottom sheet */
-  .overlay{align-items:flex-end}
-  .modal{
-    width:100% !important;max-width:100% !important;
-    border-radius:16px 16px 0 0 !important;
-    max-height:88vh;
-  }
-}
-
-/* ── Pequeno (<380px) ── */
-@media screen and (max-width:380px){
-  .ph-time{font-size:12px !important;min-width:44px !important}
-  .ph-name{font-size:13px !important}
-  .brk-hdr{padding:6px 10px !important}
-}
-
-/* iOS safe area */
-@supports(padding:env(safe-area-inset-bottom)){
-  .topbar{padding-top:max(6px,env(safe-area-inset-top))}
-  #master-app-root{padding-bottom:env(safe-area-inset-bottom)}
-}
 </style>
 
 
@@ -529,10 +417,26 @@ try{
   _auth = getAuth(_app);
   console.log('[MASTER Firebase] ok →', FB.databaseURL);
 
-  onAuthStateChanged(_auth, user => {
+  onAuthStateChanged(_auth, async user => {
     const loginScreen = document.getElementById('master-login-screen');
     if(user){
       const nome = user.email.replace(DOMINIO,'');
+      // Verificar permissão de acesso ao MASTER
+      try{
+        const snap = await _db.ref('_usuarios/'+nome).once('value');
+        const userData = snap.val();
+        const access = userData?.access || 'ambos';
+        if(access === 'opec'){
+          // Sem acesso ao MASTER
+          await _auth.signOut();
+          loginScreen.style.display = 'flex';
+          _mlErr('⛔ Seu usuário tem acesso apenas ao OPEC.');
+          return;
+        }
+      }catch(e){
+        // Se não conseguir verificar, permitir acesso (compatibilidade)
+        console.warn('Não foi possível verificar permissão:', e.message);
+      }
       loginScreen.style.display = 'none';
       _renderUserBtn(nome);
       if(_code) _connect(_code);
