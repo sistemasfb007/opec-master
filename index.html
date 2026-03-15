@@ -80,12 +80,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
   width:100%;border-top:1px solid var(--border);padding-top:32px;margin-top:8px;
   text-align:left;
 }
-.install-title{
-  font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:3px;
-  text-transform:uppercase;color:var(--text3);margin-bottom:16px;text-align:center;
-}
 .install-tabs{
-  display:flex;gap:2px;margin-bottom:20px;
+  display:flex;gap:2px;margin-bottom:0;
   background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:4px;
 }
 .itab{
@@ -98,7 +94,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .itab.on{background:var(--s2);color:var(--text);border:1px solid var(--border)}
 .itab-sub{display:block;font-size:8px;color:var(--text3);letter-spacing:1px;margin-top:2px;font-family:var(--font-b);text-transform:none;font-weight:400}
 
-.panels{min-height:160px}
+.panels{overflow:hidden;max-height:0;transition:max-height .3s ease,margin-top .3s ease;margin-top:0}
+.panels.open{max-height:400px;margin-top:20px}
 .panel{display:none}.panel.on{display:block}
 
 .steps{display:flex;flex-direction:column;gap:10px}
@@ -203,10 +200,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 
   <!-- Install section -->
   <div class="install-section">
-    <div class="install-title">Instalar como Aplicativo</div>
-
     <div class="install-tabs">
-      <div class="itab on" onclick="sw(this,'pc')">
+      <div class="itab" onclick="sw(this,'pc')">
         Windows / Mac
         <span class="itab-sub">Chrome ou Edge</span>
       </div>
@@ -264,10 +259,22 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 
 <script>
 function sw(el, id){
-  document.querySelectorAll('.itab').forEach(t=>t.classList.remove('on'));
-  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
-  el.classList.add('on');
-  document.getElementById('p-'+id).classList.add('on');
+  const allTabs   = document.querySelectorAll('.itab');
+  const allPanels = document.querySelectorAll('.panel');
+  const panels    = document.querySelector('.panels');
+  const isOpen    = el.classList.contains('on');
+
+  allTabs.forEach(t=>t.classList.remove('on'));
+  allPanels.forEach(p=>p.classList.remove('on'));
+
+  if(isOpen){
+    // clicking same tab closes it
+    panels.classList.remove('open');
+  } else {
+    el.classList.add('on');
+    document.getElementById('p-'+id).classList.add('on');
+    panels.classList.add('open');
+  }
 }
 </script>
 </body>
