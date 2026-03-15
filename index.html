@@ -2,180 +2,273 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
 <title>OPEC MASTER — Sistema de Operação Comercial</title>
-<link rel="manifest" href="manifest.json">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%2301060b'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-size='9' font-family='monospace' font-weight='bold' fill='%2300e5ff'>SFB</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23080b0f'/><polygon points='16,3 28,10 28,22 16,29 4,22 4,10' fill='none' stroke='%23d4a017' stroke-width='2'/><text x='50%25' y='56%25' dominant-baseline='middle' text-anchor='middle' font-size='8' font-family='monospace' font-weight='bold' fill='%23d4a017'>SFB</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=Azeret+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Share+Tech+Mono&family=Exo+2:wght@300;400;500&display=swap');
-  *{margin:0;padding:0;box-sizing:border-box}
-  html,body{height:100%;background:#01060b;color:#b8d0e8;font-family:'Exo 2',sans-serif;overflow-x:hidden}
+:root {
+  --bg:#080b0f;--s1:#0e1218;--s2:#141920;--s3:#1c2330;
+  --border:#1f2836;--border2:#2a3545;
+  --gold:#d4a017;--gold2:#f0c040;--gold-dim:rgba(212,160,23,0.15);
+  --blue:#1e6fb5;--blue2:#3a9ae0;--blue-dim:rgba(30,111,181,0.15);
+  --green:#1faa5a;--red:#c0392b;--red2:#e05050;--red-dim:rgba(192,57,43,0.15);
+  --text:#d8e0ea;--text2:#7a8fa8;--text3:#3a4d60;
+  --font-d:'Rajdhani',sans-serif;--font-b:'DM Sans',sans-serif;--font-m:'Azeret Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b);font-size:14px;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+*{-webkit-tap-highlight-color:transparent}
 
-  body::before{
-    content:'';position:fixed;inset:0;pointer-events:none;
-    background-image:linear-gradient(rgba(0,229,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,.02) 1px,transparent 1px);
-    background-size:44px 44px;
-  }
-  body::after{
-    content:'';position:fixed;inset:0;pointer-events:none;
-    background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.05) 3px,rgba(0,0,0,.05) 4px);
-    mix-blend-mode:overlay;
-  }
+/* ─── LANDING ─── */
+.land-outer{
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  background:
+    radial-gradient(ellipse 60% 50% at 25% 35%,rgba(30,111,181,.12),transparent 70%),
+    radial-gradient(ellipse 50% 40% at 75% 65%,rgba(212,160,23,.08),transparent 70%),
+    var(--bg);
+}
+.land-wrap{text-align:center;max-width:600px;padding:32px;width:100%}
+.land-signal{display:flex;align-items:flex-end;justify-content:center;gap:5px;margin-bottom:28px}
+.land-signal span{display:block;width:6px;border-radius:3px 3px 0 0;
+  background:linear-gradient(180deg,var(--gold2),var(--gold));
+  animation:sig 1.6s ease-in-out infinite}
+.land-signal span:nth-child(1){height:12px;animation-delay:0s}
+.land-signal span:nth-child(2){height:20px;animation-delay:.12s}
+.land-signal span:nth-child(3){height:30px;animation-delay:.24s}
+.land-signal span:nth-child(4){height:38px;animation-delay:.36s}
+.land-signal span:nth-child(5){height:30px;animation-delay:.48s}
+.land-signal span:nth-child(6){height:20px;animation-delay:.60s}
+.land-signal span:nth-child(7){height:12px;animation-delay:.72s}
+@keyframes sig{0%,100%{opacity:1}50%{opacity:.2}}
 
-  .wrap{
-    min-height:100vh;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;
-    padding:32px 20px;position:relative;z-index:1;
-  }
+.land-h1{
+  font-family:var(--font-d);font-size:52px;font-weight:700;
+  letter-spacing:3px;text-transform:uppercase;line-height:1;margin-bottom:6px;
+  background:linear-gradient(135deg,#fff,#8aa0bf);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.land-sub{font-size:12px;letter-spacing:4px;color:var(--text3);text-transform:uppercase;margin-bottom:44px}
+.land-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:40px}
+.land-card{
+  background:var(--s1);border:1px solid var(--border);border-radius:14px;
+  padding:30px 20px;cursor:pointer;transition:all .22s;
+  display:flex;flex-direction:column;align-items:center;gap:12px;
+  position:relative;overflow:hidden;text-decoration:none;color:inherit;
+}
+.land-card::after{content:'';position:absolute;inset:0;border-radius:14px;opacity:0;transition:opacity .22s}
+.land-card.em::after{background:linear-gradient(135deg,rgba(30,111,181,.14),transparent)}
+.land-card.ex::after{background:linear-gradient(135deg,rgba(212,160,23,.12),transparent)}
+.land-card:hover{transform:translateY(-4px)}
+.land-card.em:hover{border-color:var(--blue2);box-shadow:0 10px 40px rgba(30,111,181,.18)}
+.land-card.ex:hover{border-color:var(--gold);box-shadow:0 10px 40px rgba(212,160,23,.15)}
+.land-card:hover::after{opacity:1}
+.card-ico{font-size:32px;line-height:1;position:relative;z-index:1}
+.card-ttl{font-family:var(--font-d);font-size:20px;font-weight:700;letter-spacing:3px;text-transform:uppercase;position:relative;z-index:1}
+.land-card.em .card-ttl{color:var(--blue2)}.land-card.ex .card-ttl{color:var(--gold2)}
+.card-desc{font-size:12px;color:var(--text2);text-align:center;line-height:1.6;position:relative;z-index:1}
+.card-tag{
+  font-size:7px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  padding:2px 8px;border-radius:2px;position:relative;z-index:1;
+  -webkit-font-smoothing:antialiased;display:inline-flex;align-items:center;gap:4px;
+}
+.land-card.em .card-tag{background:rgba(30,111,181,.08);color:var(--blue2);border:1px solid rgba(58,154,224,.15)}
+.land-card.ex .card-tag{background:rgba(212,160,23,.08);color:var(--gold2);border:1px solid rgba(212,160,23,.15)}
 
-  /* Signal bars */
-  .signal{display:flex;align-items:flex-end;gap:4px;margin-bottom:36px}
-  .signal span{width:4px;border-radius:2px 2px 0 0;background:linear-gradient(180deg,#80f2ff,#00e5ff);box-shadow:0 0 10px #00e5ff;animation:sig 1.8s ease-in-out infinite}
-  .signal span:nth-child(1){height:8px;animation-delay:0s}
-  .signal span:nth-child(2){height:16px;animation-delay:.15s}
-  .signal span:nth-child(3){height:28px;animation-delay:.3s}
-  .signal span:nth-child(4){height:40px;animation-delay:.45s}
-  .signal span:nth-child(5){height:28px;animation-delay:.6s}
-  .signal span:nth-child(6){height:16px;animation-delay:.75s}
-  .signal span:nth-child(7){height:8px;animation-delay:.9s}
-  @keyframes sig{0%,100%{opacity:1;box-shadow:0 0 10px #00e5ff}50%{opacity:.1;box-shadow:none}}
+/* ─── INSTALL SECTION ─── */
+.install-section{
+  width:100%;border-top:1px solid var(--border);padding-top:32px;margin-top:8px;
+  text-align:left;
+}
+.install-title{
+  font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:3px;
+  text-transform:uppercase;color:var(--text3);margin-bottom:16px;text-align:center;
+}
+.install-tabs{
+  display:flex;gap:2px;margin-bottom:20px;
+  background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:4px;
+}
+.itab{
+  flex:1;padding:7px 10px;text-align:center;cursor:pointer;
+  font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:2px;
+  text-transform:uppercase;color:var(--text3);border-radius:5px;
+  transition:all .15s;
+}
+.itab:hover{color:var(--text2);background:var(--s2)}
+.itab.on{background:var(--s2);color:var(--text);border:1px solid var(--border)}
+.itab-sub{display:block;font-size:8px;color:var(--text3);letter-spacing:1px;margin-top:2px;font-family:var(--font-b);text-transform:none;font-weight:400}
 
-  h1{
-    font-family:'Orbitron',monospace;font-size:clamp(24px,6vw,48px);font-weight:900;
-    letter-spacing:6px;text-transform:uppercase;text-align:center;
-    background:linear-gradient(135deg,#80f2ff,#00e5ff 50%,#4090ff);
-    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-    filter:drop-shadow(0 0 24px rgba(0,229,255,.35));
-    margin-bottom:8px;
-  }
-  .sub{
-    font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:5px;
-    color:#1e3a52;text-transform:uppercase;margin-bottom:52px;text-align:center;
-  }
+.panels{min-height:160px}
+.panel{display:none}.panel.on{display:block}
 
-  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;width:100%;max-width:680px}
+.steps{display:flex;flex-direction:column;gap:10px}
+.step{display:flex;align-items:flex-start;gap:12px}
+.snum{
+  font-family:var(--font-m);font-size:10px;color:var(--gold2);
+  background:var(--gold-dim);border:1px solid rgba(212,160,23,.2);
+  min-width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;border-radius:4px;font-weight:700;
+}
+.stxt{font-family:var(--font-b);font-size:12px;color:var(--text2);line-height:1.7;padding-top:2px}
+.stxt b{color:var(--text)}
+.stxt code{
+  font-family:var(--font-m);font-size:10px;
+  background:var(--s3);border:1px solid var(--border);
+  padding:1px 6px;color:var(--gold2);border-radius:3px;word-break:break-all;
+}
+.tip{
+  margin-top:14px;padding:10px 14px;
+  background:rgba(212,160,23,.04);border:1px solid rgba(212,160,23,.12);
+  border-radius:6px;font-size:11px;color:var(--text3);line-height:1.7;
+}
+.tip b{color:var(--gold2)}
 
-  .card{
-    background:#040d15;border:1px solid #1a3a5a;padding:28px 22px;
-    cursor:pointer;transition:all .25s;display:flex;flex-direction:column;
-    align-items:flex-start;gap:10px;position:relative;overflow:hidden;
-    text-decoration:none;color:inherit;
-    clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));
-  }
-  .card::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity .25s}
-  .card.opec::before{background:linear-gradient(135deg,rgba(0,92,255,.1),transparent)}
-  .card.master::before{background:linear-gradient(135deg,rgba(0,255,128,.07),transparent)}
-  .card:hover{transform:translateY(-3px)}
-  .card.opec:hover{border-color:#4090ff;box-shadow:0 0 30px rgba(0,92,255,.18)}
-  .card.master:hover{border-color:#00ff80;box-shadow:0 0 30px rgba(0,255,128,.15)}
-  .card:hover::before{opacity:1}
+/* ─── FOOTER ─── */
+.land-foot{
+  padding:24px 32px;font-family:var(--font-m);font-size:9px;
+  color:var(--text3);letter-spacing:1px;text-align:center;line-height:2;
+}
 
-  .card-badge{
-    font-family:'Orbitron',monospace;font-size:10px;font-weight:700;letter-spacing:3px;
-    padding:3px 12px;border-radius:1px;
-    clip-path:polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,4px 100%,0 calc(100% - 4px));
-  }
-  .opec .card-badge{background:rgba(0,92,255,.15);color:#4090ff;border:1px solid rgba(64,144,255,.3)}
-  .master .card-badge{background:rgba(0,255,128,.1);color:#00ff80;border:1px solid rgba(0,255,128,.25)}
-
-  .card-title{font-family:'Orbitron',monospace;font-size:20px;font-weight:700;letter-spacing:3px;text-transform:uppercase}
-  .opec .card-title{color:#4090ff;text-shadow:0 0 12px rgba(0,92,255,.4)}
-  .master .card-title{color:#00ff80;text-shadow:0 0 12px rgba(0,255,128,.3)}
-
-  .card-desc{font-size:12px;color:#4a6a88;line-height:1.7}
-  .card-target{
-    font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px;
-    text-transform:uppercase;margin-top:4px;
-  }
-  .opec .card-target{color:#1e3a52}
-  .master .card-target{color:#1e3a52}
-
-  .card-arrow{
-    margin-top:6px;font-size:18px;transition:transform .2s;
-    align-self:flex-end;
-  }
-  .opec .card-arrow{color:#4090ff}
-  .master .card-arrow{color:#00ff80}
-  .card:hover .card-arrow{transform:translateX(6px)}
-
-  /* Install hint */
-  .install-hint{
-    margin-top:36px;max-width:480px;text-align:center;
-    background:#040d15;border:1px solid #0f2540;padding:16px 20px;
-    clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));
-  }
-  .install-hint h3{
-    font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:3px;
-    color:#4a6a88;text-transform:uppercase;margin-bottom:10px;
-  }
-  .install-steps{display:flex;flex-direction:column;gap:6px}
-  .step{display:flex;align-items:flex-start;gap:10px;font-size:12px;color:#4a6a88;text-align:left}
-  .step-num{
-    font-family:'Share Tech Mono',monospace;font-size:10px;font-weight:700;
-    color:#00e5ff;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.2);
-    min-width:22px;height:22px;display:flex;align-items:center;justify-content:center;
-    flex-shrink:0;border-radius:1px;
-  }
-
-  .footer{
-    margin-top:32px;font-family:'Share Tech Mono',monospace;font-size:9px;
-    color:#1e3a52;letter-spacing:2px;text-align:center;line-height:2;
-  }
-
-  /* Mobile */
-  @media(max-width:480px){
-    h1{font-size:28px;letter-spacing:3px}
-    .sub{font-size:9px;margin-bottom:36px}
-    .card{padding:22px 16px}
-    .card-title{font-size:17px}
-  }
+/* ─── MOBILE ─── */
+@media(max-width:520px){
+  .land-h1{font-size:34px;letter-spacing:2px}
+  .land-sub{font-size:10px;margin-bottom:28px}
+  .land-cards{grid-template-columns:1fr;gap:10px}
+  .land-wrap{padding:24px 16px}
+  .itab{font-size:8px;padding:6px 4px}
+}
+@supports(padding:env(safe-area-inset-top)){
+  .land-outer{padding-bottom:env(safe-area-inset-bottom)}
+}
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="land-outer">
+<div class="land-wrap">
 
-  <div class="signal">
+  <!-- Signal bars -->
+  <div class="land-signal">
     <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
   </div>
 
-  <h1>OPEC MASTER</h1>
-  <div class="sub">Sistema de Operação Comercial · Broadcast</div>
+  <h1 class="land-h1">Operação Comercial</h1>
+  <p class="land-sub">Sistema de Programação de Mídia</p>
 
-  <div class="cards">
+  <!-- Cards originais com as insígnias SVG -->
+  <div class="land-cards">
 
-    <a class="card opec" href="OPEC.html">
-      <span class="card-badge">OPERAÇÃO</span>
-      <div class="card-title">OPEC</div>
-      <div class="card-desc">Monte a grade semanal, gerencie programas, breaks, materiais e PIs. Sincroniza em tempo real.</div>
-      <div class="card-target">▸ PC Principal / Operador</div>
-      <div class="card-arrow">→</div>
+    <a class="land-card em" href="OPEC.html">
+      <div class="card-ico">
+        <svg width="36" height="40" viewBox="295 70 90 80" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="hxblu2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#5ab4f0"/>
+              <stop offset="100%" stop-color="#1060b0"/>
+            </linearGradient>
+          </defs>
+          <polygon points="378,110 359,143 321,143 302,110 321,77 359,77"
+            fill="#1060b0" fill-opacity="0.18" stroke="url(#hxblu2)" stroke-width="8" stroke-linejoin="round"/>
+          <rect x="331" y="97" width="3" height="26" fill="url(#hxblu2)"/>
+          <rect x="331" y="97" width="15" height="3" fill="url(#hxblu2)"/>
+          <rect x="331" y="108" width="11" height="3" fill="url(#hxblu2)"/>
+        </svg>
+      </div>
+      <div class="card-ttl">Operação Comercial</div>
+      <div class="card-desc">Monte a grade semanal, gerencie contratos, programas, breaks e materiais com controle automático.</div>
+      <div class="card-tag">PC Principal</div>
     </a>
 
-    <a class="card master" href="MASTER.html">
-      <span class="card-badge">ROTEIRO</span>
-      <div class="card-title">MASTER</div>
-      <div class="card-desc">Roteiro de exibição em tempo real com material atual em destaque. Leitura para operador de áudio/vídeo.</div>
-      <div class="card-target">▸ PC Secundário · Celular · Tablet</div>
-      <div class="card-arrow">→</div>
+    <a class="land-card ex" href="MASTER.html">
+      <div class="card-ico">
+        <svg width="36" height="40" viewBox="295 70 90 80" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="hxgld2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#f0c040"/>
+              <stop offset="100%" stop-color="#a07010"/>
+            </linearGradient>
+          </defs>
+          <polygon points="378,110 359,143 321,143 302,110 321,77 359,77"
+            fill="#a07010" fill-opacity="0.18" stroke="url(#hxgld2)" stroke-width="8" stroke-linejoin="round"/>
+          <rect x="331" y="97" width="3" height="26" fill="url(#hxgld2)"/>
+          <rect x="331" y="97" width="15" height="3" fill="url(#hxgld2)"/>
+          <rect x="331" y="108" width="11" height="3" fill="url(#hxgld2)"/>
+        </svg>
+      </div>
+      <div class="card-ttl">Roteiro Master</div>
+      <div class="card-desc">Visualize o roteiro completo com o material atual em destaque e contagem regressiva.</div>
+      <div class="card-tag">PC Secundário</div>
     </a>
 
   </div>
 
-  <div class="install-hint">
-    <h3>⬇ Instalar como aplicativo</h3>
-    <div class="install-steps">
-      <div class="step"><span class="step-num">1</span><span>Abra OPEC ou MASTER pelo <b style="color:#b8d0e8">Chrome</b> ou <b style="color:#b8d0e8">Edge</b></span></div>
-      <div class="step"><span class="step-num">2</span><span>Clique em <b style="color:#b8d0e8">⬇ Instalar App</b> no canto da tela</span></div>
-      <div class="step"><span class="step-num">3</span><span>O sistema abre como app sem a barra do navegador</span></div>
-      <div class="step"><span class="step-num">📱</span><span>Celular: Chrome → menu ⋮ → <b style="color:#b8d0e8">Adicionar à tela inicial</b></span></div>
+  <!-- Install section -->
+  <div class="install-section">
+    <div class="install-title">Instalar como Aplicativo</div>
+
+    <div class="install-tabs">
+      <div class="itab on" onclick="sw(this,'pc')">
+        Windows / Mac
+        <span class="itab-sub">Chrome ou Edge</span>
+      </div>
+      <div class="itab" onclick="sw(this,'android')">
+        Android
+        <span class="itab-sub">Chrome</span>
+      </div>
+      <div class="itab" onclick="sw(this,'ios')">
+        iPhone / iPad
+        <span class="itab-sub">Safari</span>
+      </div>
+    </div>
+
+    <div class="panels">
+
+      <div class="panel on" id="p-pc">
+        <div class="steps">
+          <div class="step"><span class="snum">1</span><div class="stxt">Abra o <b>OPEC</b> ou <b>MASTER</b> no <b>Google Chrome</b> ou <b>Microsoft Edge</b></div></div>
+          <div class="step"><span class="snum">2</span><div class="stxt">Na barra de endereço, clique no ícone de <b>instalar</b> que aparece no canto direito</div></div>
+          <div class="step"><span class="snum">3</span><div class="stxt">Clique em <b>Instalar</b> — o sistema abre como janela independente, sem a barra do navegador</div></div>
+          <div class="step"><span class="snum">4</span><div class="stxt">Um atalho é criado automaticamente na <b>Área de Trabalho</b> e no menu Iniciar</div></div>
+        </div>
+        <div class="tip"><b>Dica:</b> Instale o OPEC no PC principal e o MASTER no secundário. Ambos sincronizam em tempo real via Firebase.</div>
+      </div>
+
+      <div class="panel" id="p-android">
+        <div class="steps">
+          <div class="step"><span class="snum">1</span><div class="stxt">Abra o link no <b>Chrome para Android</b></div></div>
+          <div class="step"><span class="snum">2</span><div class="stxt">Toque no menu de três pontos no canto superior direito da tela</div></div>
+          <div class="step"><span class="snum">3</span><div class="stxt">Toque em <b>Adicionar à tela inicial</b> e confirme</div></div>
+          <div class="step"><span class="snum">4</span><div class="stxt">O ícone aparece na tela inicial — abre direto, sem precisar do navegador</div></div>
+        </div>
+        <div class="tip"><b>Link do MASTER:</b><br><code>sistemasfb007.github.io/opec-master/MASTER.html</code></div>
+      </div>
+
+      <div class="panel" id="p-ios">
+        <div class="steps">
+          <div class="step"><span class="snum">1</span><div class="stxt">Abra o link no <b>Safari</b> — no iPhone a instalação só funciona pelo Safari</div></div>
+          <div class="step"><span class="snum">2</span><div class="stxt">Toque no botão de <b>compartilhar</b> na barra inferior do Safari</div></div>
+          <div class="step"><span class="snum">3</span><div class="stxt">Role e toque em <b>Adicionar à Tela de Início</b></div></div>
+          <div class="step"><span class="snum">4</span><div class="stxt">Toque em <b>Adicionar</b> — o ícone aparece na tela inicial como app nativo</div></div>
+        </div>
+        <div class="tip"><b>Atenção:</b> Sempre abra pelo <b>ícone instalado</b> ou pelo Safari. Abrir o arquivo direto pelo WhatsApp bloqueia o login.</div>
+      </div>
+
     </div>
   </div>
 
-  <div class="footer">
-    Firebase · sistemas-fb-default-rtdb.firebaseio.com<br>
-    Sincronização em tempo real · sistemasfb007.github.io
-  </div>
+</div><!-- /land-wrap -->
 
+<div class="land-foot">
+  Firebase · sistemas-fb-default-rtdb.firebaseio.com · Sincronização em tempo real
 </div>
+</div><!-- /land-outer -->
+
+<script>
+function sw(el, id){
+  document.querySelectorAll('.itab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('p-'+id).classList.add('on');
+}
+</script>
 </body>
 </html>
