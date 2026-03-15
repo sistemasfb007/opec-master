@@ -571,12 +571,12 @@ import { getDatabase, ref, set, onValue, get }    from 'https://www.gstatic.com/
 let _savedCfg = null;
 try{ _savedCfg = JSON.parse(localStorage.getItem('fb_user_config')||'null'); }catch(e){}
 
-const FB_CONFIG = _savedCfg || {"apiKey": "auto-sistemas-fb", "databaseURL": "https://sistemas-fb-default-rtdb.firebaseio.com/", "projectId": "sistemas-fb", "authDomain": "sistemas-fb.firebaseapp.com", "storageBucket": "sistemas-fb.appspot.com", "messagingSenderId": "0", "appId": "auto-sistemas-fb"};
+const FB_CONFIG = _savedCfg || {"apiKey":"sistemas-fb","databaseURL":"https://sistemas-fb-default-rtdb.firebaseio.com/","projectId":"sistemas-fb","authDomain":"sistemas-fb.firebaseapp.com","storageBucket":"sistemas-fb.appspot.com","messagingSenderId":"0","appId":"auto-sistemas-fb"};
 
 let app, db, _gradeRef, _fbReady=false, _fbLastTs=0, _fbIgnore=false, _unsubscribe=null;
 let _stationCode = localStorage.getItem('opec_station_code')||'';
 
-function _isConfigured(){ return !!(_savedCfg && _savedCfg.databaseURL); }
+function _isConfigured(){ return true; } // URL embutida: https://sistemas-fb-default-rtdb.firebaseio.com/
 
 // ── Inicializar Firebase ──
 function _fbInit(){
@@ -1906,8 +1906,11 @@ window.addEventListener('DOMContentLoaded',()=>{
   setInterval(updateClocks,1000);
   setupResizeHandle();
   loadIpConfig();
-  // Check expired contracts every minute
   setInterval(renderContractList,60000);
+  // Auto-inicia direto no OPEC se Firebase já configurado
+  if(_isConfigured()){
+    startEmissor();
+  }
 });
 function hasData(){return Object.values(grade).some(d=>d.length>0);}
 
