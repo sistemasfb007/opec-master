@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Roteiro Master</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23040d15'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-size='11' font-family='monospace' font-weight='bold' fill='%2300ff80'>MST</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=Azeret+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -20,6 +21,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html{height:100%}
 body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b);font-size:14px;overflow:hidden;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
+#master-app-root{flex:1;display:flex;flex-direction:column;height:100%;overflow:hidden}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:var(--s2)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
@@ -386,23 +388,113 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 
 
 <!-- ═══ FIREBASE — MASTER ═══ -->
-<script type="module">
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getDatabase, ref, onValue, get } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script>
+// Compat API helpers
+function initializeApp(cfg,name){ return firebase.initializeApp(cfg,name); }
+function getDatabase(app){ return app.database(); }
+function getAuth(app){ return app.auth(); }
+function ref(db,path){ return db.ref(path); }
+function get(r){ return r.get(); }
+function onValue(r,cb){ r.on('value',cb); return ()=>r.off('value',cb); }
+function signInWithEmailAndPassword(auth,e,p){ return auth.signInWithEmailAndPassword(e,p); }
+function signOut(auth){ return auth.signOut(); }
+function onAuthStateChanged(auth,cb){ return auth.onAuthStateChanged(cb); }
 
-// ── Banco de dados fixo ──
-const FB = { apiKey:"AIzaSyAuto-sistemas-fb", authDomain:"sistemas-fb.firebaseapp.com", databaseURL:"https://sistemas-fb-default-rtdb.firebaseio.com/", projectId:"sistemas-fb", storageBucket:"sistemas-fb.appspot.com", messagingSenderId:"0", appId:"auto-sistemas-fb" };
+const FB = { apiKey:"AIzaSyDZ_A6YI3a6p9eGb3khWF5dJRf43q0kR5A", authDomain:"sistemas-fb.firebaseapp.com", databaseURL:"https://sistemas-fb-default-rtdb.firebaseio.com", projectId:"sistemas-fb", storageBucket:"sistemas-fb.firebasestorage.app", messagingSenderId:"429216912599", appId:"1:429216912599:web:04a0d86e57b86b54ee8c92" };
 
-let _db, _unsub, _lastTs=0;
+const DOMINIO = '@sistemasfb.com'; // domínio fictício — usuário digita só o nome
+
+let _db, _auth, _unsub, _lastTs=0;
 let _code = localStorage.getItem('master_station_code')||'';
 
 // ── Inicializar ──
 try{
   const _app = initializeApp(FB, 'master');
-  _db = getDatabase(_app);
+  _db   = getDatabase(_app);
+  _auth = getAuth(_app);
   console.log('[MASTER Firebase] ok →', FB.databaseURL);
-  if(_code) _connect(_code);
-}catch(e){ console.error('[MASTER Firebase] erro:', e.message); }
+
+  onAuthStateChanged(_auth, user => {
+    const loginScreen = document.getElementById('master-login-screen');
+    if(user){
+      const nome = user.email.replace(DOMINIO,'');
+      loginScreen.style.display = 'none';
+      _renderUserBtn(nome);
+      if(_code) _connect(_code);
+    } else {
+      loginScreen.style.display = 'flex';
+    }
+  });
+}catch(e){
+  console.error('[MASTER Firebase] erro:', e.message);
+  // Mostrar erro visível no login
+  setTimeout(()=>{
+    _mlErr('⚠ Erro ao conectar ao servidor: ' + e.message + '. Verifique sua internet.');
+  }, 500);
+}
+
+// ── Login — usuário digita só o nome ──
+window._masterLogin = async function(){
+  const nome  = (document.getElementById('ml-user').value||'').trim().toLowerCase().replace(/\s+/g,'');
+  const pass  = (document.getElementById('ml-pass').value||'').trim();
+  const errEl = document.getElementById('ml-error');
+  const btn   = document.getElementById('ml-btn');
+
+  if(!nome||!pass){ _mlErr('⚠ Preencha usuário e senha.'); return; }
+
+  // Verificar se Firebase inicializou
+  if(!_auth){
+    _mlErr('⚠ Serviço indisponível. Verifique sua conexão com a internet.');
+    return;
+  }
+
+  btn.disabled=true; btn.textContent='Entrando…'; errEl.textContent='';
+
+  // Timeout de 12s — Firebase pode travar em redes lentas
+  const timeout = new Promise((_,rej)=>setTimeout(()=>rej({code:'timeout'}),12000));
+
+  try{
+    await Promise.race([
+      signInWithEmailAndPassword(_auth, nome+DOMINIO, pass),
+      timeout
+    ]);
+  }catch(e){
+    const msgs = {
+      'auth/invalid-credential':     '✗ Usuário ou senha incorretos.',
+      'auth/user-not-found':         '✗ Usuário não encontrado.',
+      'auth/wrong-password':         '✗ Senha incorreta.',
+      'auth/too-many-requests':      '⚠ Muitas tentativas. Aguarde alguns minutos.',
+      'auth/invalid-email':          '✗ Usuário inválido.',
+      'auth/network-request-failed': '⚠ Sem internet. Conecte-se e tente novamente.',
+      'auth/user-disabled':          '✗ Usuário desativado.',
+      'timeout':                     '⚠ Tempo esgotado. Verifique sua conexão e tente novamente.',
+    };
+    _mlErr(msgs[e.code] || '✗ Erro: ' + (e.message||e.code||'desconhecido'));
+    btn.disabled=false; btn.textContent='Entrar';
+  }
+};
+
+function _mlErr(msg){
+  const el = document.getElementById('ml-error');
+  if(el){ el.textContent = msg; el.style.display='block'; }
+}
+
+// ── Logout ──
+window._masterLogout = async function(){
+  if(!confirm('Sair do MASTER?')) return;
+  await signOut(_auth);
+};
+
+function _renderUserBtn(nome){
+  const el = document.getElementById('master-user-btn'); if(!el) return;
+  el.innerHTML = `<button onclick="window._masterLogout()"
+    style="font-size:10px;font-weight:700;padding:4px 10px;background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.12);border-radius:5px;color:var(--text2);cursor:pointer;
+    letter-spacing:1px" title="Sair">👤 ${nome.toUpperCase()} ✕</button>`;
+}
 
 // ── Aplicar grade recebida ──
 function _apply(d){
@@ -453,12 +545,12 @@ window._masterDisconnect = function(){
 function _renderBtn(code){
   const el=document.getElementById('fb-master-panel'); if(!el) return;
   if(code){
-    el.innerHTML='<button onclick="_masterAbrirModal()" '
+    el.innerHTML='<button onclick="window._masterAbrirModal()" '
       +'style="font-size:11px;font-weight:800;padding:4px 12px;background:rgba(74,204,122,.12);'
       +'border:1px solid rgba(74,204,122,.4);border-radius:5px;color:#4acc7a;cursor:pointer;letter-spacing:1px">'
       +'☁ '+code+' <span id="fb-master-dot" style="font-size:9px;transition:color .3s">●</span></button>';
   } else {
-    el.innerHTML='<button onclick="_masterAbrirModal()" '
+    el.innerHTML='<button onclick="window._masterAbrirModal()" '
       +'style="font-size:11px;font-weight:700;padding:4px 12px;background:rgba(240,192,64,.15);'
       +'border:1px solid rgba(240,192,64,.5);border-radius:5px;color:#f0c040;cursor:pointer;'
       +'animation:pulse-conflict 2s infinite;letter-spacing:1px">☁ ESTAÇÃO</button>';
@@ -474,15 +566,15 @@ console.log('[MASTER Firebase] módulo carregado — banco: sistemas-fb');
 </script>
 
   <!-- PWA -->
-  <link rel="manifest" href="manifest-master.json">
+  
   <meta name="theme-color" content="#f0c040">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MASTER">
-  <link rel="apple-touch-icon" href="icon-master-192.png">
+  
   <meta name="mobile-web-app-capable" content="yes">
   <script>
-    if('serviceWorker' in navigator){
+    if('serviceWorker' in navigator && location.protocol !== 'file:'){
       navigator.serviceWorker.register('./sw.js').then(reg=>{
         console.log('[PWA MASTER] SW registrado');
       }).catch(err=>console.warn('[PWA] SW erro:', err));
@@ -499,6 +591,49 @@ console.log('[MASTER Firebase] módulo carregado — banco: sistemas-fb');
   </script>
 </head>
 <body>
+
+<!-- ═══ TELA DE LOGIN — MASTER ═══ -->
+<div id="master-login-screen" style="display:flex;position:fixed;inset:0;z-index:99999;
+  background:#080b0f;align-items:center;justify-content:center">
+  <div style="width:340px;background:#0e1218;border:1px solid #1f2836;border-radius:14px;
+    padding:36px 32px;box-shadow:0 8px 40px rgba(0,0,0,.8)">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;
+        letter-spacing:4px;color:#f0c040">ROTEIRO MASTER</div>
+      <div style="font-size:10px;color:#3a4d60;letter-spacing:3px;margin-top:5px">ACESSO RESTRITO</div>
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:10px;color:#7a8fa8;letter-spacing:1px;margin-bottom:6px">USUÁRIO</div>
+      <input id="ml-user" type="text" placeholder="seu usuário"
+        autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"
+        onkeydown="if(event.key==='Enter')document.getElementById('ml-pass').focus()"
+        style="width:100%;background:#080b0f;border:1px solid #1f2836;border-radius:7px;
+          padding:13px 15px;color:#d8e0ea;font-size:16px;outline:none;
+          transition:border-color .2s;-webkit-appearance:none;box-sizing:border-box;"
+        onfocus="this.style.borderColor='#1faa5a'" onblur="this.style.borderColor='#1f2836'">
+    </div>
+    <div style="margin-bottom:8px">
+      <div style="font-size:10px;color:#7a8fa8;letter-spacing:1px;margin-bottom:6px">SENHA</div>
+      <input id="ml-pass" type="password" placeholder="sua senha"
+        autocomplete="current-password"
+        onkeydown="if(event.key==='Enter')window._masterLogin()"
+        style="width:100%;background:#080b0f;border:1px solid #1f2836;border-radius:7px;
+          padding:13px 15px;color:#d8e0ea;font-size:16px;outline:none;
+          transition:border-color .2s;-webkit-appearance:none;box-sizing:border-box;"
+        onfocus="this.style.borderColor='#1faa5a'" onblur="this.style.borderColor='#1f2836'">
+    </div>
+    <div id="ml-error" style="font-size:12px;font-weight:600;color:#ff5566;min-height:18px;margin-bottom:12px;text-align:center;padding:6px 10px;border-radius:5px;line-height:1.5"></div>
+    <button id="ml-btn" onclick="window._masterLogin()"
+      style="width:100%;padding:14px;background:#1faa5a;border:none;border-radius:7px;
+        color:#fff;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:2px;
+        transition:all .2s;-webkit-appearance:none;touch-action:manipulation;"
+      onmouseover="this.style.background='#25c96e'"
+      onmouseout="this.style.background='#1faa5a'">ENTRAR</button>
+  </div>
+</div>
+
+<!-- APP sempre visível — login flutua por cima -->
+<div id="master-app-root">
 
 <!-- ═══ SVG DEFS GLOBAIS — insígnia hexagonal ═══ -->
 <svg width="0" height="0" style="position:absolute;overflow:hidden" xmlns="http://www.w3.org/2000/svg">
@@ -538,8 +673,9 @@ console.log('[MASTER Firebase] módulo carregado — banco: sistemas-fb');
       <span id="ip-label">IP</span>
     </div>
     <!-- Painel Firebase / Código de Estação -->
-    <div id="fb-master-panel" style="display:flex;align-items:center;gap:6px"><button onclick="_masterAbrirModal()" style="font-size:11px;font-weight:700;padding:4px 12px;background:rgba(240,192,64,.15);border:1px solid rgba(240,192,64,.5);border-radius:5px;color:#f0c040;cursor:pointer;animation:pulse-conflict 2s infinite;letter-spacing:1px">☁ ESTAÇÃO</button></div>
+    <div id="fb-master-panel" style="display:flex;align-items:center;gap:6px"><button onclick="window._masterAbrirModal()" style="font-size:11px;font-weight:700;padding:4px 12px;background:rgba(240,192,64,.15);border:1px solid rgba(240,192,64,.5);border-radius:5px;color:#f0c040;cursor:pointer;animation:pulse-conflict 2s infinite;letter-spacing:1px">☁ ESTAÇÃO</button></div>
     <button id="pwa-install-btn" onclick="window._pwaInstall()" style="display:none;align-items:center;gap:5px;font-size:10px;padding:3px 10px;background:rgba(74,204,122,.15);border:1px solid rgba(74,204,122,.4);border-radius:5px;color:#4acc7a;cursor:pointer;font-weight:700">⬇ Instalar App</button>
+    <div id="master-user-btn"></div>
     <div class="tb-clock" id="clock">00:00:00</div>
   </div>
 </div>
@@ -678,6 +814,10 @@ function gradeForKey(key){
 }
 
 // ── BOOT ──
+// Checar internet ao carregar
+window.addEventListener('online',  ()=>{ const el=document.getElementById('ml-error'); if(el&&el.textContent.includes('internet')) el.textContent=''; });
+window.addEventListener('offline', ()=>{ _mlErr('⚠ Sem conexão com a internet.'); });
+
 window.addEventListener('DOMContentLoaded', () => {
   loadIpConfig();
   loadStorage();
@@ -1660,13 +1800,13 @@ window.addEventListener('DOMContentLoaded', ()=>{
       <button onclick="document.getElementById('master-estacao-modal').style.display='none'"
         style="flex:1;padding:10px;background:none;border:1px solid #333;border-radius:7px;color:#666;cursor:pointer">
         Cancelar</button>
-      <button onclick="_masterConectar()"
+      <button onclick="window._masterConectar()"
         style="flex:2;padding:10px;background:#f0c040;border:none;border-radius:7px;
                color:#000;font-weight:800;cursor:pointer;font-size:14px">✓ CONECTAR</button>
     </div>
 
     <div style="text-align:center;margin-top:10px">
-      <button onclick="_masterDesconectar()"
+      <button onclick="window._masterDesconectar()"
         style="background:none;border:none;color:#444;font-size:10px;cursor:pointer;text-decoration:underline">
         Desconectar estação</button>
     </div>
@@ -1731,7 +1871,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   const code = localStorage.getItem('master_station_code')||'';
   if(code){
     const el=document.getElementById('fb-master-panel');
-    if(el) el.innerHTML='<button onclick="_masterAbrirModal()" '
+    if(el) el.innerHTML='<button onclick="window._masterAbrirModal()" '
       +'style="font-size:11px;font-weight:800;padding:4px 12px;background:rgba(74,204,122,.12);'
       +'border:1px solid rgba(74,204,122,.4);border-radius:5px;color:#4acc7a;cursor:pointer;letter-spacing:1px">'
       +'☁ '+code+' <span style="font-size:8px">●</span></button>';
@@ -1739,5 +1879,6 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 </script>
 
+</div><!-- /master-app-root -->
 </body>
 </html>
