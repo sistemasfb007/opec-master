@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Operação Comercial</title>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=Azeret+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -627,12 +627,25 @@ try{
   auth = getAuth(app);
   console.log('[OPEC Firebase] ok →', FB_FIXED.databaseURL);
 
-  onAuthStateChanged(auth, user => {
+  onAuthStateChanged(auth, async user => {
     _currentUser = user;
     const loginScreen = document.getElementById('opec-login-screen');
     if(!loginScreen) return;
     if(user){
       const nome = user.email.replace(DOMINIO,'');
+      // Verificar permissão de acesso ao OPEC
+      try{
+        const snap = await fbDb.ref('_usuarios/'+nome).once('value');
+        const userData = snap.val();
+        const access = userData?.access || 'ambos';
+        if(access === 'master'){
+          await auth.signOut();
+          loginScreen.style.display = 'flex';
+          const errEl = document.getElementById('ol-error');
+          if(errEl){ errEl.textContent='⛔ Seu usuário tem acesso apenas ao MASTER.'; errEl.style.color='#e05050'; }
+          return;
+        }
+      }catch(e){ console.warn('Permissão não verificada:', e.message); }
       loginScreen.style.display = 'none';
       _renderUserTopbar(nome);
       _renderStationUI();
@@ -708,18 +721,34 @@ window._opecCarregarUsuarios = async function(){
     if(!snap.exists()){ listEl.innerHTML='<div style="color:#555;font-size:12px;padding:8px">Nenhum usuário cadastrado.</div>'; return; }
     const users=snap.val();
     const meNome=auth.currentUser?.email?.replace(DOMINIO,'')||'';
+    const accessLabel = a => a==='opec'?'Só OPEC':a==='master'?'Só MASTER':'OPEC + MASTER';
+    const accessColor = a => a==='opec'?'#3a9ae0':a==='master'?'#f0c040':'#1faa5a';
     listEl.innerHTML=Object.entries(users).map(([nome,u])=>`
       <div style="display:flex;align-items:center;justify-content:space-between;
         padding:9px 12px;border-radius:6px;background:#0a0a15;border:1px solid #1a1a2e;margin-bottom:6px">
-        <div>
+        <div style="flex:1;min-width:0">
           <div style="font-size:13px;color:#d8e0ea;font-weight:700;font-family:monospace;letter-spacing:1px">${nome}</div>
-          <div style="font-size:11px;color:#7a8fa8;margin-top:2px">${u.role==='admin'?'👑 Admin':'👤 Operador'}</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:3px;flex-wrap:wrap">
+            <span style="font-size:11px;color:#7a8fa8">${u.role==='admin'?'👑 Admin':'👤 Operador'}</span>
+            <span style="font-size:9px;font-weight:700;letter-spacing:1px;padding:1px 6px;border-radius:3px;
+              background:rgba(0,0,0,.3);border:1px solid ${accessColor(u.access||'ambos')};
+              color:${accessColor(u.access||'ambos')}">${accessLabel(u.access||'ambos')}</span>
+          </div>
         </div>
-        ${nome!==meNome
-          ?`<button onclick="window._opecRemoverUsuario('${nome}')"
+        <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+          ${nome!==meNome?`
+            <select onchange="window._opecAlterarAcesso('${nome}',this.value)"
+              style="font-size:9px;background:#0e1218;border:1px solid #1f2836;border-radius:4px;
+                color:#7a8fa8;padding:3px 5px;cursor:pointer;outline:none">
+              <option value="ambos"  ${(u.access||'ambos')==='ambos' ?'selected':''}>OPEC+MASTER</option>
+              <option value="opec"   ${u.access==='opec'  ?'selected':''}>Só OPEC</option>
+              <option value="master" ${u.access==='master'?'selected':''}>Só MASTER</option>
+            </select>
+            <button onclick="window._opecRemoverUsuario('${nome}')"
               style="font-size:10px;padding:3px 9px;background:rgba(192,57,43,.15);
-              border:1px solid rgba(192,57,43,.3);border-radius:4px;color:#e05050;cursor:pointer">✕</button>`
-          :'<span style="font-size:10px;color:#444">você</span>'}
+              border:1px solid rgba(192,57,43,.3);border-radius:4px;color:#e05050;cursor:pointer">✕</button>
+          `:'<span style="font-size:10px;color:#444">você</span>'}
+        </div>
       </div>`).join('');
   }catch(e){
     listEl.innerHTML=`<div style="color:#e05050;font-size:12px;padding:8px">Erro: ${e.message}</div>`;
@@ -736,7 +765,8 @@ window._opecCriarUsuario = async function(){
   btn.disabled=true; btn.textContent='Criando…'; errEl.textContent='';
   try{
     await createUserWithEmailAndPassword(auth, nome+DOMINIO, pass);
-    await set(ref(db,'_usuarios/'+nome),{ role, criadoEm: new Date().toLocaleDateString('pt-BR') });
+    const access = document.getElementById('ou-access')?.value || 'ambos';
+    await set(ref(db,'_usuarios/'+nome),{ role, access, criadoEm: new Date().toLocaleDateString('pt-BR') });
     document.getElementById('ou-user').value='';
     document.getElementById('ou-pass').value='';
     errEl.style.color='#4acc7a'; errEl.textContent='✓ Usuário "'+nome+'" criado!';
@@ -752,6 +782,16 @@ window._opecRemoverUsuario = async function(nome){
   if(!confirm(`Remover usuário "${nome}"?`)) return;
   try{ await set(ref(db,'_usuarios/'+nome),null); await _opecCarregarUsuarios(); }
   catch(e){ alert('Erro: '+e.message); }
+};
+window._opecAlterarAcesso = async function(nome, access){
+  try{
+    const snap = await get(ref(db,'_usuarios/'+nome));
+    if(!snap.exists()) return;
+    const atual = snap.val();
+    await set(ref(db,'_usuarios/'+nome), {...atual, access});
+    showToast('✓ Acesso de "'+nome+'" alterado para: '+(access==='ambos'?'OPEC + MASTER':access==='opec'?'Só OPEC':'Só MASTER'));
+    await _opecCarregarUsuarios();
+  }catch(e){ showToast('Erro: '+e.message); }
 };
 
 // ── Conectar ao canal da estação ──
@@ -1214,8 +1254,18 @@ function _segConflictResp(ok){
             <option value="admin">👑 Admin</option>
           </select>
         </div>
-        <div style="grid-column:1/-1">
-          <div style="font-size:10px;color:#3a4d60;letter-spacing:1px;margin-bottom:5px">SENHA (mínimo 6 caracteres)</div>
+        <div>
+          <div style="font-size:10px;color:#3a4d60;letter-spacing:1px;margin-bottom:5px">ACESSO</div>
+          <select id="ou-access"
+            style="width:100%;background:#0e1218;border:1px solid #1f2836;border-radius:6px;
+              padding:8px 10px;color:#d8e0ea;font-size:12px;outline:none;box-sizing:border-box;cursor:pointer">
+            <option value="ambos">OPEC + MASTER</option>
+            <option value="opec">Só OPEC</option>
+            <option value="master">Só MASTER</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:10px;color:#3a4d60;letter-spacing:1px;margin-bottom:5px">SENHA (mín. 6 caracteres)</div>
           <input id="ou-pass" type="text" placeholder="senha de acesso"
             style="width:100%;background:#0e1218;border:1px solid #1f2836;border-radius:6px;
               padding:8px 10px;color:#d8e0ea;font-size:12px;outline:none;box-sizing:border-box"
@@ -1314,7 +1364,7 @@ function _segConflictResp(ok){
   </div>
   <div class="body" id="emissor-body">
     <!-- LEFT: ROTEIRO -->
-    <div class="left-col mobile-section" id="ms-roteiro">
+    <div class="left-col">
       <div class="week-nav" id="week-nav"></div>
       <div class="left-header">
         <div class="left-title" id="left-title">Grade</div>
@@ -1330,7 +1380,7 @@ function _segConflictResp(ok){
     <!-- RESIZE HANDLE -->
     <div class="resize-handle" id="resize-handle"></div>
     <!-- MID: LISTA DE MÍDIAS -->
-    <div class="mid-col mobile-section" id="mid-col">
+    <div class="mid-col" id="mid-col">
       <div class="mid-col-head">
         <span class="mid-col-title">Mídias</span>
         <span class="mid-col-count" id="mid-count">—</span>
@@ -1343,7 +1393,7 @@ function _segConflictResp(ok){
     </div>
     <div class="mid-divider" id="mid-resize-handle"></div>
     <!-- RIGHT: CONTROL -->
-    <div class="right-col mobile-section" id="ms-controle">
+    <div class="right-col" id="right-col">
       <div class="ctrl-scroll">
         <div class="card">
           <div class="card-head">No Ar Agora</div>
@@ -2065,7 +2115,7 @@ function hasData(){return Object.values(grade).some(d=>d.length>0);}
 
 // ═══ NAVIGATION ═══
 function goHome(){setView('landing');stopTimer();}
-function startEmissor(){setTimeout(_initMobileNav,100);setView('emissor');loadMediaLib();renderWeekNav();renderRoteiro();renderMidList();renderCtrl();initPanels();renderContractList();loadProdLog();renderProdLog();_initProdTime();}
+function startEmissor(){setView('emissor');loadMediaLib();renderWeekNav();renderRoteiro();renderMidList();renderCtrl();initPanels();renderContractList();loadProdLog();renderProdLog();_initProdTime();}
 function _initProdTime(){const now=new Date();const hh=String(now.getHours()).padStart(2,'0');const mm=String(now.getMinutes()).padStart(2,'0');const el=$('prod-time');if(el)el.value=`${hh}:${mm}`;}
 function startExibidorExt(){
   var code=localStorage.getItem('opec_station_code')||'--';
@@ -3469,30 +3519,6 @@ function applyLayout(){
   $('pw-range').value=layout.panelWidth;$('pw-val').textContent=layout.panelWidth+'px';
   setProgColor(layout.progColor);setBrkColor(layout.brkColor);applyCols();buildSwatches();
 }
-function mobileSection(sec,btn){
-  if(window.innerWidth>768)return;
-  ['roteiro','midias','controle'].forEach(s=>{
-    const el=document.getElementById('ms-'+s)||(s==='midias'?document.getElementById('mid-col'):null);
-    if(el)el.classList.toggle('hidden',s!==sec);
-  });
-  document.querySelectorAll('.mnav-btn').forEach(b=>b.classList.remove('active'));
-  if(btn)btn.classList.add('active');
-}
-function _initMobileNav(){
-  if(window.innerWidth<=768){
-    ['midias','controle'].forEach(s=>{
-      const el=document.getElementById('ms-'+s)||(s==='midias'?document.getElementById('mid-col'):null);
-      if(el)el.classList.add('hidden');
-    });
-    document.querySelectorAll('.mnav-btn').forEach((b,i)=>{if(i===0)b.classList.add('active');});
-  }else{
-    ['roteiro','midias','controle'].forEach(s=>{
-      const el=document.getElementById('ms-'+s)||(s==='midias'?document.getElementById('mid-col'):null);
-      if(el)el.classList.remove('hidden');
-    });
-  }
-}
-window.addEventListener('resize',_initMobileNav);
 function resetLayout(){layout={theme:'dark',fontSize:14,panelWidth:320,progColor:0,brkColor:0,hideCols:[]};applyLayout();saveLayout();showToast('Layout restaurado!');}
 
 // ═══ STORAGE ═══
@@ -4657,144 +4683,6 @@ function printReport(){
     font-size:7.5px; letter-spacing:.8px; }
   .df-left  { color:#475569; } .df-left b { color:#64748B; }
   .df-right { color:#475569; }
-
-/* ═══════════════════════════════════════
-   OPEC — MOBILE RESPONSIVE
-═══════════════════════════════════════ */
-html{-webkit-text-size-adjust:100%}
-*{-webkit-tap-highlight-color:transparent}
-input,button,select{font-family:inherit}
-
-/* ── Tablet (769–1024px) ── */
-@media screen and (max-width:1024px) and (min-width:769px){
-  :root{--left-col-w:240px;--mid-col-w:180px}
-  .topbar{height:44px;padding:0 10px}
-  .nav-btn{font-size:8px;padding:3px 8px;letter-spacing:1px}
-  .tb-clock{font-size:15px}
-}
-
-/* ── Mobile (<768px) — coluna única com abas ── */
-@media screen and (max-width:768px){
-  :root{--left-col-w:100%;--mid-col-w:100%}
-
-  /* Topbar */
-  .topbar{
-    height:auto;min-height:44px;
-    padding:6px 10px;flex-wrap:wrap;gap:5px;
-    position:sticky;top:0;z-index:100;
-  }
-  .tb-left{flex:1;min-width:0;gap:6px}
-  .tb-right{gap:4px}
-  .tb-clock{font-size:14px;letter-spacing:1px;padding:2px 7px}
-  .tb-sep{display:none}
-  .tb-day{display:none}
-  .nav-btn{font-size:8px;padding:3px 8px;letter-spacing:1px}
-
-  /* Grid → coluna única */
-  #emissor .body{
-    display:flex !important;
-    flex-direction:column !important;
-    overflow-y:auto !important;
-    -webkit-overflow-scrolling:touch;
-  }
-  .resize-handle,#resize-handle,
-  .mid-divider,#mid-resize-handle{display:none !important}
-
-  .left-col,.mid-col,.right-col{
-    width:100% !important;
-    min-width:0 !important;
-    flex-shrink:0 !important;
-  }
-
-  /* Mobile abas */
-  .mobile-nav{
-    display:flex !important;
-    position:sticky;top:44px;z-index:90;
-    background:var(--s2);border-bottom:1px solid var(--border);flex-shrink:0;
-  }
-  .mnav-btn{
-    flex:1;padding:9px 4px;text-align:center;cursor:pointer;
-    font-family:var(--font-d);font-size:8px;font-weight:700;
-    letter-spacing:2px;text-transform:uppercase;color:var(--text3);
-    border-right:1px solid var(--border);transition:all .15s;position:relative;
-  }
-  .mnav-btn:last-child{border-right:none}
-  .mnav-btn::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:transparent}
-  .mnav-btn.active{color:var(--cyan)}
-  .mnav-btn.active::after{background:var(--cyan)}
-
-  .mobile-section.hidden{display:none !important}
-
-  /* Roteiro */
-  .prog-name,.prog-head .prog-name{
-    font-size:11px !important;
-    word-break:normal !important;
-    overflow-wrap:anywhere !important;
-    white-space:normal !important;
-  }
-  .roteiro-scroll{max-height:none;-webkit-overflow-scrolling:touch}
-  .week-nav-datebar{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .scroll-jump-bar{overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch}
-  .item-row{padding:5px 7px !important}
-  .ir-name{font-size:10px !important;word-break:normal !important;overflow-wrap:anywhere !important}
-
-  /* Mid col */
-  .mid-col{max-height:40vh}
-  .mid-list{-webkit-overflow-scrolling:touch}
-
-  /* Control */
-  .ctrl-scroll{padding:6px}
-  .now-grid{grid-template-columns:1fr 1fr !important}
-  .card{margin-bottom:6px}
-  .up-row{font-size:10px;padding:4px 6px}
-
-  /* Landing */
-  .land-h1{font-size:clamp(26px,7vw,48px) !important}
-  .land-cards{grid-template-columns:1fr !important;gap:10px}
-  .land-wrap{padding:24px 16px}
-
-  /* Login */
-  #opec-login-screen{padding:16px}
-  #opec-login-screen > div{
-    width:100% !important;max-width:360px;
-    padding:28px 20px !important;border-radius:14px !important;
-  }
-
-  /* Modals */
-  .overlay{align-items:flex-end}
-  .modal{
-    width:100% !important;max-width:100% !important;
-    border-radius:16px 16px 0 0 !important;max-height:88vh;
-  }
-  .modal-wide{width:100% !important}
-  .fg-row{grid-template-columns:1fr !important}
-  .inp,.sel{font-size:16px !important;padding:10px 11px !important}
-
-  /* Painéis laterais */
-  .settings-panel,.contracts-panel,.mp2-wrap{width:100% !important}
-
-  /* Tabelas OPC */
-  .opc-view-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .opc-table{min-width:460px}
-}
-
-/* ── Pequeno (<480px) ── */
-@media screen and (max-width:480px){
-  .tb-logo{font-size:10px !important;letter-spacing:1px !important}
-  .tb-clock{font-size:12px !important}
-  .nav-btn{font-size:7px !important;padding:2px 6px !important}
-  .prog-time{font-size:11px !important}
-  .prog-name{font-size:10px !important}
-}
-
-.mobile-nav{display:none}
-
-/* iOS safe area */
-@supports(padding:env(safe-area-inset-bottom)){
-  .topbar{padding-top:max(6px,env(safe-area-inset-top))}
-  .settings-panel,.modal{padding-bottom:env(safe-area-inset-bottom)}
-  #opec-app-root .view{padding-bottom:env(safe-area-inset-bottom)}
-}
 </style>
 </head>
 <body>
