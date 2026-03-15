@@ -2,71 +2,180 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OPEC Master — Sistema de Operação Comercial</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>OPEC MASTER — Sistema de Operação Comercial</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%2301060b'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-size='9' font-family='monospace' font-weight='bold' fill='%2300e5ff'>SFB</text></svg>">
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Share+Tech+Mono&family=Exo+2:wght@300;400;500&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
-  body{background:#080b0f;color:#fff;font-family:system-ui,sans-serif;min-height:100vh;
-       display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
-  .logo{font-size:48px;margin-bottom:8px}
-  h1{font-size:28px;font-weight:800;color:#f0c040;letter-spacing:2px;margin-bottom:6px}
-  .sub{font-size:14px;color:#666;margin-bottom:48px}
-  .cards{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;margin-bottom:48px}
-  .card{background:#12121f;border:1px solid #222;border-radius:14px;padding:28px;
-        width:260px;text-align:center;cursor:pointer;transition:all .2s;text-decoration:none;color:#fff}
-  .card:hover{border-color:#f0c040;transform:translateY(-4px);box-shadow:0 12px 40px rgba(240,192,64,.15)}
-  .card-ico{font-size:48px;margin-bottom:14px}
-  .card-ttl{font-size:18px;font-weight:800;margin-bottom:8px}
-  .card-desc{font-size:12px;color:#666;line-height:1.6;margin-bottom:14px}
-  .card-tag{display:inline-block;font-size:10px;letter-spacing:2px;padding:3px 12px;
-            border-radius:20px;border:1px solid;font-weight:700}
-  .tag-opec{color:#5aaaf0;border-color:rgba(90,170,240,.4);background:rgba(90,170,240,.08)}
-  .tag-master{color:#f0c040;border-color:rgba(240,192,64,.4);background:rgba(240,192,64,.08)}
-  .install-hint{background:rgba(74,204,122,.07);border:1px solid rgba(74,204,122,.2);
-                border-radius:10px;padding:16px 24px;max-width:560px;text-align:center;
-                font-size:12px;color:#4acc7a;line-height:1.8}
-  .install-hint b{color:#fff}
-  .footer{margin-top:32px;font-size:11px;color:#333}
+  html,body{height:100%;background:#01060b;color:#b8d0e8;font-family:'Exo 2',sans-serif;overflow-x:hidden}
+
+  body::before{
+    content:'';position:fixed;inset:0;pointer-events:none;
+    background-image:linear-gradient(rgba(0,229,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,.02) 1px,transparent 1px);
+    background-size:44px 44px;
+  }
+  body::after{
+    content:'';position:fixed;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.05) 3px,rgba(0,0,0,.05) 4px);
+    mix-blend-mode:overlay;
+  }
+
+  .wrap{
+    min-height:100vh;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    padding:32px 20px;position:relative;z-index:1;
+  }
+
+  /* Signal bars */
+  .signal{display:flex;align-items:flex-end;gap:4px;margin-bottom:36px}
+  .signal span{width:4px;border-radius:2px 2px 0 0;background:linear-gradient(180deg,#80f2ff,#00e5ff);box-shadow:0 0 10px #00e5ff;animation:sig 1.8s ease-in-out infinite}
+  .signal span:nth-child(1){height:8px;animation-delay:0s}
+  .signal span:nth-child(2){height:16px;animation-delay:.15s}
+  .signal span:nth-child(3){height:28px;animation-delay:.3s}
+  .signal span:nth-child(4){height:40px;animation-delay:.45s}
+  .signal span:nth-child(5){height:28px;animation-delay:.6s}
+  .signal span:nth-child(6){height:16px;animation-delay:.75s}
+  .signal span:nth-child(7){height:8px;animation-delay:.9s}
+  @keyframes sig{0%,100%{opacity:1;box-shadow:0 0 10px #00e5ff}50%{opacity:.1;box-shadow:none}}
+
+  h1{
+    font-family:'Orbitron',monospace;font-size:clamp(24px,6vw,48px);font-weight:900;
+    letter-spacing:6px;text-transform:uppercase;text-align:center;
+    background:linear-gradient(135deg,#80f2ff,#00e5ff 50%,#4090ff);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    filter:drop-shadow(0 0 24px rgba(0,229,255,.35));
+    margin-bottom:8px;
+  }
+  .sub{
+    font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:5px;
+    color:#1e3a52;text-transform:uppercase;margin-bottom:52px;text-align:center;
+  }
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;width:100%;max-width:680px}
+
+  .card{
+    background:#040d15;border:1px solid #1a3a5a;padding:28px 22px;
+    cursor:pointer;transition:all .25s;display:flex;flex-direction:column;
+    align-items:flex-start;gap:10px;position:relative;overflow:hidden;
+    text-decoration:none;color:inherit;
+    clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));
+  }
+  .card::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity .25s}
+  .card.opec::before{background:linear-gradient(135deg,rgba(0,92,255,.1),transparent)}
+  .card.master::before{background:linear-gradient(135deg,rgba(0,255,128,.07),transparent)}
+  .card:hover{transform:translateY(-3px)}
+  .card.opec:hover{border-color:#4090ff;box-shadow:0 0 30px rgba(0,92,255,.18)}
+  .card.master:hover{border-color:#00ff80;box-shadow:0 0 30px rgba(0,255,128,.15)}
+  .card:hover::before{opacity:1}
+
+  .card-badge{
+    font-family:'Orbitron',monospace;font-size:10px;font-weight:700;letter-spacing:3px;
+    padding:3px 12px;border-radius:1px;
+    clip-path:polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,4px 100%,0 calc(100% - 4px));
+  }
+  .opec .card-badge{background:rgba(0,92,255,.15);color:#4090ff;border:1px solid rgba(64,144,255,.3)}
+  .master .card-badge{background:rgba(0,255,128,.1);color:#00ff80;border:1px solid rgba(0,255,128,.25)}
+
+  .card-title{font-family:'Orbitron',monospace;font-size:20px;font-weight:700;letter-spacing:3px;text-transform:uppercase}
+  .opec .card-title{color:#4090ff;text-shadow:0 0 12px rgba(0,92,255,.4)}
+  .master .card-title{color:#00ff80;text-shadow:0 0 12px rgba(0,255,128,.3)}
+
+  .card-desc{font-size:12px;color:#4a6a88;line-height:1.7}
+  .card-target{
+    font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px;
+    text-transform:uppercase;margin-top:4px;
+  }
+  .opec .card-target{color:#1e3a52}
+  .master .card-target{color:#1e3a52}
+
+  .card-arrow{
+    margin-top:6px;font-size:18px;transition:transform .2s;
+    align-self:flex-end;
+  }
+  .opec .card-arrow{color:#4090ff}
+  .master .card-arrow{color:#00ff80}
+  .card:hover .card-arrow{transform:translateX(6px)}
+
+  /* Install hint */
+  .install-hint{
+    margin-top:36px;max-width:480px;text-align:center;
+    background:#040d15;border:1px solid #0f2540;padding:16px 20px;
+    clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));
+  }
+  .install-hint h3{
+    font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:3px;
+    color:#4a6a88;text-transform:uppercase;margin-bottom:10px;
+  }
+  .install-steps{display:flex;flex-direction:column;gap:6px}
+  .step{display:flex;align-items:flex-start;gap:10px;font-size:12px;color:#4a6a88;text-align:left}
+  .step-num{
+    font-family:'Share Tech Mono',monospace;font-size:10px;font-weight:700;
+    color:#00e5ff;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.2);
+    min-width:22px;height:22px;display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;border-radius:1px;
+  }
+
+  .footer{
+    margin-top:32px;font-family:'Share Tech Mono',monospace;font-size:9px;
+    color:#1e3a52;letter-spacing:2px;text-align:center;line-height:2;
+  }
+
+  /* Mobile */
+  @media(max-width:480px){
+    h1{font-size:28px;letter-spacing:3px}
+    .sub{font-size:9px;margin-bottom:36px}
+    .card{padding:22px 16px}
+    .card-title{font-size:17px}
+  }
 </style>
 </head>
 <body>
+<div class="wrap">
 
-<div class="logo" style="font-size:0;line-height:0;margin-bottom:8px"><svg width="80" height="86" viewBox="295 70 90 80" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="fbmain" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f0c040"/><stop offset="100%" stop-color="#a07010"/></linearGradient></defs><polygon points="378,110 359,143 321,143 302,110 321,77 359,77" fill="#d4a017" fill-opacity="0.14" stroke="url(#fbmain)" stroke-width="8" stroke-linejoin="round"/><rect x="331" y="97" width="3" height="26" fill="url(#fbmain)"/><rect x="331" y="97" width="15" height="3" fill="url(#fbmain)"/><rect x="331" y="108" width="11" height="3" fill="url(#fbmain)"/><path d="M334,97 Q344,97 344,104 Q344,111 334,111" fill="none" stroke="#d4a017" stroke-width="1.6" stroke-opacity="0.55" stroke-linecap="square"/><path d="M334,111 Q346,111 346,117 Q346,123 334,123" fill="none" stroke="#d4a017" stroke-width="1.6" stroke-opacity="0.4" stroke-linecap="square"/></svg></div>
-<h1>OPEC MASTER</h1>
-<p class="sub">Sistema de Programação de Mídia — Operação Comercial</p>
+  <div class="signal">
+    <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+  </div>
 
-<div class="cards">
-  <a href="OPEC.html" class="card">
-    <div class="card-ico" style="font-size:0;line-height:0;margin-bottom:14px"><svg width="64" height="68" viewBox="295 70 90 80" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="fbblu" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5ab4f0"/><stop offset="100%" stop-color="#1060b0"/></linearGradient></defs><polygon points="378,110 359,143 321,143 302,110 321,77 359,77" fill="#1e6fb5" fill-opacity="0.14" stroke="url(#fbblu)" stroke-width="8" stroke-linejoin="round"/><rect x="331" y="97" width="3" height="26" fill="url(#fbblu)"/><rect x="331" y="97" width="15" height="3" fill="url(#fbblu)"/><rect x="331" y="108" width="11" height="3" fill="url(#fbblu)"/><path d="M334,97 Q344,97 344,104 Q344,111 334,111" fill="none" stroke="#3a9ae0" stroke-width="1.6" stroke-opacity="0.55" stroke-linecap="square"/><path d="M334,111 Q346,111 346,117 Q346,123 334,123" fill="none" stroke="#3a9ae0" stroke-width="1.6" stroke-opacity="0.4" stroke-linecap="square"/></svg></div>
-    <div class="card-ttl">OPEC</div>
-    <div class="card-desc">Operação Comercial. Monte a grade semanal, gerencie programas, breaks e materiais.</div>
-    <span class="card-tag tag-opec">PC PRINCIPAL</span>
-  </a>
-  <a href="MASTER.html" class="card">
-    <div class="card-ico" style="font-size:0;line-height:0;margin-bottom:14px"><svg width="64" height="68" viewBox="295 70 90 80" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="fbgld" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f0c040"/><stop offset="100%" stop-color="#a07010"/></linearGradient></defs><polygon points="378,110 359,143 321,143 302,110 321,77 359,77" fill="#d4a017" fill-opacity="0.14" stroke="url(#fbgld)" stroke-width="8" stroke-linejoin="round"/><rect x="331" y="97" width="3" height="26" fill="url(#fbgld)"/><rect x="331" y="97" width="15" height="3" fill="url(#fbgld)"/><rect x="331" y="108" width="11" height="3" fill="url(#fbgld)"/><path d="M334,97 Q344,97 344,104 Q344,111 334,111" fill="none" stroke="#d4a017" stroke-width="1.6" stroke-opacity="0.55" stroke-linecap="square"/><path d="M334,111 Q346,111 346,117 Q346,123 334,123" fill="none" stroke="#d4a017" stroke-width="1.6" stroke-opacity="0.4" stroke-linecap="square"/></svg></div>
-    <div class="card-ttl">MASTER</div>
-    <div class="card-desc">Roteiro de exibição em tempo real com o material atual em destaque.</div>
-    <span class="card-tag tag-master">PC SECUNDÁRIO</span>
-  </a>
+  <h1>OPEC MASTER</h1>
+  <div class="sub">Sistema de Operação Comercial · Broadcast</div>
+
+  <div class="cards">
+
+    <a class="card opec" href="OPEC.html">
+      <span class="card-badge">OPERAÇÃO</span>
+      <div class="card-title">OPEC</div>
+      <div class="card-desc">Monte a grade semanal, gerencie programas, breaks, materiais e PIs. Sincroniza em tempo real.</div>
+      <div class="card-target">▸ PC Principal / Operador</div>
+      <div class="card-arrow">→</div>
+    </a>
+
+    <a class="card master" href="MASTER.html">
+      <span class="card-badge">ROTEIRO</span>
+      <div class="card-title">MASTER</div>
+      <div class="card-desc">Roteiro de exibição em tempo real com material atual em destaque. Leitura para operador de áudio/vídeo.</div>
+      <div class="card-target">▸ PC Secundário · Celular · Tablet</div>
+      <div class="card-arrow">→</div>
+    </a>
+
+  </div>
+
+  <div class="install-hint">
+    <h3>⬇ Instalar como aplicativo</h3>
+    <div class="install-steps">
+      <div class="step"><span class="step-num">1</span><span>Abra OPEC ou MASTER pelo <b style="color:#b8d0e8">Chrome</b> ou <b style="color:#b8d0e8">Edge</b></span></div>
+      <div class="step"><span class="step-num">2</span><span>Clique em <b style="color:#b8d0e8">⬇ Instalar App</b> no canto da tela</span></div>
+      <div class="step"><span class="step-num">3</span><span>O sistema abre como app sem a barra do navegador</span></div>
+      <div class="step"><span class="step-num">📱</span><span>Celular: Chrome → menu ⋮ → <b style="color:#b8d0e8">Adicionar à tela inicial</b></span></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Firebase · sistemas-fb-default-rtdb.firebaseio.com<br>
+    Sincronização em tempo real · sistemasfb007.github.io
+  </div>
+
 </div>
-
-<div class="install-hint">
-  <b>⬇ Instalar como aplicativo</b><br>
-  Abra qualquer uma das telas acima no Chrome ou Edge.<br>
-  Clique no botão <b style="color:#4acc7a">⬇ Instalar App</b> que aparece no canto.<br>
-  O sistema vira um ícone na área de trabalho e abre sem navegador visível.<br><br>
-  <b>📱 Celular:</b> Chrome → menu → "Adicionar à tela inicial"
-</div>
-
-<p class="footer">Firebase: sistemas-fb-default-rtdb.firebaseio.com · Sincronização em tempo real</p>
-
-
-<script>
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('./sw.js')
-    .then(()=>console.log('[SW] registrado'))
-    .catch(e=>console.warn('[SW] erro:',e));
-}
-</script>
 </body>
 </html>
