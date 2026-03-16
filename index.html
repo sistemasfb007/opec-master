@@ -74,31 +74,28 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 }
 .land-card.em .card-tag{background:rgba(30,111,181,.08);color:var(--blue2);border:1px solid rgba(58,154,224,.15)}
 .land-card.ex .card-tag{background:rgba(212,160,23,.08);color:var(--gold2);border:1px solid rgba(212,160,23,.15)}
+.card-install-btn{
+  margin-top:4px;width:100%;
+  padding:8px 12px;cursor:pointer;
+  font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:2px;
+  text-transform:uppercase;
+  background:rgba(30,111,181,.12);
+  border:1px solid rgba(58,154,224,.3);
+  border-radius:6px;color:var(--blue2);
+  transition:all .2s;position:relative;z-index:2;
+  display:none;
+}
+.card-install-btn:hover{background:var(--blue2);color:#fff;border-color:var(--blue2)}
+.card-install-btn.visible{display:block}
+.card-install-btn.installed{background:rgba(31,170,90,.12);border-color:rgba(31,170,90,.3);color:var(--green)}
+.card-install-btn-ex{
+  background:rgba(212,160,23,.1);
+  border:1px solid rgba(212,160,23,.25);
+  color:var(--gold2);
+}
+.card-install-btn-ex:hover{background:var(--gold2);color:#000;border-color:var(--gold2)}
 
-/* ─── INSTALL SECTION ─── */
-.install-section{
-  width:100%;border-top:1px solid var(--border);padding-top:28px;margin-top:8px;
-}
-.install-btns{
-  display:flex;gap:8px;flex-wrap:wrap;
-}
-.ibtn{
-  flex:1;min-width:140px;
-  padding:13px 20px;cursor:pointer;
-  font-family:var(--font-d);font-size:11px;font-weight:700;
-  letter-spacing:2px;text-transform:uppercase;
-  background:var(--s1);border:1px solid var(--border);
-  border-radius:8px;color:var(--text3);
-  transition:all .2s;
-}
-.ibtn:hover{
-  border-color:var(--gold);color:var(--gold2);
-  background:var(--gold-dim);
-}
-.ibtn.done{
-  border-color:var(--green) !important;color:var(--green) !important;
-  background:rgba(31,170,90,.1) !important;
-}
+/* ─── INSTALL MSG ─── */
 .install-msg{
   margin-top:12px;font-size:11px;color:var(--text3);
   line-height:1.8;font-family:var(--font-b);
@@ -106,11 +103,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 }
 .install-msg b{color:var(--text2)}
 
-/* ─── FOOTER ─── */
-.land-foot{
-  padding:24px 32px;font-family:var(--font-m);font-size:9px;
-  color:var(--text3);letter-spacing:1px;text-align:center;line-height:2;
-}
+
 
 /* ─── MOBILE ─── */
 @media(max-width:520px){
@@ -140,15 +133,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
   <!-- Cards originais com as insígnias SVG -->
   <div class="land-cards">
 
-    <a class="land-card em" href="OPEC.html">
+    <div class="land-card em" onclick="window.location.href='OPEC.html'">
       <div class="card-ico">
         <svg width="36" height="40" viewBox="295 70 90 80" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="hxblu2" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#5ab4f0"/>
-              <stop offset="100%" stop-color="#1060b0"/>
-            </linearGradient>
-          </defs>
+          <defs><linearGradient id="hxblu2" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#5ab4f0"/><stop offset="100%" stop-color="#1060b0"/>
+          </linearGradient></defs>
           <polygon points="378,110 359,143 321,143 302,110 321,77 359,77"
             fill="#1060b0" fill-opacity="0.18" stroke="url(#hxblu2)" stroke-width="8" stroke-linejoin="round"/>
           <rect x="331" y="97" width="3" height="26" fill="url(#hxblu2)"/>
@@ -159,17 +149,18 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
       <div class="card-ttl">Operação Comercial</div>
       <div class="card-desc">Monte a grade semanal, gerencie contratos, programas, breaks e materiais com controle automático.</div>
       <div class="card-tag">PC Principal</div>
-    </a>
+      <button class="card-install-btn" id="cibtn-opec"
+        onclick="event.stopPropagation();installFromCard('opec')">
+        Instalar App
+      </button>
+    </div>
 
-    <a class="land-card ex" href="MASTER.html">
+    <div class="land-card ex" onclick="window.location.href='MASTER.html'">
       <div class="card-ico">
         <svg width="36" height="40" viewBox="295 70 90 80" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="hxgld2" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#f0c040"/>
-              <stop offset="100%" stop-color="#a07010"/>
-            </linearGradient>
-          </defs>
+          <defs><linearGradient id="hxgld2" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#f0c040"/><stop offset="100%" stop-color="#a07010"/>
+          </linearGradient></defs>
           <polygon points="378,110 359,143 321,143 302,110 321,77 359,77"
             fill="#a07010" fill-opacity="0.18" stroke="url(#hxgld2)" stroke-width="8" stroke-linejoin="round"/>
           <rect x="331" y="97" width="3" height="26" fill="url(#hxgld2)"/>
@@ -180,25 +171,18 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
       <div class="card-ttl">Roteiro Master</div>
       <div class="card-desc">Visualize o roteiro completo com o material atual em destaque e contagem regressiva.</div>
       <div class="card-tag">PC Secundário</div>
-    </a>
-
-  </div>
-
-  <!-- Install section -->
-  <div class="install-section">
-    <div class="install-btns">
-      <button class="ibtn" id="ibtn-pc"      onclick="installApp('pc')">Instalar no PC / Mac</button>
-      <button class="ibtn" id="ibtn-android" onclick="installApp('android')">Instalar no Android</button>
-      <button class="ibtn" id="ibtn-ios"     onclick="installApp('ios')">Instalar no iPhone / iPad</button>
+      <button class="card-install-btn card-install-btn-ex" id="cibtn-master"
+        onclick="event.stopPropagation();installFromCard('master')">
+        Instalar App
+      </button>
     </div>
-    <div id="install-msg" class="install-msg"></div>
+
   </div>
+
+  <div id="install-msg" class="install-msg" style="text-align:center;margin-top:12px"></div>
 
 </div><!-- /land-wrap -->
 
-<div class="land-foot">
-  Firebase · sistemas-fb-default-rtdb.firebaseio.com · Sincronização em tempo real
-</div>
 </div><!-- /land-outer -->
 
 <script>
@@ -211,74 +195,61 @@ const _plat = (()=>{
 
 let _pwaPrompt = null;
 
-// Capturar prompt nativo do navegador
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   _pwaPrompt = e;
-  _updateBtn();
+  showInstallBtns();
 });
 
-// App já instalado
 window.addEventListener('appinstalled', () => {
-  const btn = document.getElementById('ibtn-' + _plat);
-  if(btn){ btn.textContent = 'Instalado com sucesso'; btn.classList.add('done'); }
   _pwaPrompt = null;
+  ['cibtn-opec','cibtn-master'].forEach(id => {
+    const b = document.getElementById(id);
+    if(b){ b.textContent = 'Instalado'; b.classList.add('installed'); }
+  });
 });
 
-function _updateBtn(){
-  // Mostrar só o botão da plataforma atual, ocultar os outros
-  ['pc','android','ios'].forEach(p => {
-    const b = document.getElementById('ibtn-'+p);
-    if(!b) return;
-    if(p === _plat){
-      b.style.display = '';
-      if(_pwaPrompt || _plat === 'ios'){
-        b.style.borderColor = 'var(--gold)';
-        b.style.color       = 'var(--gold2)';
-        b.style.background  = 'var(--gold-dim)';
-      }
-    } else {
-      b.style.display = 'none';
-    }
-  });
+function showInstallBtns(){
+  document.getElementById('cibtn-opec')?.classList.add('visible');
+  document.getElementById('cibtn-master')?.classList.add('visible');
 }
 
-function installApp(plat){
-  const btn = document.getElementById('ibtn-'+plat);
+function installFromCard(app){
   const msg = document.getElementById('install-msg');
 
-  // PC / Android — prompt nativo disponível → instala direto
-  if(_pwaPrompt && plat !== 'ios'){
+  if(_pwaPrompt){
     _pwaPrompt.prompt();
     _pwaPrompt.userChoice.then(r => {
       if(r.outcome === 'accepted'){
-        if(btn){ btn.textContent = 'Instalando...'; btn.classList.add('done'); }
+        ['cibtn-opec','cibtn-master'].forEach(id=>{
+          const b=document.getElementById(id);
+          if(b){b.textContent='Instalado';b.classList.add('installed');}
+        });
+        if(msg) msg.textContent = '';
       } else {
-        if(msg) msg.innerHTML = 'Instalação cancelada. Clique novamente para tentar.';
+        if(msg){ msg.textContent='Instalação cancelada.'; setTimeout(()=>msg.textContent='',4000); }
       }
       _pwaPrompt = null;
     });
     return;
   }
 
-  // iOS — não tem como automático, instrução mínima
-  if(plat === 'ios'){
-    if(msg) msg.innerHTML = 'No Safari: toque em <b>Compartilhar</b> → <b>Adicionar à Tela de Início</b>';
-    setTimeout(()=>{ if(msg) msg.innerHTML=''; }, 8000);
+  if(_plat === 'ios'){
+    if(msg){ msg.innerHTML='No Safari: toque em <b>Compartilhar</b> → <b>Adicionar à Tela de Início</b>'; setTimeout(()=>msg.innerHTML='',8000); }
     return;
   }
 
-  // PC/Android sem prompt — abrir MASTER direto para o navegador capturar o prompt
-  if(msg) msg.innerHTML = 'Abrindo o sistema... Quando aparecer o botão <b>Instalar</b> na barra do navegador, clique nele.';
-  setTimeout(() => { window.location.href = 'MASTER.html'; }, 1200);
+  // Abrir o sistema — navegador vai oferecer instalar na barra de endereço
+  window.location.href = app === 'master' ? 'MASTER.html' : 'OPEC.html';
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  _updateBtn();
-  // Se já está instalado como PWA (standalone), esconder seção
+  // iOS — sempre mostrar botões
+  if(_plat === 'ios') showInstallBtns();
+  // Standalone — já instalado, esconder botões
   if(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone){
-    const sec = document.querySelector('.install-section');
-    if(sec) sec.style.display = 'none';
+    document.getElementById('cibtn-opec')?.remove();
+    document.getElementById('cibtn-master')?.remove();
   }
 });
 </script>
