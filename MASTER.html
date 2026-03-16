@@ -194,7 +194,7 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 .brk-hdr.cur{background:rgba(212,160,23,.18);border-left:4px solid var(--gold);padding-left:18px}
 .bh-chev{font-size:11px;color:var(--text3);flex-shrink:0;transition:transform .18s;margin-left:2px;cursor:pointer;padding:3px 5px;border-radius:3px}
 .bh-chev:hover{background:var(--s3);color:var(--text)}
-.bh-name{font-family:var(--font-d);font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);flex:1}
+.bh-name{font-family:var(--font-d);font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold)}
 .bh-dur{font-family:var(--font-m);font-size:11px;color:var(--text2)}
 .bh-cnt{font-size:10px;color:var(--text3)}
 .bh-warn{font-size:10px;color:var(--red2)}
@@ -539,7 +539,7 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 .brk-hdr.cur{background:rgba(212,160,23,.18);border-left:4px solid var(--gold);padding-left:18px}
 .bh-chev{font-size:11px;color:var(--text3);flex-shrink:0;transition:transform .18s;margin-left:2px;cursor:pointer;padding:3px 5px;border-radius:3px}
 .bh-chev:hover{background:var(--s3);color:var(--text)}
-.bh-name{font-family:var(--font-d);font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);flex:1}
+.bh-name{font-family:var(--font-d);font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold)}
 .bh-dur{font-family:var(--font-m);font-size:11px;color:var(--text2)}
 .bh-cnt{font-size:10px;color:var(--text3)}
 .bh-warn{font-size:10px;color:var(--red2)}
@@ -1712,16 +1712,13 @@ const SEG_LABELS={CONCESSIONARIA:'Concessionária',MECANICA:'Mecânica',SUPERMER
 const SEG_TEXT={CONCESSIONARIA:'#f0c040',MECANICA:'#d4883a',SUPERMERCADO:'#4acc7a',HOSPITAL:'#e07070',MIDIA:'#5aaaf0',ESTETICA:'#e070c0',ENSINO:'#9080e0',VAREJO:'#60b8e0',CONSTRUCAO:'#c09060',INTERNET:'#00d0d0',SORTEIOS:'#d070e0',CONSORCIO:'#70a0d8',BANCO:'#40b880',FARMACIA:'#30c090',JOIAS:'#d4c040',VESTUARIO:'#d87090',OUTRO:'var(--text2)'};
 
 function analyzeBrkConflict(items){
-  // Conflito = mesmo segmento com clientes diferentes (por piNumber ou piClient)
-  const clientsBySegment={};
+  const segCount={};
   (items||[]).forEach(it=>{
-    if(!it.segment) return;
-    const clientKey = it.piNumber ? String(it.piNumber).trim() : (it.piClient||it.name||'');
-    if(!clientsBySegment[it.segment]) clientsBySegment[it.segment]=new Set();
-    clientsBySegment[it.segment].add(clientKey);
+    const s=it.segment||''; if(!s) return;
+    segCount[s]=(segCount[s]||0)+1;
   });
-  const conflictSegs=Object.keys(clientsBySegment).filter(s=>clientsBySegment[s].size>1);
-  return {hasConflict:conflictSegs.length>0, conflicts:conflictSegs};
+  const conflicts=Object.entries(segCount).filter(([,c])=>c>1).map(([s])=>s);
+  return {hasConflict:conflicts.length>0, conflicts};
 }
 
 // ── BUILD ROTEIRO — constrói o DOM completo ──
@@ -1799,9 +1796,10 @@ function buildRoteiro(){
             <div class="brk-hdr${isCB?' cur':''}">
               <span class="bh-chev" onclick="toggleBrk(${pi},${bi})" title="Expandir/recolher">▼</span>
               <span class="bh-name" onclick="toggleBrk(${pi},${bi})" style="cursor:pointer">${brk.name}</span>
+              ${_conflictHtml}
+              <span style="flex:1"></span>
               <span class="bh-dur">${fmtSec(brk.total)}</span>
               <span class="bh-cnt">${bDone}/${bTot} inserções</span>
-              ${_conflictHtml}
               ${bExp>0?`<span class="bh-warn">⚠ ${bExp} venc.</span>`:''}
               ${getMasterBrkAirLog(viewDow,pi,bi)
                 ?`<button class="brk-air-btn logged" onclick="arSingleOrDouble(${pi},${bi},event)" title="Clique: atualizar horário · Duplo clique: abrir gaveta">✓ ${getMasterBrkAirLog(viewDow,pi,bi).time}</button>`
