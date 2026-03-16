@@ -724,24 +724,27 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 .ph-badge.onair{color:var(--gold2)}.ph-badge.done{color:var(--green)}
 .ph-stat{font-size:8px;color:var(--text3);flex-shrink:0;white-space:nowrap;background:rgba(255,255,255,.03);padding:2px 6px;border-radius:2px;border:1px solid rgba(255,255,255,.05);letter-spacing:.5px;-webkit-font-smoothing:antialiased}
 .ph-stat .ph-stat-brk{color:var(--gold);font-weight:700}
-.bh-opec-btn{
-  display:inline-flex;align-items:center;gap:4px;
-  font-family:var(--font-d);font-size:7px;font-weight:700;letter-spacing:1.5px;
-  text-transform:uppercase;
-  padding:3px 8px;
-  background:rgba(212,160,23,.12);
-  border:1px solid rgba(212,160,23,.3);
-  border-radius:4px;
-  color:var(--gold2);
-  opacity:1;
-  transition:all .15s;
-  flex-shrink:0;cursor:pointer;white-space:nowrap;
+/* ── Botão .AR — dourado (substituiu OPERAR) ── */
+.brk-air-btn{
+  display:inline-flex;align-items:center;gap:5px;
+  font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;
+  text-transform:uppercase;padding:5px 12px;
+  border-radius:5px;cursor:pointer;transition:all .15s;
+  flex-shrink:0;white-space:nowrap;
   -webkit-tap-highlight-color:transparent;
+  -webkit-font-smoothing:antialiased;
 }
-.bh-opec-btn:hover{
-  background:rgba(212,160,23,.22);
-  border-color:var(--gold2);
-  box-shadow:0 0 8px rgba(212,160,23,.2);
+.brk-air-btn.idle{
+  background:rgba(212,160,23,.12);border:1px solid rgba(212,160,23,.3);color:var(--gold2);
+}
+.brk-air-btn.idle:hover{
+  background:rgba(212,160,23,.22);border-color:var(--gold2);box-shadow:0 0 8px rgba(212,160,23,.2);
+}
+.brk-air-btn.logged{
+  background:rgba(31,170,90,.15);border:1px solid rgba(31,170,90,.35);color:var(--green);
+}
+.brk-air-btn.logged:hover{
+  background:rgba(31,170,90,.25);border-color:var(--green);
 }
 
 /* Mobile */
@@ -1221,7 +1224,7 @@ console.log('[MASTER Firebase] módulo carregado — banco: sistemas-fb');
       title="Fechar painel">▶</button>
     <div style="flex:1;min-width:0;overflow:hidden">
       <div style="font-family:var(--font-d);font-size:8px;font-weight:700;letter-spacing:2px;
-        text-transform:uppercase;color:var(--text3);margin-bottom:2px;white-space:nowrap">MODO OPERAÇÃO</div>
+        text-transform:uppercase;color:var(--text3);margin-bottom:2px;white-space:nowrap">VEICULAÇÃO · BREAK</div>
       <div style="display:flex;align-items:baseline;gap:5px;overflow:hidden">
         <span id="opec-brk-label" style="font-family:var(--font-d);font-size:12px;font-weight:700;
           letter-spacing:2px;text-transform:uppercase;color:var(--gold2);white-space:nowrap">—</span>
@@ -1229,17 +1232,20 @@ console.log('[MASTER Firebase] módulo carregado — banco: sistemas-fb');
           text-overflow:ellipsis;white-space:nowrap">—</span>
       </div>
     </div>
+    <span id="opec-air-time-badge" style="font-family:var(--font-m);font-size:10px;color:var(--green);
+      background:rgba(31,170,90,.12);border:1px solid rgba(31,170,90,.3);border-radius:4px;
+      padding:2px 7px;flex-shrink:0;display:none"></span>
   </div>
 
-  <!-- Fila completa do break -->
-  <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <!-- Materiais confirmados com horário -->
+  <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column">
 
-    <!-- Label + confirmar todos -->
+    <!-- Cabeçalho + Confirmar Todos -->
     <div style="display:flex;align-items:center;justify-content:space-between;
-      padding:8px 12px 4px;border-bottom:1px solid var(--border);flex-shrink:0">
+      padding:8px 12px 6px;border-bottom:1px solid var(--border);flex-shrink:0">
       <div>
         <span style="font-family:var(--font-d);font-size:8px;font-weight:700;letter-spacing:2px;
-          text-transform:uppercase;color:var(--text3)">Fila do Break</span>
+          text-transform:uppercase;color:var(--text3)">Materiais</span>
         <span id="opec-queue-count" style="font-family:var(--font-m);font-size:9px;
           color:var(--text3);margin-left:6px">—</span>
       </div>
@@ -1254,19 +1260,8 @@ console.log('[MASTER Firebase] módulo carregado — banco: sistemas-fb');
       </button>
     </div>
 
-    <!-- Lista de materiais do break -->
-    <div id="opec-queue-list" style="padding:6px 8px"></div>
-  </div>
-
-  <!-- Rodapé: confirmados -->
-  <div id="opec-log-section" style="border-top:1px solid var(--border);flex-shrink:0">
-    <div style="display:flex;align-items:center;justify-content:space-between;
-      padding:5px 12px;cursor:pointer" onclick="_opecToggleLog()">
-      <span style="font-family:var(--font-d);font-size:7px;font-weight:700;letter-spacing:2px;
-        text-transform:uppercase;color:var(--green)">✓ Confirmados Neste Break</span>
-      <span id="opec-log-count" style="font-family:var(--font-m);font-size:9px;color:var(--text3)">0</span>
-    </div>
-    <div id="opec-log-list" style="max-height:0;overflow:hidden;transition:max-height .25s ease"></div>
+    <!-- Lista de materiais (todos, com horário ao lado dos confirmados) -->
+    <div id="opec-queue-list" style="padding:6px 8px;flex:1"></div>
   </div>
 
   <!-- IDs ocultos mantidos para compatibilidade com renderOpec() -->
@@ -1748,7 +1743,9 @@ function buildRoteiro(){
               <span class="bh-dur">${fmtSec(brk.total)}</span>
               <span class="bh-cnt">${bDone}/${bTot} inserções</span>
               ${bExp>0?`<span class="bh-warn">⚠ ${bExp} venc.</span>`:''}
-              <span class="bh-opec-btn" onclick="event.stopPropagation();toggleOpec(${pi},${bi})"><svg width="9" height="10" viewBox="0 0 22 24" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><polygon points="11,0.8 20.5,5.8 20.5,18.2 11,23.2 1.5,18.2 1.5,5.8" fill="#1a1206" stroke="url(#hxGold)" stroke-width="1.5"/></svg>OPERAR</span>
+              ${getMasterBrkAirLog(viewDow,pi,bi)
+                ?`<button class="brk-air-btn logged" onclick="arSingleOrDouble(${pi},${bi},event)" title="Clique: atualizar horário · Duplo clique: abrir gaveta">✓ ${getMasterBrkAirLog(viewDow,pi,bi).time}</button>`
+                :`<button class="brk-air-btn idle" onclick="arSingleOrDouble(${pi},${bi},event)" title="Clique: confirmar horário · Duplo clique: abrir gaveta"><svg width="9" height="10" viewBox="0 0 22 24" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><polygon points="11,0.8 20.5,5.8 20.5,18.2 11,23.2 1.5,18.2 1.5,5.8" fill="rgba(212,160,23,.15)" stroke="url(#hxGold)" stroke-width="1.5"/></svg>.AR</button>`}
             </div><div class="brk-body">${itemsHtml}</div>
           </div>`;
         }).join('');
@@ -2094,6 +2091,105 @@ const OPEC_LOG_KEY = 'roteiro_opec_log';
 function getOpecLog(){ try{ return JSON.parse(lsGet(OPEC_LOG_KEY)||'[]'); }catch(e){ return []; } }
 function saveOpecLog(arr){ lsSet(OPEC_LOG_KEY, JSON.stringify(arr.slice(-200))); }
 
+// ── BREAK AIR TIME (Master → compartilha com OPEC via roteiro_air_logs) ──
+function getMasterAirLogs(){ try{ return JSON.parse(lsGet('roteiro_air_logs')||'{}'); }catch(e){ return {}; } }
+function saveMasterAirLogs(logs){ lsSet('roteiro_air_logs', JSON.stringify(logs)); }
+function getMasterBrkAirLog(day,pi,bi){ return getMasterAirLogs()[`${day}-${pi}-${bi}`]||null; }
+function logMasterBrkAir(pi,bi){
+  const now = new Date();
+  const timeStr = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
+  const ps   = gradeForKey(viewDateKey);
+  const prog = ps[pi], brk = (prog?.breaks||[])[bi];
+  const logs = getMasterAirLogs();
+  logs[`${viewDow}-${pi}-${bi}`] = {time:timeStr, progName:prog?.name||'—', brkName:brk?.name||'—', day:viewDow, pi, bi, ts:Date.now()};
+  saveMasterAirLogs(logs);
+  lsSet('roteiro_ts', String(Date.now()));
+  buildRoteiro();
+  if(opecState.open && opecState.pi===pi && opecState.bi===bi) renderOpec();
+  showToast(`⏺ ${brk?.name||'Break'} — ${timeStr}`);
+}
+function clearMasterBrkAir(pi,bi){
+  const logs = getMasterAirLogs();
+  delete logs[`${viewDow}-${pi}-${bi}`];
+  saveMasterAirLogs(logs);
+  lsSet('roteiro_ts', String(Date.now()));
+  buildRoteiro();
+  if(opecState.open && opecState.pi===pi && opecState.bi===bi) renderOpec();
+}
+
+// ── Clique no .AR: 1x confirma/cancela · 2x abre gaveta ──
+let _arClickTimer = {};
+function arSingleOrDouble(pi, bi, e){
+  e.stopPropagation();
+  const key = `${pi}-${bi}`;
+  if(_arClickTimer[key]){
+    // segundo clique rápido — abre gaveta
+    clearTimeout(_arClickTimer[key]);
+    delete _arClickTimer[key];
+    toggleOpec(pi, bi);
+  } else {
+    // primeiro clique — aguarda para ver se vem segundo
+    _arClickTimer[key] = setTimeout(()=>{
+      delete _arClickTimer[key];
+      const ps   = gradeForKey(viewDateKey);
+      const prog = ps[pi], brk = (prog?.breaks||[])[bi];
+      const items = brk?.items||[];
+
+      // ── Cancelamento (já confirmado) — sem restrição de horário ──
+      if(getMasterBrkAirLog(viewDow, pi, bi)){
+        clearMasterBrkAir(pi, bi);
+        showToast(`✕ ${brk?.name||'Break'} — confirmação cancelada`);
+        return;
+      }
+
+      // ── Validação de data ──
+      const today = todayKey();
+      if(viewDateKey < today){
+        showToast('⚠ Não é possível confirmar em datas passadas');
+        return;
+      }
+      if(viewDateKey > today){
+        showToast('⚠ Não é possível confirmar em datas futuras');
+        return;
+      }
+
+      // ── Validação de horário do programa (só hoje) ──
+      if(prog?.time){
+        const now = new Date();
+        const nowMin = now.getHours()*60 + now.getMinutes();
+        const [ph, pm] = prog.time.split(':').map(Number);
+        const progMin  = ph*60 + pm;
+
+        // Horário futuro — programa ainda não começou
+        if(progMin > nowMin){
+          showToast(`⚠ Programa "${prog.name}" ainda não está no ar (${prog.time})`);
+          return;
+        }
+
+        // Horário passado — verificar se o programa já encerrou
+        // Usa o horário de início do próximo programa como limite de fim
+        const nextProg = ps[pi+1];
+        if(nextProg?.time){
+          const [nh, nm] = nextProg.time.split(':').map(Number);
+          const nextMin  = nh*60 + nm;
+          if(nowMin >= nextMin){
+            showToast(`⚠ Programa "${prog.name}" já encerrou — horário passado`);
+            return;
+          }
+        }
+      }
+
+      // ── Break sem material ──
+      if(!items.length){
+        showToast('⚠ Break sem materiais — veiculação não registrada');
+        return;
+      }
+
+      logMasterBrkAir(pi, bi);
+    }, 280);
+  }
+}
+
 // Abrir OPEC para um break específico
 function toggleOpec(pi, bi){
   if(opecState.open && opecState.pi===pi && opecState.bi===bi){
@@ -2152,17 +2248,31 @@ function renderOpec(){
   if(brkEl) brkEl.textContent = brk.name;
   if(prgEl) prgEl.textContent = prog.time + ' ' + prog.name;
 
+  // ── Air time badge no topbar ──
+  const airLog = getMasterBrkAirLog(viewDow, opecState.pi, opecState.bi);
+  const airBadge = document.getElementById('opec-air-time-badge');
+  if(airBadge){
+    if(airLog){
+      airBadge.textContent = '⏺ ' + airLog.time;
+      airBadge.style.display = 'inline-block';
+    } else {
+      airBadge.style.display = 'none';
+    }
+  }
+
   // ── Count ──
   const items = brk.items || [];
   const doneCount = items.filter((_,ii) => isItemConfirmed(opecState.pi, opecState.bi, ii)).length;
   const countEl = document.getElementById('opec-queue-count');
   if(countEl) countEl.textContent = doneCount + '/' + items.length + ' confirmados';
 
-  // ── Log section count ──
-  const logCountEl = document.getElementById('opec-log-count');
-  if(logCountEl) logCountEl.textContent = doneCount;
+  // ── Log de horários por item ──
+  const allLogs = getOpecLog();
+  function getItemLog(ii){
+    return allLogs.slice().reverse().find(l => l.pi===opecState.pi && l.bi===opecState.bi && l.ii===ii) || null;
+  }
 
-  // ── Build queue list ──
+  // ── Build lista completa de materiais com horário ──
   const queueEl = document.getElementById('opec-queue-list');
   if(queueEl){
     if(!items.length){
@@ -2171,55 +2281,46 @@ function renderOpec(){
       queueEl.innerHTML = items.map((it, ii) => {
         const isDone   = isItemConfirmed(opecState.pi, opecState.bi, ii);
         const isActive = (ii === activeItem) && isCurBreak;
-        const isNext   = !isDone && !isActive && ii === items.findIndex((_,j) => !isItemConfirmed(opecState.pi, opecState.bi, j));
-        const exp      = isExpired(it.dateEnd);
+        const itemLog  = getItemLog(ii);
+        const timeStr  = itemLog ? itemLog.time : null;
 
-        let bg   = isDone ? 'rgba(31,170,90,.07)' : isActive ? 'rgba(212,160,23,.1)' : 'var(--s3)';
-        let bl   = isDone ? '3px solid var(--green)' : isActive ? '3px solid var(--gold)' : '3px solid transparent';
-        let op   = isDone ? '.5' : '1';
+        const borderLeft = isDone ? '3px solid var(--green)' : isActive ? '3px solid var(--gold)' : '3px solid transparent';
+        const bgColor    = isDone ? 'rgba(31,170,90,.07)' : isActive ? 'rgba(212,160,23,.08)' : 'var(--s3)';
+        const nameColor  = isDone ? 'var(--text3)' : isActive ? '#fff' : 'var(--text)';
+        const opacity    = isDone ? '.55' : '1';
 
         return `<div style="display:flex;align-items:center;gap:8px;padding:9px 10px;
           margin-bottom:3px;border-radius:6px;cursor:pointer;transition:all .15s;
-          background:${bg};border-left:${bl};opacity:${op}"
+          background:${bgColor};border-left:${borderLeft};opacity:${opacity}"
           onclick="opecSelectItem(${ii})">
           <span style="font-family:var(--font-m);font-size:9px;color:var(--gold2);
-            flex-shrink:0;min-width:22px;text-align:right">${it.seq||pad(ii+1)}</span>
+            flex-shrink:0;min-width:20px;text-align:right">${it.seq||pad(ii+1)}</span>
           <div style="flex:1;min-width:0">
             <div style="font-size:12px;font-weight:${isActive?'700':'500'};
-              color:${isDone?'var(--text3)':isActive?'#fff':'var(--text)'};
-              overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.name}</div>
+              color:${nameColor};
+              overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+              ${isDone?'text-decoration:line-through;':''}">${it.name}</div>
             ${it.title ? `<div style="font-size:9px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.title}</div>` : ''}
           </div>
-          <span style="font-family:var(--font-m);font-size:10px;color:var(--text3);flex-shrink:0">${fmtSec(it.dur)}</span>
-          ${isDone
-            ? `<span style="color:var(--green);font-size:16px;flex-shrink:0;line-height:1">✓</span>`
-            : `<button onclick="event.stopPropagation();opecConfirmItem(${ii})"
-                style="flex-shrink:0;padding:3px 9px;border-radius:4px;cursor:pointer;
-                  font-family:var(--font-d);font-size:8px;font-weight:700;letter-spacing:1px;
-                  background:rgba(31,170,90,.1);border:1px solid rgba(31,170,90,.3);
-                  color:var(--green);transition:all .15s"
-                onmouseover="this.style.background='rgba(31,170,90,.25)'"
-                onmouseout="this.style.background='rgba(31,170,90,.1)'">
-                Confirmar
-              </button>`
+          ${isDone && timeStr
+            ? `<span style="font-family:var(--font-m);font-size:10px;color:var(--green);
+                flex-shrink:0;background:rgba(31,170,90,.12);border:1px solid rgba(31,170,90,.25);
+                border-radius:3px;padding:1px 5px;white-space:nowrap">✓ ${timeStr}</span>`
+            : isDone
+              ? `<span style="color:var(--green);font-size:14px;flex-shrink:0">✓</span>`
+              : `<button onclick="event.stopPropagation();opecConfirmItem(${ii})"
+                  style="flex-shrink:0;padding:3px 9px;border-radius:4px;cursor:pointer;
+                    font-family:var(--font-d);font-size:8px;font-weight:700;letter-spacing:1px;
+                    background:rgba(31,170,90,.1);border:1px solid rgba(31,170,90,.3);
+                    color:var(--green);transition:all .15s"
+                  onmouseover="this.style.background='rgba(31,170,90,.25)'"
+                  onmouseout="this.style.background='rgba(31,170,90,.1)'">
+                  Confirmar
+                </button>`
           }
         </div>`;
       }).join('');
     }
-  }
-
-  // ── Build log list (collapsed) ──
-  const logListEl = document.getElementById('opec-log-list');
-  if(logListEl && doneCount > 0){
-    const logs = getOpecLog().filter(l => l.pi===opecState.pi && l.bi===opecState.bi).slice().reverse();
-    logListEl.innerHTML = logs.map(l =>
-      `<div style="display:flex;align-items:center;gap:6px;padding:4px 12px;
-        font-size:10px;border-bottom:1px solid rgba(0,255,128,.04)">
-        <span style="font-family:var(--font-m);font-size:9px;color:var(--green);min-width:50px">${l.time||'—'}</span>
-        <span style="font-family:var(--font-m);font-size:9px;color:var(--gold);min-width:22px">${l.seq||'—'}</span>
-        <span style="flex:1;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.name||'—'}</span>
-      </div>`
-    ).join('');
   }
 }
 
