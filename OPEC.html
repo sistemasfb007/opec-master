@@ -1055,17 +1055,23 @@ function _renderStationUI(){
                  color:#000;font-weight:700;cursor:pointer;margin-left:4px">Ativar</button>`;
     } else {
       el.innerHTML=`
-        <span style="font-size:9px;color:var(--text3);letter-spacing:1px;margin-right:4px">ESTAÇÃO</span>
         <span id="fb-code-display"
-          onclick="navigator.clipboard.writeText('${_stationCode}').then(()=>{this.textContent='✓ Copiado!';setTimeout(()=>this.textContent='${_stationCode}',1500)})"
-          style="font-family:var(--font-m);font-size:12px;font-weight:700;letter-spacing:2px;color:var(--gold);
-                 background:rgba(212,160,23,.1);border:1px solid rgba(212,160,23,.3);border-radius:4px;
-                 padding:2px 9px;cursor:pointer">${_stationCode}</span>
-        <span id="fb-status-dot" style="width:8px;height:8px;border-radius:50%;background:#888;
-          margin:0 4px;flex-shrink:0;transition:background .3s"></span>
-        <button onclick="window._fbEditCode()"
-          style="font-size:9px;padding:2px 7px;background:rgba(212,160,23,.1);border:1px solid rgba(212,160,23,.3);
-                 border-radius:3px;color:var(--gold);cursor:pointer">✏ Editar</button>`;
+          style="display:flex;align-items:center;width:100%;
+                 background:transparent;border:1px solid var(--border);border-radius:6px;
+                 overflow:hidden;cursor:default;color:var(--text2);">
+          <span onclick="navigator.clipboard.writeText('${_stationCode}').then(()=>{this.textContent='Copiado';setTimeout(()=>this.textContent='${_stationCode}',1200)})"
+            style="flex:1;padding:5px 11px;cursor:pointer;
+                   font-family:var(--font-m);font-size:11px;font-weight:700;
+                   letter-spacing:2px;color:var(--gold);text-transform:uppercase"
+            title="Copiar código">${_stationCode}</span>
+          <button onclick="window._fbEditCode()"
+            style="padding:5px 10px;background:transparent;border:none;border-left:1px solid var(--border);
+                   color:var(--text3);cursor:pointer;font-size:12px;font-weight:700;line-height:1;
+                   transition:all .15s"
+            onmouseover="this.style.color='var(--text)';this.style.background='var(--s3)'"
+            onmouseout="this.style.color='var(--text3)';this.style.background='transparent'"
+            title="Editar estação">—</button>
+        </span>`;
     }
   });
 }
@@ -1540,15 +1546,13 @@ function _segConflictResp(ok){
       <span class="tb-day" id="e-day"></span>
     </div>
     <div class="tb-right">
-      <div id="fb-station-panel" style="display:flex;align-items:center;gap:6px"><button onclick="_estacaoAbrirModal()" style="font-size:11px;font-weight:700;padding:4px 12px;background:rgba(212,160,23,.15);border:1px solid rgba(212,160,23,.5);border-radius:5px;color:#f0c040;cursor:pointer;letter-spacing:1px"> ESTAÇÃO</button></div>
       <div class="tb-clock" id="e-clock">00:00:00</div>
-      <span id="fb-status" title="Firebase" style="width:8px;height:8px;border-radius:50%;background:var(--text3);display:inline-block;margin-right:2px;transition:background .3s"></span>
       <button class="btn btn-ghost btn-sm" onclick="toggleProgsTab()">Programas</button>
       <button class="btn btn-ghost btn-sm" onclick="startOpc()">Comercial</button>
       <button id="pwa-install-btn" onclick="window._pwaInstall()" title="Instalar como aplicativo" style="display:none;align-items:center;gap:5px;font-size:10px;padding:3px 10px;background:rgba(74,204,122,.15);border:1px solid rgba(74,204,122,.4);border-radius:5px;color:#4acc7a;cursor:pointer;font-weight:700">Instalar App</button>
       <div id="opec-user-btn" style="display:flex;align-items:center;gap:4px"></div>
       <button class="btn btn-ghost btn-sm" onclick="goHome()">Home</button>
-      <button title="Configurar" onclick="toggleSettings()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:4px 7px;border-radius:4px;line-height:1;transition:color .15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'"></button>
+      <button title="Configurar" onclick="toggleSettings()" style="background:none;border:1px solid var(--border);color:var(--text3);cursor:pointer;font-size:10px;font-weight:700;letter-spacing:1px;padding:3px 10px;border-radius:4px;line-height:1;transition:all .15s;font-family:var(--font-d);text-transform:uppercase" onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--border2)'" onmouseout="this.style.color='var(--text3)';this.style.borderColor='var(--border)'">Config</button>
     </div>
   </div>
   <div class="alert-banner" id="alert-banner">
@@ -1777,9 +1781,13 @@ function _segConflictResp(ok){
       <div id="sp-panel-list" style="display:flex;flex-direction:column;gap:4px"></div>
     </div>
 
+    <!-- ESTAÇÃO -->
     <!-- CONEXÃO -->
     <div class="sp-section">
       <div class="sp-sec-title">Conexão</div>
+      <div id="fb-station-panel" style="margin-bottom:8px">
+        <button onclick="_estacaoAbrirModal()" class="btn btn-ghost btn-sm" style="width:100%">Estação</button>
+      </div>
       <button class="btn btn-ghost btn-sm" style="width:100%" onclick="showLinkModal();toggleSettings()">Conectar Exibidor</button>
     </div>
 
