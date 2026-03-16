@@ -1085,7 +1085,6 @@ window._opecAlterarAcesso = async function(nome, access){
 };
 
 // ──Conectar ao canal da estação ──
-let _unsubAirLogs = null;
 function _fbConnect(){
   if(!db||!_stationCode) return;
   _gradeRef = ref(db,`estacoes/${_stationCode}/grade`);
@@ -1106,29 +1105,21 @@ function _fbConnect(){
     if(ts<=_fbLastTs) return;
     _applyGrade(d);
   });
-
-  // ── Escutar air_logs publicados pelo MASTER ──
-  if(_unsubAirLogs){ _unsubAirLogs(); _unsubAirLogs=null; }
-  const _airRef = ref(db,`estacoes/${_stationCode}/air_logs`);
-  console.log('[OPEC] escutando air_logs em:', `estacoes/${_stationCode}/air_logs`);
-  _unsubAirLogs = onValue(_airRef, snap=>{
-    console.log('[OPEC] air_logs recebido, exists:', snap.exists());
-    if(!snap.exists()) return;
-    const d = snap.val();
-    const ts = d._ts||0;
-    const localTs = parseInt(localStorage.getItem('roteiro_air_ts')||'0');
-    if(ts <= localTs){ console.log('[OPEC] air_logs ignorado — ts não avançou'); return; }
-    const logs = {...d}; delete logs._ts;
-    localStorage.setItem('roteiro_air_logs', JSON.stringify(logs));
-    localStorage.setItem('roteiro_air_ts', String(ts));
-    console.log('[OPEC] air_logs aplicado —', Object.keys(logs).length, 'entradas');
-    if(typeof renderRoteiro==='function') renderRoteiro();
-  });
 }
 
 function _applyGrade(d){
   const ts=d?._ts||0; _fbLastTs=ts;
-  const g={...d}; delete g._ts;
+  // Extrair air_logs publicados pelo MASTER antes de limpar
+  if(d.__air_logs){
+    const airTs = d.__air_logs._ts||0;
+    const localAirTs = parseInt(localStorage.getItem('roteiro_air_ts')||'0');
+    if(airTs > localAirTs){
+      const logs = {...d.__air_logs}; delete logs._ts;
+      localStorage.setItem('roteiro_air_logs', JSON.stringify(logs));
+      localStorage.setItem('roteiro_air_ts', String(airTs));
+    }
+  }
+  const g={...d}; delete g._ts; delete g.__air_logs;
   grade=g;
   localStorage.setItem('roteiro_grade',JSON.stringify(g));
   localStorage.setItem('roteiro_ts',String(ts));
@@ -1143,7 +1134,16 @@ function _applyGrade(d){
 window._fbSaveGrade = function(g){
   if(!_fbReady||!_gradeRef) return;
   const ts=Date.now(); _fbLastTs=ts; _fbIgnore=true;
-  set(_gradeRef,{...g,_ts:ts}).then(()=>_fbDot('green')).catch(()=>_fbDot('red'));
+  // Preservar __air_logs publicado pelo MASTER
+  get(_gradeRef).then(snap=>{
+    const existing = snap.exists() ? snap.val() : {};
+    const airLogs = existing.__air_logs || null;
+    const payload = {...g, _ts:ts};
+    if(airLogs) payload.__air_logs = airLogs;
+    set(_gradeRef, payload).then(()=>_fbDot('green')).catch(()=>_fbDot('red'));
+  }).catch(()=>{
+    set(_gradeRef,{...g,_ts:ts}).then(()=>_fbDot('green')).catch(()=>_fbDot('red'));
+  });
 };
 
 function _fbDot(s){

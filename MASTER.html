@@ -1002,7 +1002,7 @@ function _apply(d){
   const ts=d._ts||0;
   if(ts<=_lastTs) return;
   _lastTs=ts;
-  const g={...d}; delete g._ts;
+  const g={...d}; delete g._ts; delete g.__air_logs;
   grade=g;
   localStorage.setItem('roteiro_grade',JSON.stringify(g));
   localStorage.setItem('roteiro_ts',String(ts));
@@ -2201,15 +2201,11 @@ function getMasterAirLogs(){ try{ return JSON.parse(lsGet('roteiro_air_logs')||'
 function saveMasterAirLogs(logs){
   lsSet('roteiro_air_logs', JSON.stringify(logs));
   lsSet('roteiro_air_ts', String(Date.now()));
-  // Publicar no Firebase para o OPEC receber em tempo real
+  // Publicar dentro do nó grade (já tem permissão) para o OPEC receber
   if(_db && _code){
     try{
-      const _ts = Date.now();
-      ref(_db, 'estacoes/'+_code+'/air_logs').set({...logs, _ts});
-      console.log('[MASTER] air_logs publicado no Firebase:', _code, Object.keys(logs).length, 'entradas');
-    }catch(e){ console.warn('[MASTER] erro ao publicar air_logs:', e); }
-  } else {
-    console.warn('[MASTER] air_logs NÃO publicado — _db:', !!_db, '_code:', _code);
+      ref(_db, 'estacoes/'+_code+'/grade/__air_logs').set({...logs, _ts: Date.now()});
+    }catch(e){}
   }
 }
 function getMasterBrkAirLog(day,pi,bi){ return getMasterAirLogs()[`${day}-${pi}-${bi}`]||null; }
