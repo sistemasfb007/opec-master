@@ -1,13 +1,14 @@
 {
-  "name": "OPEC MASTER — Sistema de Operação Comercial",
-  "short_name": "OPEC MASTER",
-  "description": "Sistema de Programação de Mídia — Broadcast",
-  "start_url": "./index.html",
-  "scope": "./",
+  "name": "OPEC — Operação Comercial",
+  "short_name": "OPEC",
+  "description": "Grade semanal, programas, breaks e materiais",
+  "start_url": "/opec-master/OPEC.html",
+  "scope": "/opec-master/",
   "display": "standalone",
-  "orientation": "any",
+  "orientation": "landscape",
   "background_color": "#080b0f",
-  "theme_color": "#080b0f",
+  "theme_color": "#1e6fb5",
+  "lang": "pt-BR",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
