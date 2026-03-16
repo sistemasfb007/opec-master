@@ -746,6 +746,26 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 .brk-air-btn.logged:hover{
   background:rgba(31,170,90,.25);border-color:var(--green);
 }
+/* Popover de confirmação de cancelamento */
+.ar-cancel-pop{
+  position:absolute;z-index:50;
+  display:flex;align-items:center;gap:6px;
+  background:var(--s2);border:1px solid var(--border2);
+  border-radius:7px;padding:6px 10px;
+  box-shadow:0 4px 18px rgba(0,0,0,.55);
+  white-space:nowrap;
+  animation:pop-in .12s ease;
+}
+@keyframes pop-in{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+.ar-cancel-pop-msg{font-size:11px;color:var(--text2);font-family:var(--font-b)}
+.ar-cancel-pop-yes{font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;padding:3px 10px;border-radius:4px;cursor:pointer;
+  background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.4);color:var(--red2);transition:all .15s}
+.ar-cancel-pop-yes:hover{background:rgba(192,57,43,.3);border-color:var(--red2)}
+.ar-cancel-pop-no{font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;padding:3px 10px;border-radius:4px;cursor:pointer;
+  background:transparent;border:1px solid var(--border);color:var(--text3);transition:all .15s}
+.ar-cancel-pop-no:hover{border-color:var(--border2);color:var(--text)}
 
 /* Mobile */
 @media screen and (max-width: 600px) {
@@ -2119,6 +2139,57 @@ function clearMasterBrkAir(pi,bi){
 
 // ── Clique no .AR: 1x confirma/cancela · 2x abre gaveta ──
 let _arClickTimer = {};
+let _arCancelPop  = null; // popover ativo
+
+function _closeArPop(){
+  if(_arCancelPop){ _arCancelPop.remove(); _arCancelPop=null; }
+  document.removeEventListener('click', _arPopOutside, true);
+}
+function _arPopOutside(e){
+  if(_arCancelPop && !_arCancelPop.contains(e.target)) _closeArPop();
+}
+
+function arShowCancelPop(pi, bi, btnEl){
+  // Se já existe popover para este botão, fecha (toggle)
+  if(_arCancelPop){ _closeArPop(); return; }
+
+  const pop = document.createElement('div');
+  pop.className = 'ar-cancel-pop';
+  pop.innerHTML = `
+    <span class="ar-cancel-pop-msg">Cancelar confirmação?</span>
+    <button class="ar-cancel-pop-yes" id="_ar-pop-yes">Sim</button>
+    <button class="ar-cancel-pop-no"  id="_ar-pop-no">Não</button>`;
+
+  // Posicionar relativo ao container do brk-hdr
+  const hdr = btnEl.closest('.brk-hdr');
+  if(hdr){ hdr.style.position = 'relative'; hdr.appendChild(pop); }
+  else    { btnEl.parentElement.style.position='relative'; btnEl.parentElement.appendChild(pop); }
+
+  // Alinhar: abaixo do botão
+  const btnRect = btnEl.getBoundingClientRect();
+  const hdrRect = (hdr||btnEl.parentElement).getBoundingClientRect();
+  pop.style.top  = (btnRect.bottom - hdrRect.top + 4) + 'px';
+  pop.style.right = (hdrRect.right - btnRect.right) + 'px';
+
+  _arCancelPop = pop;
+
+  pop.querySelector('#_ar-pop-yes').addEventListener('click', (ev)=>{
+    ev.stopPropagation();
+    _closeArPop();
+    const ps  = gradeForKey(viewDateKey);
+    const brk = (ps[pi]?.breaks||[])[bi];
+    clearMasterBrkAir(pi, bi);
+    showToast(`✕ ${brk?.name||'Break'} — confirmação cancelada`);
+  });
+  pop.querySelector('#_ar-pop-no').addEventListener('click', (ev)=>{
+    ev.stopPropagation();
+    _closeArPop();
+  });
+
+  // Fechar ao clicar fora (delay para não capturar o clique que abriu)
+  setTimeout(()=>{ document.addEventListener('click', _arPopOutside, true); }, 50);
+}
+
 function arSingleOrDouble(pi, bi, e){
   e.stopPropagation();
   const key = `${pi}-${bi}`;
@@ -2126,6 +2197,7 @@ function arSingleOrDouble(pi, bi, e){
     // segundo clique rápido — abre gaveta
     clearTimeout(_arClickTimer[key]);
     delete _arClickTimer[key];
+    _closeArPop();
     toggleOpec(pi, bi);
   } else {
     // primeiro clique — aguarda para ver se vem segundo
@@ -2135,10 +2207,9 @@ function arSingleOrDouble(pi, bi, e){
       const prog = ps[pi], brk = (prog?.breaks||[])[bi];
       const items = brk?.items||[];
 
-      // ── Cancelamento (já confirmado) — sem restrição de horário ──
+      // ── Já confirmado → mostrar popover de cancelamento ──
       if(getMasterBrkAirLog(viewDow, pi, bi)){
-        clearMasterBrkAir(pi, bi);
-        showToast(`✕ ${brk?.name||'Break'} — confirmação cancelada`);
+        arShowCancelPop(pi, bi, e.target.closest('.brk-air-btn')||e.target);
         return;
       }
 
@@ -2160,14 +2231,11 @@ function arSingleOrDouble(pi, bi, e){
         const [ph, pm] = prog.time.split(':').map(Number);
         const progMin  = ph*60 + pm;
 
-        // Horário futuro — programa ainda não começou
         if(progMin > nowMin){
           showToast(`⚠ Programa "${prog.name}" ainda não está no ar (${prog.time})`);
           return;
         }
 
-        // Horário passado — verificar se o programa já encerrou
-        // Usa o horário de início do próximo programa como limite de fim
         const nextProg = ps[pi+1];
         if(nextProg?.time){
           const [nh, nm] = nextProg.time.split(':').map(Number);
