@@ -2452,8 +2452,8 @@ function renderOpec(){
             <div style="font-size:12px;font-weight:${isActive?'700':'500'};
               color:${nameColor};
               overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-              ${isDone?'text-decoration:line-through;':''}">${it.title||it.name}</div>
-            ${(it.title && it.name && it.title !== it.name) ? `<div style="font-size:9px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.name}</div>` : ''}
+              ${isDone?'text-decoration:line-through;':''}">${it.name}</div>
+            ${it.title ? `<div style="font-size:9px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.title}</div>` : ''}
           </div>
           ${isDone && timeStr
             ? `<span style="font-family:var(--font-m);font-size:10px;color:var(--green);
@@ -2503,7 +2503,7 @@ function opecConfirmItem(ii){
   const logs    = getOpecLog();
   logs.push({
     ts: Date.now(), time: timeStr,
-    seq: item.seq||pad(ii+1), name: item.title||item.name, title: item.title||'',
+    seq: item.seq||pad(ii+1), name: item.name, title: item.title||'',
     dur: item.dur, prog: prog.name, brk: brk.name,
     piNumber: item.piNumber||'', day: viewDow, pi: opecState.pi, bi: opecState.bi, ii
   });
