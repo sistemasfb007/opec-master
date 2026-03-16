@@ -1,36 +1,15 @@
 {
-  "name": "OPEC — Operação Comercial",
-  "short_name": "OPEC",
-  "description": "Sistema de Programação de Mídia — Operação Comercial",
-  "start_url": "/opec-master/OPEC.html",
-  "scope": "/opec-master/",
+  "name": "OPEC MASTER — Sistema de Operação Comercial",
+  "short_name": "OPEC MASTER",
+  "description": "Sistema de Programação de Mídia — Broadcast",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "orientation": "landscape",
+  "orientation": "any",
   "background_color": "#080b0f",
   "theme_color": "#080b0f",
-  "categories": [
-    "productivity",
-    "business"
-  ],
   "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Abrir MASTER",
-      "url": "/MASTER.html",
-      "description": "Abrir Roteiro Master"
-    }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }
