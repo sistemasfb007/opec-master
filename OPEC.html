@@ -5230,6 +5230,16 @@ function renderOpecLog(){
 
 // Verifica log OPEC a cada segundo
 setInterval(syncOpecLog, 1000);
+
+// ── Sync de horários de break (.AR do Master) em tempo real ──
+let _lastAirTs = 0;
+setInterval(()=>{
+  const ts = parseInt(lsGet('roteiro_air_ts')||'0');
+  if(ts !== _lastAirTs){
+    _lastAirTs = ts;
+    if(typeof renderRoteiro === 'function') renderRoteiro();
+  }
+}, 500);
 setInterval(()=>{if(typeof renderCtrl==='function')renderCtrl();},30000);
 
 // Ao iniciar, carrega log

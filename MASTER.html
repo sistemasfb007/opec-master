@@ -2093,7 +2093,7 @@ function saveOpecLog(arr){ lsSet(OPEC_LOG_KEY, JSON.stringify(arr.slice(-200)));
 
 // ── BREAK AIR TIME (Master → compartilha com OPEC via roteiro_air_logs) ──
 function getMasterAirLogs(){ try{ return JSON.parse(lsGet('roteiro_air_logs')||'{}'); }catch(e){ return {}; } }
-function saveMasterAirLogs(logs){ lsSet('roteiro_air_logs', JSON.stringify(logs)); }
+function saveMasterAirLogs(logs){ lsSet('roteiro_air_logs', JSON.stringify(logs)); lsSet('roteiro_air_ts', String(Date.now())); }
 function getMasterBrkAirLog(day,pi,bi){ return getMasterAirLogs()[`${day}-${pi}-${bi}`]||null; }
 function logMasterBrkAir(pi,bi){
   const now = new Date();
