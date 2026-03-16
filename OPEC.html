@@ -631,21 +631,27 @@ try{
     _currentUser = user;
     const loginScreen = document.getElementById('opec-login-screen');
     if(!loginScreen) return;
+
     if(user){
       const nome = user.email.replace(DOMINIO,'');
-      // Verificar permissão de acesso ao OPEC
+      loginScreen.style.display = 'flex';
+      const errEl = document.getElementById('ol-error');
+      if(errEl) errEl.textContent = '';
+
       try{
-        const snap = await fbDb.ref('_usuarios/'+nome).once('value');
-        const userData = snap.val();
-        const access = userData?.access || 'ambos';
+        const snap = await db.ref('_usuarios/'+nome).once('value');
+        const access = snap.exists() ? (snap.val()?.access || 'ambos') : 'ambos';
         if(access === 'master'){
+          if(errEl){ errEl.textContent='Você não tem permissão para acessar este sistema. Solicite ao administrador.'; errEl.style.color='#e05050'; }
           await auth.signOut();
-          loginScreen.style.display = 'flex';
-          const errEl = document.getElementById('ol-error');
-          if(errEl){ errEl.textContent='⛔ Seu usuário tem acesso apenas ao MASTER.'; errEl.style.color='#e05050'; }
           return;
         }
-      }catch(e){ console.warn('Permissão não verificada:', e.message); }
+      }catch(e){
+        // Falha na verificação — liberar acesso (não punir o usuário por erro de rede)
+        console.warn('Verificação de permissão falhou:', e.message);
+      }
+
+      // Acesso liberado
       loginScreen.style.display = 'none';
       _renderUserTopbar(nome);
       _renderStationUI();
