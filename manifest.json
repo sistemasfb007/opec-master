@@ -1,7 +1,6 @@
 {
-  "name": "OPEC MASTER — Operação Comercial",
+  "name": "OPEC MASTER",
   "short_name": "OPEC MASTER",
-  "description": "Sistema de Programação de Mídia — Broadcast",
   "start_url": "/opec-master/index.html",
   "scope": "/opec-master/",
   "display": "standalone",
@@ -10,7 +9,17 @@
   "theme_color": "#080b0f",
   "lang": "pt-BR",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }
