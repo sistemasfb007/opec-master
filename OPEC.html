@@ -2,8 +2,11 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="googlebot" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Operação Comercial</title>
+<title>Sistema</title>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=Azeret+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* ═══ THEME VARIABLES ═══ */
@@ -594,7 +597,7 @@ body.light .land-h1{background:linear-gradient(135deg,#1a2030,#4a6080);-webkit-b
 .brk-same-seg{display:inline-flex;align-items:center;gap:4px;font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(255,160,0,.12);color:#ffaa00;border:1px solid rgba(255,160,0,.25)}
 </style>
 
-<!-- ═══ FIREBASE — SINCRONIZAÇÃO EM NUVEM ═══ -->
+
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -933,7 +936,7 @@ function _segConflictResp(ok){
 
 </script>
 
-<!-- ══ MODAL DE CONFIGURAÇÃO ══ -->
+
 <div id="fb-setup-overlay"
   style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:9999;
          align-items:center;justify-content:center;padding:16px">
@@ -1044,7 +1047,7 @@ function _segConflictResp(ok){
   </div>
 </div>
 
-<!-- ═══ WIZARD DE CONFIGURAÇÃO FIREBASE ═══ -->
+
 <div id="fb-wizard-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="background:var(--bg2,#1a1a2e);border:1px solid var(--border,#333);border-radius:12px;max-width:620px;width:100%;max-height:90vh;overflow-y:auto;padding:28px">
     
@@ -1188,7 +1191,7 @@ function _segConflictResp(ok){
 </head>
 <body>
 
-<!-- ═══ TELA DE LOGIN — OPEC ═══ -->
+
 <div id="opec-login-screen" style="display:flex;position:fixed;inset:0;z-index:99999;
   background:#080b0f;align-items:center;justify-content:center">
   <div style="width:340px;background:#0e1218;border:1px solid #1f2836;border-radius:14px;
@@ -1223,7 +1226,7 @@ function _segConflictResp(ok){
   </div>
 </div>
 
-<!-- ═══ MODAL GERENCIAR USUÁRIOS (só admin) ═══ -->
+
 <div id="opec-users-modal" style="display:none;position:fixed;inset:0;z-index:99998;
   background:rgba(0,0,0,.88);align-items:center;justify-content:center"
   onclick="if(event.target===this)window._opecFecharUsuarios()">
@@ -1291,7 +1294,7 @@ function _segConflictResp(ok){
 <!-- APP sempre visível — login flutua por cima -->
 <div id="opec-app-root">
 
-<!-- ═══ SVG DEFS GLOBAIS — insígnia hexagonal ═══ -->
+
 <svg width="0" height="0" style="position:absolute;overflow:hidden" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="hxGold" x1="0" y1="0" x2="0" y2="1">
@@ -1317,7 +1320,7 @@ function _segConflictResp(ok){
 </svg>
 
 
-<!-- ═══ LANDING ═══ -->
+
 <div id="landing" class="view active">
   <div style="position:absolute;top:14px;right:18px;z-index:10;display:flex;align-items:center;gap:8px">
     <div id="opec-user-btn-land" style="display:flex;align-items:center;gap:4px"></div>
@@ -1344,7 +1347,7 @@ function _segConflictResp(ok){
   </div>
 </div>
 
-<!-- ═══ EMISSOR ═══ -->
+
 <div id="emissor" class="view">
   <div class="topbar">
     <div class="tb-left">
@@ -7338,7 +7341,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 </script>
 <input type="file" id="pi-file-input" accept=".pdf,.xlsx,.xlsm,.xls" multiple style="position:fixed;left:-9999px;opacity:0;pointer-events:none" onchange="piHandleFiles(this.files)">
 
-<!-- ═══ MODAL ESTAÇÃO ═══ -->
+
 <div id="estacao-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);
   z-index:99999;align-items:center;justify-content:center">
   <div style="background:#14141f;border:1px solid #333;border-radius:12px;
@@ -7589,7 +7592,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 </script>
 
 
-<!-- ═══ MODAL ESTAÇÃO ═══ -->
+
 <div id="estacao-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);
   z-index:99999;align-items:center;justify-content:center"
   onclick="if(event.target===this)this.style.display='none'">

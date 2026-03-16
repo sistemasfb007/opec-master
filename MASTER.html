@@ -2,8 +2,11 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="googlebot" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Roteiro Master</title>
+<title>Sistema</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23040d15'/><text x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' font-size='11' font-family='monospace' font-weight='bold' fill='%2300ff80'>MST</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=Azeret+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -483,7 +486,7 @@ input, button { font-family: inherit; -webkit-appearance: none; }
 </style>
 
 
-<!-- ═══ FIREBASE — MASTER ═══ -->
+
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -706,7 +709,7 @@ console.log('[MASTER Firebase] módulo carregado — banco: sistemas-fb');
 </head>
 <body>
 
-<!-- ═══ TELA DE LOGIN — MASTER ═══ -->
+
 <div id="master-login-screen" style="display:flex;position:fixed;inset:0;z-index:99999;
   background:#080b0f;align-items:center;justify-content:center">
   <div style="width:340px;background:#0e1218;border:1px solid #1f2836;border-radius:14px;
@@ -749,7 +752,7 @@ console.log('[MASTER Firebase] módulo carregado — banco: sistemas-fb');
 <!-- APP sempre visível — login flutua por cima -->
 <div id="master-app-root">
 
-<!-- ═══ SVG DEFS GLOBAIS — insígnia hexagonal ═══ -->
+
 <svg width="0" height="0" style="position:absolute;overflow:hidden" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="hxGold" x1="0" y1="0" x2="0" y2="1">
@@ -1829,7 +1832,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
 </script>
 
-<!-- ══ OPEC OVERLAY ══ -->
+
 <div id="opec-overlay">
   <div class="opec-topbar">
     <div style="display:flex;align-items:center;gap:14px">
@@ -1872,7 +1875,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
 </div>
 
 
-<!-- ═══ MODAL ESTAÇÃO MASTER ═══ -->
+
 <div id="master-estacao-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);
   z-index:99999;align-items:center;justify-content:center"
   onclick="if(event.target===this)this.style.display='none'">
