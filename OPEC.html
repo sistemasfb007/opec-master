@@ -2804,49 +2804,43 @@ function renderRoteiro(){
             let cls='item-row';
             if(act)cls+=' active'; if(dn)cls+=' done'; if(exp)cls+=' expired'; if(item.manual)cls+=' manual';
             const expLabel=item.dateEnd?`<span class="ir-expire${exp?' expired':''}">${exp?'! ':''}${fmtDate(item.dateEnd)}</span>`:'';
-            // Cor do segmento
-            const _sc  = SEG_TEXT[item.segment]  || 'transparent';
-            const _sb  = SEG_BG[item.segment]    || 'transparent';
-            const _slb = SEG_LABELS[item.segment] || '';
-            const _segBar   = item.segment ? `<div class="ir-seg-bar" style="background:${_sc}"></div>` : '';
-            const _segBadge = item.segment ? `<span class="ir-seg-badge" style="background:${_sb};color:${_sc};border:1px solid ${_sc}44">${_slb}</span>` : '';
-            // Nº Mídia: usar do item ou buscar na biblioteca pelo piNumber/nome
-            const _libSeq = (()=>{
-              if(item.seq) return item.seq;
-              if(!mediaLib||!mediaLib.length) return '';
-              const found = mediaLib.find(m=>
-                (item.piNumber && m.piNumber && m.piNumber===item.piNumber && m.name===item.name) ||
-                (item.id && m.id===item.id) ||
-                (item.libId && m.id===item.libId)
-              );
-              return found?.seq||'';
+            // ── Buscar dados na biblioteca (fonte de verdade) ──
+            const _libEntry = (()=>{
+              if(!mediaLib||!mediaLib.length) return null;
+              return mediaLib.find(m=>
+                (item.libId && m.id === item.libId) ||
+                (item.id    && m.id === item.id)    ||
+                (item.piNumber && m.piNumber && m.piNumber === item.piNumber && m.name === item.name)
+              ) || null;
             })();
-            // Buscar título na biblioteca se o item não tiver
-            const _libTitle = (()=>{
-              if(item.title) return item.title;
-              if(!mediaLib||!mediaLib.length) return '';
-              const found = mediaLib.find(m=>
-                (item.piNumber && m.piNumber && m.piNumber===item.piNumber) ||
-                (item.id && m.id===item.id) ||
-                (item.libId && m.id===item.libId)
-              );
-              return found?.title||'';
-            })();
+            // Seq: biblioteca tem prioridade sobre o item da grade
+            const _libSeq   = _libEntry?.seq   || item.seq   || '';
+            // Título/nome: biblioteca tem prioridade
+            const _dispName = _libEntry?.name  || item.name  || '';
+            const _dispTitle= _libEntry?.title || item.title || '';
+            // Duração: biblioteca tem prioridade
+            const _dispDur  = _libEntry ? (parseInt(_libEntry.dur)||item.dur||30) : (item.dur||30);
+            // Segmento atualizado
+            const _seg      = _libEntry?.segment || item.segment || '';
+            const _scU  = SEG_TEXT[_seg]  || 'transparent';
+            const _sbU  = SEG_BG[_seg]    || 'transparent';
+            const _slbU = SEG_LABELS[_seg] || '';
+            const _segBarU   = _seg ? `<div class="ir-seg-bar" style="background:${_scU}"></div>` : '';
             return `<div class="${cls}" draggable="true" data-pi="${pi}" data-bi="${bi}" data-ii="${ii}" onclick="selectItem(${pi},${bi},${ii})">
-              ${_segBar}
+              ${_segBarU}
               <span class="ir-seq" style="margin-left:6px;font-weight:700;color:${_libSeq?'var(--gold2)':'var(--text3)'};font-size:11px;min-width:28px;cursor:${_libSeq?'default':'pointer'}"
                 title="${_libSeq?'Nº Mídia: '+_libSeq:'Sem Nº Mídia — clique em Mídias para numerar'}"
                 onclick="${_libSeq?'':'event.stopPropagation();showToast(\'ℹAcesseComercial → Mídias → Auto-numerar ou clique no ✏ para definir o Nº Mídia\')'}">
                 ${_libSeq||'—'}
               </span>
               <span class="ir-name" style="margin-left:4px;display:flex;flex-direction:column;justify-content:center;min-width:0">
-                <span style="font-size:12px;font-weight:600;color:#e8eef6;letter-spacing:.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_libTitle||item.name}</span>
-                ${(item.segment && SEG_LABELS[item.segment])?`<span class="ir-title">${SEG_LABELS[item.segment]}</span>`:''}
+                <span style="font-size:12px;font-weight:600;color:#e8eef6;letter-spacing:.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_dispTitle||_dispName}</span>
+                ${_seg && SEG_LABELS[_seg]?`<span class="ir-title">${SEG_LABELS[_seg]}</span>`:''}
               </span>
               ${item.piNumber?`<span style="font-family:var(--font-m);font-size:8px;color:var(--gold);background:rgba(212,160,23,.1);border:1px solid rgba(212,160,23,.2);border-radius:3px;padding:1px 4px;flex-shrink:0;white-space:nowrap">PI-${item.piNumber}</span>`:''}
 
               ${expLabel}
-              <span class="ir-dur">${fmtSec(item.dur)}</span>
+              <span class="ir-dur">${fmtSec(_dispDur)}</span>
 
             </div>`;
           }).join('');
@@ -3048,8 +3042,29 @@ function renderCtrl(){
   $('e-cd-prog').textContent=prog?prog.name:'Selecione um material';
   $('e-cd-brk').textContent=brk?brk.name:'';
 
+  // ── Helper: busca dados na biblioteca para um item da grade ──
+  function _resolveItem(it){
+    if(!it) return it;
+    if(!mediaLib||!mediaLib.length) return it;
+    const lib = mediaLib.find(m=>
+      (it.libId && m.id===it.libId) ||
+      (it.id    && m.id===it.id)    ||
+      (it.piNumber && m.piNumber && m.piNumber===it.piNumber && m.name===it.name)
+    );
+    if(!lib) return it;
+    return {
+      ...it,
+      seq:   lib.seq   || it.seq,
+      name:  lib.name  || it.name,
+      title: lib.title || it.title,
+      dur:   lib.dur   || it.dur,
+    };
+  }
+
+  const rItem = item ? _resolveItem(item) : null;
+
   // Fade ao trocar material
-  const newMatName = item?`${item.seq||pad(cur.itemIdx+1)} — ${item.name}`:'';
+  const newMatName = rItem?`${rItem.seq||pad(cur.itemIdx+1)} — ${rItem.title||rItem.name}`:'';
   const matEl = $('e-cd-mat');
   if(newMatName !== _lastMatName && matEl){
     matEl.classList.add('fade-out');
@@ -3063,7 +3078,7 @@ function renderCtrl(){
   }
 
   let nxt='';
-  if(brk&&(brk.items||[])[cur.itemIdx+1]){const ni=brk.items[cur.itemIdx+1];nxt=`A seguir: ${ni.seq||''} ${ni.name} (${fmtSec(ni.dur)})`;}
+  if(brk&&(brk.items||[])[cur.itemIdx+1]){const _ni=_resolveItem(brk.items[cur.itemIdx+1]);nxt=`A seguir: ${_ni.seq||''} ${_ni.title||_ni.name} (${fmtSec(_ni.dur)})`;}
   else if(prog&&(prog.breaks||[])[cur.brkIdx+1]){nxt=`Próximo break: ${prog.breaks[cur.brkIdx+1].name}`;}
   else if(progs[cur.progIdx+1]){const np=progs[cur.progIdx+1];nxt=`Próximo: ${np.time} — ${np.name}`;}
   $('e-cd-nxt').textContent=nxt;
@@ -3079,8 +3094,8 @@ function renderCtrl(){
     for(let bi=(pi===cur.progIdx?cur.brkIdx:0);bi<(p.breaks||[]).length&&count<6;bi++){
       const b=(p.breaks||[])[bi];if(!b)continue;const startII=(pi===cur.progIdx&&bi===cur.brkIdx)?cur.itemIdx+1:0;
       for(let ii=startII;ii<(b.items||[]).length&&count<6;ii++){
-        const it=b.items[ii];
-        upHtml+=`<div class="up-row"><span class="up-seq">${it.seq||pad(ii+1)}</span><span class="up-name">${it.name}${it.title?`<span style="color:var(--text3)"> — ${it.title}</span>`:''}</span><span class="up-ctx">${p.name} · ${b.name}</span><span class="up-dur">${fmtSec(it.dur)}</span></div>`;
+        const it=_resolveItem(b.items[ii]);
+        upHtml+=`<div class="up-row"><span class="up-seq">${it.seq||pad(ii+1)}</span><span class="up-name">${it.title||it.name}${it.title&&it.name&&it.title!==it.name?`<span style="color:var(--text3)"> — ${it.name}</span>`:''}</span><span class="up-ctx">${p.name} · ${b.name}</span><span class="up-dur">${fmtSec(it.dur)}</span></div>`;
         count++;
       }
     }
@@ -3581,23 +3596,70 @@ function doSaveMidia(realIdx){
   }
   const _savedLinks = miGetPiLinks();
   const _primary = _savedLinks[0];
+  const newSeq      = $('mi-seq').value.trim();
+  const newName     = name;
+  const newTitle    = $('mi-title').value.trim();
+  const newDur      = parseInt($('mi-dur').value)||30;
+  const newDateStart= $('mi-datestart').value;
+  const newDateEnd  = dateEnd;
+  const newPiNumber = _primary?.piNumber || ($('mi-pi-number')?.value||m.piNumber||'').trim();
+  const newPiClient = _primary?.piClient || m.piClient||'';
+
   mediaLib[realIdx] = {
     ...m,
-    seq:       $('mi-seq').value.trim(),
-    name:      name,
-    title:     $('mi-title').value.trim(),
-    dur:       parseInt($('mi-dur').value)||30,
-    dateStart: $('mi-datestart').value,
-    dateEnd:   dateEnd,
-    piNumber:  _primary?.piNumber || ($('mi-pi-number')?.value||m.piNumber||'').trim(),
-    piClient:  _primary?.piClient || m.piClient||'',
+    seq:       newSeq,
+    name:      newName,
+    title:     newTitle,
+    dur:       newDur,
+    dateStart: newDateStart,
+    dateEnd:   newDateEnd,
+    piNumber:  newPiNumber,
+    piClient:  newPiClient,
     piLinks:   _savedLinks.length ? _savedLinks : undefined,
   };
   saveMediaLib();
-  closeModal('m-item');
-  renderMidList();
 
-  showToast('✓ Material atualizado');
+  // ── Propagar alterações para todos os itens da grade vinculados a este material ──
+  const libId   = m.id;
+  const oldPiNum= String(m.piNumber||'').trim();
+  const newPiNum= String(newPiNumber||'').trim();
+  let gradeUpdated = false;
+  Object.values(grade).forEach(progs=>(progs||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>{
+    (brk.items||[]).forEach(it=>{
+      const matchById    = libId && it.libId === libId;
+      const matchByPiNum = oldPiNum && String(it.piNumber||'').trim() === oldPiNum
+                           && it.name === m.name;
+      const matchByName  = !matchById && !matchByPiNum
+                           && it.name === m.name
+                           && (it.seq||'') === (m.seq||'');
+      if(matchById || matchByPiNum || matchByName){
+        it.seq       = newSeq;
+        it.name      = newName;
+        it.title     = newTitle;
+        it.dur       = newDur;
+        it.dateStart = newDateStart;
+        it.dateEnd   = newDateEnd;
+        it.piNumber  = newPiNum || it.piNumber;
+        it.piClient  = newPiClient || it.piClient;
+        it.libId     = libId;
+        gradeUpdated = true;
+      }
+    });
+  })));
+
+  if(gradeUpdated){
+    recalcBrkTotals();
+    saveGrade(); // salva grade + publica Firebase + broadcastState
+    renderRoteiro();
+    if(typeof renderMidList==='function') renderMidList();
+    showToast('✓ Material e grade atualizados');
+  } else {
+    closeModal('m-item');
+    renderMidList();
+    showToast('✓ Material atualizado');
+  }
+
+  closeModal('m-item');
   // Reset modal back to "add" mode
   _resetAddItemModal();
 }
@@ -7105,26 +7167,25 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     if(typeof mediaLib === 'undefined') return;
 
     // seq = Nº Mídia: deixar vazio ao criar — operador preenche manualmente
-    // piNumber = identificador do contrato PI (separado)
     const seq = ''; // operador define o Nº Mídia manualmente
 
     // Título limpo do VT (remove "VT " do início)
     const rawTitle  = pi.title || pi.campaign || '';
     const vtClean   = rawTitle.replace(/^VT\s+/i,'').trim();
-
-    // name = SEGMENTO do cliente (campo "Segmento / Marca")
-    const _seg      = guessSegment(pi.client||'');
-    const _segLabel = SEG_LABELS[_seg] || (pi.client||'').split(/\s+/)[0] || vtClean;
-    const name      = _segLabel;
-
-    // title = PRIMEIRO NOME DO CLIENTE — TÍTULO DO VT
     const _firstWord = (pi.client||'').split(/\s+/)[0] || '';
-    const title      = vtClean ? (_firstWord ? _firstWord + ' — ' + vtClean : vtClean) : _firstWord;
 
-    // Verificar se já existe (por piNumber ou seq)
+    // ── name DEVE ser idêntico ao _itemName usado em piDoApply ──
+    // (PRIMEIRO_NOME_CLIENTE — TÍTULO_VT) para que o lookup por nome funcione
+    const name  = vtClean
+      ? (_firstWord ? _firstWord + ' — ' + vtClean : vtClean)
+      : (pi.client||'');
+
+    // title = descrição secundária (ex: nome completo do cliente)
+    const title = pi.client || vtClean || '';
+
+    // Verificar se já existe (por piNumber)
     const existing = mediaLib.find(m =>
-      (m.piNumber && m.piNumber === pi.piNumber) ||
-      (m.seq && m.seq === seq)
+      (m.piNumber && m.piNumber === pi.piNumber)
     );
 
     if(existing){
