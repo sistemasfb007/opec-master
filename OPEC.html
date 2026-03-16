@@ -1085,6 +1085,7 @@ window._opecAlterarAcesso = async function(nome, access){
 };
 
 // ──Conectar ao canal da estação ──
+let _unsubAirLogs = null;
 function _fbConnect(){
   if(!db||!_stationCode) return;
   _gradeRef = ref(db,`estacoes/${_stationCode}/grade`);
@@ -1104,6 +1105,21 @@ function _fbConnect(){
     const d=snap.val(), ts=d?._ts||0;
     if(ts<=_fbLastTs) return;
     _applyGrade(d);
+  });
+
+  // ── Escutar air_logs publicados pelo MASTER ──
+  if(_unsubAirLogs){ _unsubAirLogs(); _unsubAirLogs=null; }
+  const _airRef = ref(db,`estacoes/${_stationCode}/air_logs`);
+  _unsubAirLogs = onValue(_airRef, snap=>{
+    if(!snap.exists()) return;
+    const d = snap.val();
+    const ts = d._ts||0;
+    const localTs = parseInt(localStorage.getItem('roteiro_air_ts')||'0');
+    if(ts <= localTs) return;
+    const logs = {...d}; delete logs._ts;
+    localStorage.setItem('roteiro_air_logs', JSON.stringify(logs));
+    localStorage.setItem('roteiro_air_ts', String(ts));
+    if(typeof renderRoteiro==='function') renderRoteiro();
   });
 }
 
@@ -3594,36 +3610,10 @@ function doSaveMidia(realIdx){
     piLinks:   _savedLinks.length ? _savedLinks : undefined,
   };
   saveMediaLib();
-
-  // Propagar alterações para itens da grade vinculados a este material
-  const updated  = mediaLib[realIdx];
-  const _oldId   = m.id;
-  const _oldPiNum = String(m.piNumber||'').trim();
-  let _gradeChanged = false;
-  Object.values(grade).forEach(progs=>(progs||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>{
-    (brk.items||[]).forEach(it=>{
-      const match =
-        (_oldId   && it.libId === _oldId) ||
-        (_oldPiNum && String(it.piNumber||'').trim() === _oldPiNum && it.name === m.name) ||
-        (!_oldId && !_oldPiNum && it.name === m.name && (it.seq||'') === (m.seq||''));
-      if(!match) return;
-      it.seq       = updated.seq;
-      it.name      = updated.name;
-      it.title     = updated.title;
-      it.dur       = updated.dur;
-      it.dateStart = updated.dateStart;
-      it.dateEnd   = updated.dateEnd;
-      it.piNumber  = updated.piNumber || it.piNumber;
-      it.piClient  = updated.piClient || it.piClient;
-      it.libId     = _oldId;
-      _gradeChanged = true;
-    });
-  })));
-  if(_gradeChanged){ recalcBrkTotals(); saveGrade(); renderRoteiro(); }
-
   closeModal('m-item');
   renderMidList();
-  showToast('✓ Material atualizado' + (_gradeChanged ? ' e grade sincronizada' : ''));
+
+  showToast('✓ Material atualizado');
   // Reset modal back to "add" mode
   _resetAddItemModal();
 }
