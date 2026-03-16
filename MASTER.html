@@ -419,24 +419,26 @@ try{
 
   onAuthStateChanged(_auth, async user => {
     const loginScreen = document.getElementById('master-login-screen');
+
     if(user){
       const nome = user.email.replace(DOMINIO,'');
-      // Verificar permissão de acesso ao MASTER
+      loginScreen.style.display = 'flex';
+      _mlErr('');
+
       try{
         const snap = await _db.ref('_usuarios/'+nome).once('value');
-        const userData = snap.val();
-        const access = userData?.access || 'ambos';
+        const access = snap.exists() ? (snap.val()?.access || 'ambos') : 'ambos';
         if(access === 'opec'){
-          // Sem acesso ao MASTER
+          _mlErr('Você não tem permissão para acessar este sistema. Solicite ao administrador.');
           await _auth.signOut();
-          loginScreen.style.display = 'flex';
-          _mlErr('⛔ Seu usuário tem acesso apenas ao OPEC.');
           return;
         }
       }catch(e){
-        // Se não conseguir verificar, permitir acesso (compatibilidade)
-        console.warn('Não foi possível verificar permissão:', e.message);
+        // Falha na verificação — liberar acesso
+        console.warn('Verificação de permissão falhou:', e.message);
       }
+
+      // Acesso liberado
       loginScreen.style.display = 'none';
       _renderUserBtn(nome);
       if(_code) _connect(_code);
