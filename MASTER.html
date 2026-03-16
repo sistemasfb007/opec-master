@@ -25,6 +25,7 @@
 html{height:100%}
 body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b);font-size:14px;overflow:hidden;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
 #master-app-root{flex:1;display:flex;flex-direction:column;height:100%;overflow:hidden}
+#master-app-root .master-content{flex:1;display:flex;flex-direction:row;overflow:hidden;min-height:0}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:var(--s2)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
@@ -86,21 +87,351 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 .dnt-today:hover{border-color:var(--gold);color:var(--gold)}
 .dnt-body{overflow:hidden}
 .date-nav.closed .dnt-body{display:none}
-.dnt-dow-row{display:grid;grid-template-columns:repeat(7,1fr);padding:2px 6px 0}
-.dnt-dow{font-family:var(--font-d);font-size:8px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);text-align:center;padding:1px 0;opacity:.5}
-.dnt-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;padding:2px 6px 4px}
-.dnt-cell{text-align:center;border-radius:3px;padding:2px 1px;cursor:pointer;transition:all .12s;min-height:22px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.dnt-dow-row{display:grid;grid-template-columns:repeat(7,1fr);padding:4px 8px 2px}
+.dnt-dow{font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);text-align:center;padding:2px 0;opacity:.6}
+.dnt-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:4px 8px 6px}
+
+/* ══ SCROLL TOGGLE ══ */
+.scroll-ctrl{display:flex;align-items:center;gap:8px;padding:4px 10px;background:var(--s2);border-bottom:1px solid var(--border);flex-shrink:0}
+.sc-lbl{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);flex:1}
+.sc-switch{width:26px;height:14px;border-radius:7px;background:var(--s3);border:1px solid var(--border);cursor:pointer;position:relative;transition:background .2s;flex-shrink:0}
+.sc-switch.on{background:var(--green);border-color:var(--green)}
+.sc-thumb{position:absolute;top:1px;left:1px;width:10px;height:10px;border-radius:50%;background:#fff;transition:left .18s;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.sc-switch.on .sc-thumb{left:13px}
+
+/* ══ SIDEBAR — fixa, altura total da área de conteúdo ══ */
+.sidebar{
+  flex-shrink:0;
+  background:var(--s1);
+  border-right:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  transition:width .22s ease;
+  /* Altura gerenciada por JS via --sidebar-h */
+  height:var(--sidebar-h, 100vh);
+}
+.sidebar.open{width:220px}
+.sidebar.closed{width:36px}
+.sb-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 10px;border-bottom:1px solid var(--border);
+  font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:3px;
+  text-transform:uppercase;color:var(--text3);
+  flex-shrink:0;white-space:nowrap;overflow:hidden
+}
+.sb-toggle{background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 2px;line-height:1;flex-shrink:0;transition:color .15s}
+.sb-toggle:hover{color:var(--gold)}
+.sb-content{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.sidebar.closed .sb-content{display:none}
+.sidebar.closed .sb-head-lbl{display:none}
+.sb-list{flex:1;overflow-y:auto;padding:6px 5px}
+.sb-list::-webkit-scrollbar{width:3px}
+.sb-item{
+  padding:10px 11px;border-radius:7px;cursor:pointer;margin-bottom:4px;
+  border:1px solid transparent;border-left:3px solid transparent;
+  transition:all .14s
+}
+.sb-item:hover{background:var(--s2);border-color:var(--border);border-left-color:var(--blue2)}
+.sb-item.sb-onair{background:rgba(31,170,90,.10);border-color:rgba(31,170,90,.25);border-left-color:var(--green)}
+.sb-time{font-family:var(--font-m);font-size:11px;font-weight:700;color:var(--blue2);margin-bottom:3px;letter-spacing:1px}
+.sb-item.sb-onair .sb-time{color:var(--green)}
+.sb-name{font-family:var(--font-d);font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text);line-height:1.35;word-break:break-word;white-space:normal}
+.sb-item:hover .sb-name{color:var(--gold2)}
+.sb-item.sb-onair .sb-name{color:var(--gold2)}
+.onair-pulse{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);margin-right:4px;vertical-align:middle;animation:pulse 1.4s infinite}
+
+/* ══ BODY LAYOUT ══ */
+.body-layout{
+  display:flex;
+  flex:1;
+  min-height:0;
+  overflow:hidden;
+}
+
+/* ══ MAIN SCROLL — rolagem independente ══ */
+.main-scroll{
+  flex:1;
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding:14px 18px;
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+  min-height:0;
+  align-items:stretch;
+  scroll-behavior:smooth; /* [UX #13] */
+}
+.main-scroll::-webkit-scrollbar{width:8px}
+.main-scroll::-webkit-scrollbar-track{background:var(--s2)}
+.main-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+.main-scroll::-webkit-scrollbar-thumb:hover{background:var(--gold)}
+
+
+.prog-card{border-radius:12px;border:2px solid var(--prog-border)}
+.prog-card.cur{border-color:var(--gold);box-shadow:0 0 0 3px rgba(212,160,23,.10),0 6px 32px rgba(0,0,0,.5)}
+.prog-card.past{opacity:.42}
+.prog-card.collapsed .prog-body{display:none}
+.prog-card.collapsed .ph-chev{transform:rotate(-90deg)}
+.prog-hdr{display:flex;align-items:center;gap:12px;padding:13px 16px;background:var(--prog-bg);border-bottom:1px solid var(--prog-border);cursor:pointer;user-select:none;border-radius:10px 10px 0 0;overflow:hidden}
+.prog-hdr:hover{filter:brightness(1.1)}
+.prog-card.collapsed .prog-hdr{border-radius:10px}
+.prog-hdr:hover{filter:brightness(1.08)}
+.ph-time{font-family:var(--font-m);font-size:15px;color:var(--blue2);flex-shrink:0;white-space:nowrap}
+.ph-name{font-family:var(--font-d);font-size:18px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text);flex:1;min-width:0;word-break:normal;overflow-wrap:break-word;white-space:normal;line-height:1.2}
+.ph-badge-slot{flex-shrink:0}
+.ph-stat .ph-stat-brk{color:var(--gold2);font-weight:700}
+.ph-chev{font-size:13px;color:var(--text3);flex-shrink:0;transition:transform .18s;cursor:pointer;padding:4px 6px;border-radius:4px}
+.ph-chev:hover{background:var(--s3);color:var(--text)}
+.prog-card.collapsed .ph-chev{transform:rotate(-90deg)}
+.prog-body{border-radius:0 0 10px 10px;overflow:hidden}
+
+/* ══ BREAK BLOCK ══ */
+.brk-block{border-top:1px solid var(--border)}
+.brk-block.collapsed .brk-body{display:none}
+.brk-block.collapsed .bh-chev{transform:rotate(-90deg)}
+.brk-hdr{display:flex;align-items:center;gap:10px;padding:9px 16px 9px 22px;background:var(--brk-bg);border-bottom:1px solid var(--brk-border)}
+.brk-hdr.cur{background:rgba(212,160,23,.18);border-left:4px solid var(--gold);padding-left:18px}
+.bh-chev{font-size:11px;color:var(--text3);flex-shrink:0;transition:transform .18s;margin-left:2px;cursor:pointer;padding:3px 5px;border-radius:3px}
+.bh-chev:hover{background:var(--s3);color:var(--text)}
+.bh-name{font-family:var(--font-d);font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);flex:1}
+.bh-dur{font-family:var(--font-m);font-size:11px;color:var(--text2)}
+.bh-cnt{font-size:10px;color:var(--text3)}
+.bh-warn{font-size:10px;color:var(--red2)}
+
+/* ══ ITEM ROWS — ALWAYS VISIBLE ══ */
+.item{display:grid;grid-template-columns:36px 1fr 140px 58px;align-items:center;gap:10px;padding:9px 16px 9px 30px;border-top:1px solid rgba(255,255,255,.03);transition:background .1s}
+.item:hover{background:rgba(255,255,255,.025)}
+.item.cur{background:rgba(212,160,23,.12);border-left:4px solid var(--gold);padding-left:26px;animation:pulse-border 2s ease-in-out infinite}
+@keyframes pulse-border{0%,100%{border-left-color:var(--gold)}50%{border-left-color:var(--gold2)}}
+.item.done{opacity:.3}
+.item.exp{background:var(--red-dim)!important;border-left:3px solid var(--red2)!important;padding-left:27px}
+/* [UX #6.3] tooltip por item */
+.item{position:relative}
+.i-tooltip{position:absolute;left:40px;top:calc(100% + 3px);z-index:30;background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;font-size:11px;color:var(--text);line-height:1.7;white-space:nowrap;opacity:0;pointer-events:none;transform:translateY(-4px);transition:opacity .15s,transform .15s;box-shadow:0 4px 16px rgba(0,0,0,.5)}
+.item:hover .i-tooltip{opacity:1;transform:translateY(0)}
+.i-seq{font-family:var(--font-m);font-size:10px;color:var(--text3)}
+.item.cur .i-seq{color:var(--gold2)}
+.item.exp .i-seq{color:var(--red2)}
+.i-body{}
+.i-name{font-size:12px;font-weight:500;color:var(--text);line-height:1.3}
+.item.exp .i-name{color:var(--red2)}
+.i-title{font-size:11px;color:var(--text3);font-style:italic;margin-top:1px}
+.i-date{font-family:var(--font-m);font-size:10px;color:var(--text3)}
+.i-date.exp{color:var(--red2);font-weight:600}
+.i-dur{font-family:var(--font-m);font-size:11px;color:var(--text2);text-align:right}
+.no-items{padding:10px 30px;font-size:11px;color:var(--text3);font-style:italic}
+.no-breaks{padding:12px 16px;font-size:11px;color:var(--text3);font-style:italic}
+
+/* ══ EMPTY ══ */
+.empty{padding:60px 24px;text-align:center;color:var(--text3);font-size:13px;line-height:2.2}
+.empty-ico{font-size:50px;margin-bottom:14px;opacity:.35}
+
+/* ══ MODAL ══ */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:99;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.overlay.open{display:flex}
+.modal{background:var(--s2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:360px;max-width:95vw}
+.m-ttl{font-family:var(--font-d);font-size:18px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px}
+.fg{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
+.fg-lbl{font-size:10px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--text2)}
+.inp{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:13px;color:var(--text);font-family:var(--font-m);outline:none;width:100%;transition:border-color .18s}
+.inp:focus{border-color:var(--gold)}
+.m-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.btn{font-family:var(--font-d);font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:7px 16px;border-radius:6px;border:none;cursor:pointer;transition:all .18s;white-space:nowrap}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border)}.btn-ghost:hover{color:var(--text);border-color:var(--border2)}
+.btn-gold{background:var(--gold);color:#000;font-weight:700}.btn-gold:hover{background:var(--gold2)}
+.btn-sm{padding:5px 11px;font-size:11px}
+
+
+
+/* ══ OPEC MODE ══ */
+#opec-overlay{
+  width:0;
+  flex-shrink:0;
+  display:flex;
+  flex-direction:column;overflow:hidden;
+  border-left:0px solid var(--border2);
+  background:var(--s1);
+  transition:width .22s ease;
+}
+#opec-overlay.open{width:280px;border-left-width:1px}
+#opec-backdrop{display:none!important}
+.opec-topbar{
+  display:flex;align-items:center;
+  padding:8px 10px;border-bottom:1px solid var(--border);
+  font-family:var(--font-d);font-size:9px;font-weight:700;
+  letter-spacing:3px;text-transform:uppercase;color:var(--text3);
+  flex-shrink:0;white-space:nowrap;overflow:hidden;
+  gap:8px;min-height:40px;
+  background:var(--s2);
+}
+.opec-title{font-family:var(--font-d);font-size:14px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold)}
+.opec-prog{font-size:11px;color:var(--text2);letter-spacing:2px;text-transform:uppercase}
+.opec-close{
+  background:none;border:1px solid var(--border2,#2a3545);
+  border-radius:5px;color:var(--text3,#3a4d60);cursor:pointer;
+  font-size:12px;padding:4px 10px;transition:all .15s;
+}
+.opec-close:hover{border-color:var(--red2,#e05050);color:var(--red2,#e05050)}
+@keyframes pulse-red{0%,100%{box-shadow:0 0 0 0 rgba(192,57,43,.6)}50%{box-shadow:0 0 0 8px rgba(192,57,43,0)}}
+.opec-brk-name{font-family:var(--font-d);font-size:13px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold)}
+.opec-prog-name{font-size:11px;color:var(--text2)}
+
+.opec-mat-card{
+  flex:1;background:var(--s1);border:2px solid var(--gold);border-radius:14px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:14px;text-align:center;position:relative;overflow:hidden;
+  box-shadow:0 0 20px rgba(212,160,23,.08);min-height:0
+}
+.opec-mat-card::before{
+  content:'';position:absolute;inset:0;border-radius:12px;
+  background:radial-gradient(ellipse 60% 50% at 50% 30%,rgba(212,160,23,.06),transparent 70%)
+}
+.opec-mat-seq{
+  font-family:var(--font-m);font-size:10px;color:var(--gold);
+  letter-spacing:2px;margin-bottom:4px;position:relative
+}
+.opec-mat-name{
+  font-family:var(--font-d);font-size:18px;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;color:#fff;line-height:1.3;margin-bottom:4px;
+  position:relative;max-width:100%
+}
+.opec-mat-title{font-size:16px;color:var(--text2);font-style:italic;margin-bottom:18px;position:relative}
+.opec-mat-dur{
+  font-family:var(--font-m);font-size:28px;color:var(--gold2);letter-spacing:3px;
+  line-height:1;position:relative;font-weight:700
+}
+.opec-mat-dur.warn{color:var(--red2);animation:blk .5s infinite}
+.opec-mat-dur.caution{color:var(--gold2)} /* [UX #9.3] aviso intermediário */
+
+.opec-confirm-btn{
+  width:100%;padding:10px 14px;margin-top:10px;flex-shrink:0;
+  font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  border-radius:7px;cursor:pointer;transition:all .18s;
+  background:rgba(31,170,90,.1);
+  border:1px solid rgba(31,170,90,.3);
+  color:var(--green,#1faa5a);
+}
+.opec-confirm-btn:hover{
+  background:rgba(31,170,90,.2);
+  border-color:var(--green);
+  box-shadow:0 0 10px rgba(31,170,90,.15);
+}
+.opec-confirm-btn:hover{filter:brightness(1.15);transform:translateY(-1px)}
+.opec-confirm-btn:active{transform:translateY(0)}
+.opec-confirm-btn.confirmed{
+  background:rgba(31,170,90,.15);
+  border-color:var(--green,#1faa5a);
+  color:var(--green,#1faa5a);
+  opacity:.7;
+  cursor:default;
+}
+.opec-queue-head{
+  padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0;
+  font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:3px;
+  text-transform:uppercase;color:var(--text3)
+}
+.opec-queue-list{flex:1;overflow-y:auto;padding:8px}
+.opec-queue-list::-webkit-scrollbar{width:3px}
+.opec-qitem{
+  display:flex;align-items:center;gap:7px;padding:7px 8px;
+  border-radius:6px;cursor:pointer;transition:background .12s;
+  border:1px solid transparent;margin-bottom:3px;
+}
+.opec-qitem:hover{background:var(--s3);border-color:var(--border)}
+.opec-qitem.q-cur{background:rgba(212,160,23,.08);border-color:rgba(212,160,23,.25)}
+.opec-qitem.q-done{opacity:.35}
+.opec-qitem.q-next{border-color:var(--border2)}
+.opec-q-left{display:flex;align-items:center;gap:4px;flex-shrink:0;width:36px}
+.opec-q-check{font-family:var(--font-m);font-size:10px;font-weight:700;width:12px;text-align:center}
+.opec-qitem.q-cur .opec-q-check{color:var(--gold2)}
+.opec-qitem.q-done .opec-q-check{color:var(--green)}
+.opec-qitem.q-next .opec-q-check{color:var(--text3)}
+.opec-q-num{font-family:var(--font-m);font-size:10px;color:var(--gold);font-weight:700}
+.opec-q-body{flex:1;min-width:0}
+.opec-q-name{font-size:11px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.opec-qitem.q-cur .opec-q-name{color:var(--gold2)}
+.opec-q-title{font-size:9px;color:var(--text3);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.opec-q-dur{font-family:var(--font-m);font-size:9px;color:var(--text3);margin-top:1px}
+.opec-q-confirm-btn{
+  flex-shrink:0;padding:4px 7px;
+  background:rgba(31,170,90,.1);border:1px solid rgba(31,170,90,.3);
+  border-radius:4px;color:var(--green);cursor:pointer;
+  font-size:10px;font-weight:700;transition:all .15s;
+}
+.opec-q-confirm-btn:hover{background:var(--green);color:#000}
+
+/* ══ TOPBAR ══ */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  height:52px;padding:0 18px;flex-shrink:0;
+  background:var(--s1);border-bottom:2px solid var(--gold)
+}
+.tb-left{display:flex;align-items:center;gap:12px}
+.tb-logo{font-family:var(--font-d);font-size:20px;font-weight:700;letter-spacing:4px;color:var(--gold);text-transform:uppercase}
+
+
+
+.tb-right{display:flex;align-items:center;gap:10px}
+.tb-clock{font-family:var(--font-m);font-size:22px;color:var(--gold2);letter-spacing:3px}
+.ip-pill{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:4px;display:flex;align-items:center;gap:5px;cursor:pointer;border:1px solid var(--border)}
+.ip-pill.connected{background:rgba(31,170,90,.12);color:var(--green);border-color:rgba(31,170,90,.25)}
+.ip-pill.polling{background:var(--blue-dim);color:var(--blue2);border-color:rgba(58,154,224,.25)}
+.ip-pill.disconnected{color:var(--text3)}
+.ip-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.ip-dot.blink{animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.1}}
+
+/* ══ ON AIR BANNER ══ */
+.banner{
+  display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:20px;
+  padding:10px 20px;background:var(--s1);border-bottom:1px solid var(--border2);flex-shrink:0
+}
+.b-timer{font-family:var(--font-m);font-size:44px;color:var(--gold2);letter-spacing:4px;line-height:1;min-width:110px}
+.b-timer.warn{color:var(--red2);animation:blk .5s infinite}
+@keyframes blk{0%,100%{opacity:1}50%{opacity:.2}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(31,170,90,.5)}50%{box-shadow:0 0 0 4px rgba(31,170,90,0)}}
+.b-info{min-width:0}
+.b-prog{font-family:var(--font-d);font-size:20px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--blue2)}
+.b-brk{font-family:var(--font-d);font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-top:2px}
+.b-mat{font-size:12px;color:var(--text2);font-style:italic;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.b-next{text-align:right;min-width:180px}
+.b-next-lbl{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:3px}
+.b-next-name{font-family:var(--font-d);font-size:13px;font-weight:600;color:var(--text)}
+.b-next-sub{font-size:11px;color:var(--text3);margin-top:2px}
+
+/* ══ DATE NAVIGATOR — compacto e colapsável ══ */
+.date-nav{background:var(--s1);border-bottom:1px solid var(--border);flex-shrink:0;overflow:hidden;transition:max-height .25s ease}
+.date-nav.open{max-height:260px}
+.date-nav.closed{max-height:28px}
+.dnt-top{display:flex;align-items:center;gap:3px;padding:4px 8px;height:28px;cursor:pointer;transition:background .15s}
+.dnt-top:hover{background:var(--s2)}
+.dnt-arrow{background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:1px 5px;border-radius:3px;line-height:1;transition:all .14s}
+.dnt-arrow:hover{color:var(--gold);background:var(--s3)}
+.dnt-toggle{background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;padding:1px 4px;border-radius:3px;line-height:1;transition:all .14s;margin-left:2px}
+.dnt-toggle:hover{color:var(--gold)}
+.dnt-label{font-family:var(--font-d);font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--text2);flex:1;text-align:center}
+.dnt-year{font-family:var(--font-m);font-size:10px;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--text3);padding:1px 4px;outline:none;cursor:pointer}
+.dnt-year option{background:var(--s2)}
+.dnt-today{font-family:var(--font-d);font-size:8px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:2px 7px;border-radius:3px;border:1px solid var(--border);background:none;color:var(--text3);cursor:pointer;transition:all .14s;white-space:nowrap}
+.dnt-today:hover{border-color:var(--gold);color:var(--gold)}
+.dnt-body{overflow:hidden}
+.date-nav.closed .dnt-body{display:none}
+.dnt-dow-row{display:grid;grid-template-columns:repeat(7,1fr);padding:4px 8px 2px}
+.dnt-dow{font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);text-align:center;padding:2px 0;opacity:.6}
+.dnt-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:4px 8px 6px}
+.dnt-cell{text-align:center;border-radius:5px;padding:5px 2px;cursor:pointer;transition:all .15s;min-height:34px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
 .dnt-cell:hover:not(.dnt-other){background:var(--s3)}
 .dnt-cell.dnt-other{opacity:.2;pointer-events:none}
-.dnt-cell.dnt-today{background:var(--blue-dim);border:1px solid rgba(58,154,224,.25)}
-.dnt-cell.dnt-sel{background:var(--gold-dim);border:1px solid rgba(212,160,23,.5)}
-.dnt-cell.dnt-onair{background:rgba(31,170,90,.08);border:1px solid rgba(31,170,90,.25)}
-.dnt-num{font-family:var(--font-m);font-size:9px;color:var(--text3);line-height:1}
-.dnt-cell.dnt-today .dnt-num{color:var(--blue2)}
+.dnt-cell.dnt-today{background:var(--blue-dim);border:1px solid rgba(58,154,224,.3)}
+.dnt-cell.dnt-sel{background:var(--gold-dim);border:1px solid rgba(212,160,23,.55)}
+.dnt-cell.dnt-onair{background:rgba(31,170,90,.08);border:1px solid rgba(31,170,90,.3)}
+.dnt-num{font-family:var(--font-m);font-size:13px;color:var(--text2);line-height:1;letter-spacing:.3px}
+.dnt-cell.dnt-today .dnt-num{color:var(--blue2);font-weight:700}
 .dnt-cell.dnt-sel .dnt-num{color:var(--gold2);font-weight:700}
-.dnt-cell.dnt-onair .dnt-num{color:var(--green)}
-.dnt-dot{width:3px;height:3px;border-radius:50%;background:transparent}
-.dnt-cell.dnt-has .dnt-dot{background:rgba(31,170,90,.6)}
+.dnt-cell.dnt-onair .dnt-num{color:var(--green);font-weight:600}
+.dnt-dot{width:4px;height:4px;border-radius:50%;background:transparent}
+.dnt-cell.dnt-has .dnt-dot{background:rgba(31,170,90,.55)}
 .dnt-cell.dnt-onair .dnt-dot{background:var(--green);animation:pulse 1.4s infinite}
 
 /* ══ SCROLL TOGGLE ══ */
@@ -258,10 +589,20 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 
 /* ══ OPEC MODE ══ */
 #opec-overlay{
-  display:none;position:fixed;inset:0;z-index:500;
-  background:#080b0f;flex-direction:column;overflow:hidden;
+  display:none;
+  width:240px;
+  flex-shrink:0;
+  flex-direction:column;overflow:hidden;
+  border-left:1px solid var(--border2);
+  background:var(--s1);
 }
 #opec-overlay.open{display:flex}
+/* Backdrop for click-outside */
+#opec-backdrop{
+  display:none;position:fixed;inset:0;
+  z-index:399;background:transparent;
+}
+#opec-backdrop{display:none!important}
 .opec-topbar{
   display:flex;align-items:center;justify-content:space-between;
   height:50px;padding:0 20px;flex-shrink:0;
@@ -269,19 +610,12 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 }
 .opec-title{font-family:var(--font-d);font-size:14px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold)}
 .opec-prog{font-size:11px;color:var(--text2);letter-spacing:2px;text-transform:uppercase}
-.opec-close{font-family:var(--font-d);font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:5px 14px;border-radius:5px;border:1px solid var(--border);background:none;color:var(--text2);cursor:pointer;transition:all .15s}
-.opec-close:hover{border-color:var(--red2);color:var(--red2)}
-
-.opec-body{display:grid;grid-template-columns:1fr 340px;flex:1;overflow:hidden;min-height:0}
-
-/* Left: material atual */
-.opec-main{display:flex;flex-direction:column;padding:24px 28px;gap:16px;overflow:hidden}
-.opec-status-bar{display:flex;align-items:center;gap:10px;flex-shrink:0}
-.opec-on-air-badge{
-  font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;
-  padding:5px 14px;border-radius:5px;background:var(--red);color:#fff;
-  animation:pulse-red 1.2s infinite
+.opec-close{
+  background:none;border:1px solid var(--border2,#2a3545);
+  border-radius:5px;color:var(--text3,#3a4d60);cursor:pointer;
+  font-size:12px;padding:4px 10px;transition:all .15s;
 }
+.opec-close:hover{border-color:var(--red2,#e05050);color:var(--red2,#e05050)}
 @keyframes pulse-red{0%,100%{box-shadow:0 0 0 0 rgba(192,57,43,.6)}50%{box-shadow:0 0 0 8px rgba(192,57,43,0)}}
 .opec-brk-name{font-family:var(--font-d);font-size:13px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--gold)}
 .opec-prog-name{font-size:11px;color:var(--text2)}
@@ -289,44 +623,51 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 .opec-mat-card{
   flex:1;background:var(--s1);border:2px solid var(--gold);border-radius:14px;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  padding:28px;text-align:center;position:relative;overflow:hidden;
-  box-shadow:0 0 40px rgba(212,160,23,.1);min-height:0
+  padding:14px;text-align:center;position:relative;overflow:hidden;
+  box-shadow:0 0 20px rgba(212,160,23,.08);min-height:0
 }
 .opec-mat-card::before{
   content:'';position:absolute;inset:0;border-radius:12px;
   background:radial-gradient(ellipse 60% 50% at 50% 30%,rgba(212,160,23,.06),transparent 70%)
 }
 .opec-mat-seq{
-  font-family:var(--font-m);font-size:13px;color:var(--gold);
-  letter-spacing:3px;margin-bottom:8px;position:relative
+  font-family:var(--font-m);font-size:10px;color:var(--gold);
+  letter-spacing:2px;margin-bottom:4px;position:relative
 }
 .opec-mat-name{
-  font-family:var(--font-d);font-size:36px;font-weight:700;letter-spacing:1px;
-  text-transform:uppercase;color:#fff;line-height:1.15;margin-bottom:6px;
+  font-family:var(--font-d);font-size:18px;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;color:#fff;line-height:1.3;margin-bottom:4px;
   position:relative;max-width:100%
 }
 .opec-mat-title{font-size:16px;color:var(--text2);font-style:italic;margin-bottom:18px;position:relative}
 .opec-mat-dur{
-  font-family:var(--font-m);font-size:52px;color:var(--gold2);letter-spacing:4px;
+  font-family:var(--font-m);font-size:28px;color:var(--gold2);letter-spacing:3px;
   line-height:1;position:relative;font-weight:700
 }
 .opec-mat-dur.warn{color:var(--red2);animation:blk .5s infinite}
 .opec-mat-dur.caution{color:var(--gold2)} /* [UX #9.3] aviso intermediário */
 
 .opec-confirm-btn{
-  width:100%;padding:16px;margin-top:14px;flex-shrink:0;
-  font-family:var(--font-d);font-size:16px;font-weight:700;letter-spacing:3px;text-transform:uppercase;
-  border-radius:10px;border:none;cursor:pointer;transition:all .18s;
-  background:var(--green);color:#fff;
+  width:100%;padding:10px 14px;margin-top:10px;flex-shrink:0;
+  font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  border-radius:7px;cursor:pointer;transition:all .18s;
+  background:rgba(31,170,90,.1);
+  border:1px solid rgba(31,170,90,.3);
+  color:var(--green,#1faa5a);
+}
+.opec-confirm-btn:hover{
+  background:rgba(31,170,90,.2);
+  border-color:var(--green);
+  box-shadow:0 0 10px rgba(31,170,90,.15);
 }
 .opec-confirm-btn:hover{filter:brightness(1.15);transform:translateY(-1px)}
 .opec-confirm-btn:active{transform:translateY(0)}
-.opec-confirm-btn.confirmed{background:var(--s3);color:var(--green);border:2px solid var(--green);cursor:default;transform:none}
-
-/* Right: fila do break */
-.opec-queue{
-  background:var(--s1);border-left:1px solid var(--border);
-  display:flex;flex-direction:column;overflow:hidden
+.opec-confirm-btn.confirmed{
+  background:rgba(31,170,90,.15);
+  border-color:var(--green,#1faa5a);
+  color:var(--green,#1faa5a);
+  opacity:.7;
+  cursor:default;
 }
 .opec-queue-head{
   padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0;
@@ -383,23 +724,24 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 .ph-badge.onair{color:var(--gold2)}.ph-badge.done{color:var(--green)}
 .ph-stat{font-size:8px;color:var(--text3);flex-shrink:0;white-space:nowrap;background:rgba(255,255,255,.03);padding:2px 6px;border-radius:2px;border:1px solid rgba(255,255,255,.05);letter-spacing:.5px;-webkit-font-smoothing:antialiased}
 .ph-stat .ph-stat-brk{color:var(--gold);font-weight:700}
-.bh-opec-btn{display:inline-flex;align-items:center;gap:3px;font-family:var(--font-d);font-size:6px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:0;background:none;border:none;color:var(--gold);opacity:0;transition:opacity .15s;flex-shrink:0;cursor:pointer;white-space:nowrap;-webkit-font-smoothing:antialiased}
-.brk-hdr:hover .bh-opec-btn{opacity:.65}.brk-hdr.cur .bh-opec-btn{opacity:1}
-/* ══ fim hexagonal ══ */
-
-
-/* ══════════════════════════════
-   MASTER — RESPONSIVE MOBILE
-══════════════════════════════ */
-html { -webkit-text-size-adjust: 100%; }
-* { -webkit-tap-highlight-color: transparent; }
-input, button { font-family: inherit; -webkit-appearance: none; }
-
-/* Tablet */
-@media screen and (max-width: 900px) {
-  .topbar { height: auto; min-height: 44px; padding: 6px 10px; flex-wrap: wrap; gap: 5px; }
-  .tb-right { gap: 5px; }
-  .tb-clock { font-size: 15px; padding: 2px 8px; }
+.bh-opec-btn{
+  display:inline-flex;align-items:center;gap:4px;
+  font-family:var(--font-d);font-size:7px;font-weight:700;letter-spacing:1.5px;
+  text-transform:uppercase;
+  padding:3px 8px;
+  background:rgba(212,160,23,.12);
+  border:1px solid rgba(212,160,23,.3);
+  border-radius:4px;
+  color:var(--gold2);
+  opacity:1;
+  transition:all .15s;
+  flex-shrink:0;cursor:pointer;white-space:nowrap;
+  -webkit-tap-highlight-color:transparent;
+}
+.bh-opec-btn:hover{
+  background:rgba(212,160,23,.22);
+  border-color:var(--gold2);
+  box-shadow:0 0 8px rgba(212,160,23,.2);
 }
 
 /* Mobile */
@@ -483,6 +825,11 @@ input, button { font-family: inherit; -webkit-appearance: none; }
   .topbar { padding-top: max(6px, env(safe-area-inset-top)); }
   #master-app-root { padding-bottom: env(safe-area-inset-bottom); }
 }
+
+/* Items are clickable */
+.item{cursor:pointer;transition:background .12s}
+.item:hover{background:rgba(255,255,255,.04)}
+.item.cur{cursor:pointer}
 </style>
 
 
@@ -862,8 +1209,206 @@ console.log('[MASTER Firebase] módulo carregado — banco: sistemas-fb');
     </div>
   </div>
 
-  <!-- MAIN SCROLL: roteiro completo com scroll manual/auto -->
-  <div class="main-scroll" id="main-scroll"></div>
+  <!-- MAIN SCROLL + OPEC DRAWER: flex row, drawer pushes roteiro -->
+  <div style="display:flex;flex-direction:row;flex:1;overflow:hidden;min-height:0;position:relative">
+    <div class="main-scroll" id="main-scroll" style="flex:1;min-width:0;overflow-y:auto"></div>
+    <div id="opec-backdrop" style="display:none"></div>
+<div id="opec-overlay">
+
+  <!-- Topbar da gaveta — mesmo padrão do sidebar -->
+  <div class="opec-topbar">
+    <button class="sb-toggle" onclick="closeOpec()" id="opec-close-btn"
+      title="Fechar painel">▶</button>
+    <div style="flex:1;min-width:0;overflow:hidden">
+      <div style="font-family:var(--font-d);font-size:8px;font-weight:700;letter-spacing:2px;
+        text-transform:uppercase;color:var(--text3);margin-bottom:2px;white-space:nowrap">MODO OPERAÇÃO</div>
+      <div style="display:flex;align-items:baseline;gap:5px;overflow:hidden">
+        <span id="opec-brk-label" style="font-family:var(--font-d);font-size:12px;font-weight:700;
+          letter-spacing:2px;text-transform:uppercase;color:var(--gold2);white-space:nowrap">—</span>
+        <span id="opec-prog-label" style="font-size:9px;color:var(--text3);overflow:hidden;
+          text-overflow:ellipsis;white-space:nowrap">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fila completa do break -->
+  <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch">
+
+    <!-- Label + confirmar todos -->
+    <div style="display:flex;align-items:center;justify-content:space-between;
+      padding:8px 12px 4px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <div>
+        <span style="font-family:var(--font-d);font-size:8px;font-weight:700;letter-spacing:2px;
+          text-transform:uppercase;color:var(--text3)">Fila do Break</span>
+        <span id="opec-queue-count" style="font-family:var(--font-m);font-size:9px;
+          color:var(--text3);margin-left:6px">—</span>
+      </div>
+      <button onclick="opecConfirmAll()"
+        style="font-family:var(--font-d);font-size:8px;font-weight:700;letter-spacing:1px;
+          text-transform:uppercase;padding:4px 10px;cursor:pointer;
+          background:rgba(31,170,90,.1);border:1px solid rgba(31,170,90,.25);
+          border-radius:5px;color:var(--green);transition:all .15s"
+        onmouseover="this.style.background='rgba(31,170,90,.2)'"
+        onmouseout="this.style.background='rgba(31,170,90,.1)'">
+        ✓ Confirmar Todos
+      </button>
+    </div>
+
+    <!-- Lista de materiais do break -->
+    <div id="opec-queue-list" style="padding:6px 8px"></div>
+  </div>
+
+  <!-- Rodapé: confirmados -->
+  <div id="opec-log-section" style="border-top:1px solid var(--border);flex-shrink:0">
+    <div style="display:flex;align-items:center;justify-content:space-between;
+      padding:5px 12px;cursor:pointer" onclick="_opecToggleLog()">
+      <span style="font-family:var(--font-d);font-size:7px;font-weight:700;letter-spacing:2px;
+        text-transform:uppercase;color:var(--green)">✓ Confirmados Neste Break</span>
+      <span id="opec-log-count" style="font-family:var(--font-m);font-size:9px;color:var(--text3)">0</span>
+    </div>
+    <div id="opec-log-list" style="max-height:0;overflow:hidden;transition:max-height .25s ease"></div>
+  </div>
+
+  <!-- IDs ocultos mantidos para compatibilidade com renderOpec() -->
+  <div style="display:none">
+    <span id="opec-air-badge"></span>
+    <span id="opec-time-label"></span>
+    <span id="opec-seq"></span>
+    <span id="opec-name"></span>
+    <span id="opec-title"></span>
+    <span id="opec-dur"></span>
+    <span id="opec-confirm-btn"></span>
+    <span id="opec-clock"></span>
+  </div>
+</div>
+
+
+
+<div id="master-estacao-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);
+  z-index:99999;align-items:center;justify-content:center"
+  onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:#14141f;border:1px solid #333;border-radius:12px;
+    width:380px;padding:28px;font-family:system-ui,sans-serif">
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div>
+        <div style="font-size:17px;font-weight:800;color:#fff;letter-spacing:1px">☁ ESTAÇÃO</div>
+        <div style="font-size:11px;color:#666;margin-top:3px">Digite o código criado no OPEC</div>
+      </div>
+      <button onclick="document.getElementById('master-estacao-modal').style.display='none'"
+        style="background:none;border:none;color:#555;font-size:22px;cursor:pointer">✕</button>
+    </div>
+
+    <!-- Status -->
+    <div style="background:#0e0e1a;border:1px solid #222;border-radius:8px;
+      padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+      <span id="m-estacao-dot" style="width:10px;height:10px;border-radius:50%;background:#444;flex-shrink:0"></span>
+      <span id="m-estacao-txt" style="font-size:12px;color:#888">Nenhuma estação conectada</span>
+    </div>
+
+    <!-- Campo -->
+    <div style="margin-bottom:6px">
+      <div style="font-size:10px;color:#888;letter-spacing:1px;margin-bottom:6px">CÓDIGO DA ESTAÇÃO (criado no OPEC)</div>
+      <input id="m-estacao-inp" type="text" placeholder="Ex: SISTEMASFB" maxlength="20"
+        style="width:100%;background:#0a0a15;border:2px solid #f0c040;border-radius:7px;
+               padding:10px 14px;color:#f0c040;font-family:monospace;font-size:16px;
+               font-weight:800;letter-spacing:3px;text-transform:uppercase;outline:none;
+               box-sizing:border-box"
+        oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9\-_]/g,'')"
+        onkeydown="if(event.key==='Enter')_masterConectar()">
+    </div>
+    <div style="font-size:10px;color:#555;margin-bottom:16px">
+      Use o mesmo código que está no OPEC
+    </div>
+
+    <div style="display:flex;gap:8px">
+      <button onclick="document.getElementById('master-estacao-modal').style.display='none'"
+        style="flex:1;padding:10px;background:none;border:1px solid #333;border-radius:7px;color:#666;cursor:pointer">
+        Cancelar</button>
+      <button onclick="window._masterConectar()"
+        style="flex:2;padding:10px;background:#f0c040;border:none;border-radius:7px;
+               color:#000;font-weight:800;cursor:pointer;font-size:14px">✓ CONECTAR</button>
+    </div>
+
+    <div style="text-align:center;margin-top:10px">
+      <button onclick="window._masterDesconectar()"
+        style="background:none;border:none;color:#444;font-size:10px;cursor:pointer;text-decoration:underline">
+        Desconectar estação</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function _masterAbrirModal(){
+  const code = localStorage.getItem('master_station_code')||'';
+  const fbOk = code && typeof window._masterSetCode==='function';
+
+  const inp = document.getElementById('m-estacao-inp');
+  if(inp) inp.value = code;
+
+  const dot = document.getElementById('m-estacao-dot');
+  const txt = document.getElementById('m-estacao-txt');
+
+  if(!code){
+    if(dot) dot.style.background='#666';
+    if(txt) txt.innerHTML='<span style="color:#888">Nenhuma estação conectada</span>';
+  } else {
+    // Checar se o ponto verde do botão está verde (indicador real do Firebase)
+    const btnDot = document.getElementById('fb-master-dot');
+    const isConnected = btnDot && btnDot.style.background==='rgb(74, 204, 122)';
+    if(isConnected){
+      if(dot) dot.style.background='#4acc7a';
+      if(txt) txt.innerHTML=
+        '<b style="color:#4acc7a;font-family:monospace;letter-spacing:2px;font-size:14px">'+code+'</b>'
+        +' <span style="color:#4acc7a;margin-left:6px">● Conectado</span>';
+    } else {
+      if(dot) dot.style.background='#f0c040';
+      if(txt) txt.innerHTML=
+        '<b style="color:#f0c040;font-family:monospace;letter-spacing:2px;font-size:14px">'+code+'</b>'
+        +' <span style="color:#f0c040;margin-left:6px">⟳ Aguardando dados...</span>';
+    }
+  }
+
+  document.getElementById('master-estacao-modal').style.display='flex';
+  setTimeout(()=>{ const i=document.getElementById('m-estacao-inp'); if(i){i.focus();i.select();} },100);
+}
+
+function _masterConectar(){
+  const inp  = document.getElementById('m-estacao-inp');
+  const code = (inp?.value||'').trim().toUpperCase().replace(/[^A-Z0-9\-_]/g,'');
+  if(!code){
+    if(inp){ inp.style.borderColor='#e07070'; setTimeout(()=>inp.style.borderColor='#f0c040',1200); }
+    return;
+  }
+  document.getElementById('master-estacao-modal').style.display='none';
+  if(typeof window._masterSetCode==='function') window._masterSetCode(code);
+  else { localStorage.setItem('master_station_code',code); location.reload(); }
+}
+
+function _masterDesconectar(){
+  if(!confirm('Desconectar estação?')) return;
+  document.getElementById('master-estacao-modal').style.display='none';
+  if(typeof window._masterDisconnect==='function') window._masterDisconnect();
+}
+
+// Boot
+document.addEventListener('DOMContentLoaded',()=>{
+  const code = localStorage.getItem('master_station_code')||'';
+  if(code){
+    const el=document.getElementById('fb-master-panel');
+    if(el) el.innerHTML='<button onclick="window._masterAbrirModal()" '
+      +'style="font-size:11px;font-weight:800;padding:4px 12px;background:rgba(74,204,122,.12);'
+      +'border:1px solid rgba(74,204,122,.4);border-radius:5px;color:#4acc7a;cursor:pointer;letter-spacing:1px">'
+      +'☁ '+code+' <span style="font-size:8px">●</span></button>';
+  }
+});
+</script>
+
+</div><!-- /master-content -->
+</div><!-- /master-app-root -->
+</body>
+</html>
+  </div>
 
 </div>
 
@@ -921,7 +1466,7 @@ let snap = { grade:'', prog:-1, brk:-1, item:-1, doneLen:0 };
 // Formata hora sempre como HH:MM:SS sem depender do locale do browser
 function fmtClock(d){ d=d||new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0'); }
 function fmtTime(d){ d=d||new Date(); return fmtClock(d); }
-function todayKey(){ return new Date().toISOString().slice(0,10); }
+function todayKey(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function keyToDow(k){ const [y,m,d]=k.split('-').map(Number); return new Date(y,m-1,d).getDay(); }
 function gradeForKey(key){
   if(key && grade[key] && Array.isArray(grade[key])) return grade[key];
@@ -1189,7 +1734,7 @@ function buildRoteiro(){
                   ? `<div class="i-date${exp?' exp':''}">${exp?'⚠ ':''}${fmtDate(it.dateEnd)}</div>`
                   : `<div class="i-date">—</div>`;
                 const tip=`<div class="i-tooltip"><b>${it.name}</b>`+(it.title?`<br><i style="color:var(--text2)">${it.title}</i>`:'')+`<br>Dur: <b>${fmtSec(it.dur)}</b>`+(it.dateEnd?`<br>Vence: <b>${fmtDate(it.dateEnd)}${isExpired(it.dateEnd)?' ⚠':''}</b>`:'')+`</div>`;
-                return `<div class="${cls}" id="it-${pi}-${bi}-${ii}">
+                return `<div class="${cls}" id="it-${pi}-${bi}-${ii}" onclick="openOpec(${pi},${bi},${ii})" style="cursor:pointer">
                   <div class="i-seq">${it.seq||pad(ii+1)}</div>
                   <div class="i-body"><div class="i-name">${it.name}</div>${it.title?`<div class="i-title">${it.title}</div>`:''}</div>
                   ${dateHtml}<div class="i-dur">${fmtSec(it.dur)}</div>
@@ -1203,7 +1748,7 @@ function buildRoteiro(){
               <span class="bh-dur">${fmtSec(brk.total)}</span>
               <span class="bh-cnt">${bDone}/${bTot} inserções</span>
               ${bExp>0?`<span class="bh-warn">⚠ ${bExp} venc.</span>`:''}
-              <span class="bh-opec-btn" onclick="event.stopPropagation();openOpec(${pi},${bi})"><svg width="9" height="10" viewBox="0 0 22 24" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><polygon points="11,0.8 20.5,5.8 20.5,18.2 11,23.2 1.5,18.2 1.5,5.8" fill="#1a1206" stroke="url(#hxGold)" stroke-width="1.5"/></svg>OPERAR</span>
+              <span class="bh-opec-btn" onclick="event.stopPropagation();toggleOpec(${pi},${bi})"><svg width="9" height="10" viewBox="0 0 22 24" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><polygon points="11,0.8 20.5,5.8 20.5,18.2 11,23.2 1.5,18.2 1.5,5.8" fill="#1a1206" stroke="url(#hxGold)" stroke-width="1.5"/></svg>OPERAR</span>
             </div><div class="brk-body">${itemsHtml}</div>
           </div>`;
         }).join('');
@@ -1550,16 +2095,24 @@ function getOpecLog(){ try{ return JSON.parse(lsGet(OPEC_LOG_KEY)||'[]'); }catch
 function saveOpecLog(arr){ lsSet(OPEC_LOG_KEY, JSON.stringify(arr.slice(-200))); }
 
 // Abrir OPEC para um break específico
-function openOpec(pi, bi){
-  opecState.open   = true;
-  opecState.pi     = pi;
-  opecState.bi     = bi;
-  opecState.itemIdx = -1; // -1 = segue o emissor automaticamente
+function toggleOpec(pi, bi){
+  if(opecState.open && opecState.pi===pi && opecState.bi===bi){
+    closeOpec();
+  } else {
+    openOpec(pi, bi);
+  }
+}
+
+function openOpec(pi, bi, ii){
+  opecState.open    = true;
+  opecState.pi      = pi;
+  opecState.bi      = bi;
+  opecState.itemIdx = (ii !== undefined && ii >= 0) ? ii : -1;
   document.getElementById('opec-overlay').classList.add('open');
   renderOpec();
 }
 
-function closeOpec(){
+function closeOpec(){ _stopAutoConfirm(); _opecAutoMode = false;
   opecState.open = false;
   document.getElementById('opec-overlay').classList.remove('open');
 }
@@ -1577,160 +2130,208 @@ document.addEventListener('keydown',e=>{
 });
 
 // Render completo do painel OPEC
+
+function isItemConfirmed(pi, bi, ii){
+  const key = `${viewDow}-${pi}-${bi}-${ii}`;
+  if((cur.doneKeys||[]).includes(key)) return true;
+  return getOpecLog().some(l => l.pi===pi && l.bi===bi && l.ii===ii);
+}
 function renderOpec(){
   if(!opecState.open) return;
-  const ps     = gradeForKey(viewDateKey);
-  const prog   = ps && ps[opecState.pi];
-  const brk    = prog && (prog.breaks||[])[opecState.bi];
+  const ps   = gradeForKey(viewDateKey);
+  const prog = ps && ps[opecState.pi];
+  const brk  = prog && (prog.breaks||[])[opecState.bi];
   if(!prog || !brk){ closeOpec(); return; }
 
-  // Determina item atual: segue emissor se no mesmo break, senão mostra o primeiro
+  const isCurBreak = viewDow===cur.day && cur.progIdx===opecState.pi && cur.brkIdx===opecState.bi;
+  const activeItem = isCurBreak ? cur.itemIdx : (opecState.itemIdx>=0 ? opecState.itemIdx : 0);
+
+  // ── Topbar labels ──
+  const brkEl = document.getElementById('opec-brk-label');
+  const prgEl = document.getElementById('opec-prog-label');
+  if(brkEl) brkEl.textContent = brk.name;
+  if(prgEl) prgEl.textContent = prog.time + ' ' + prog.name;
+
+  // ── Count ──
+  const items = brk.items || [];
+  const doneCount = items.filter((_,ii) => isItemConfirmed(opecState.pi, opecState.bi, ii)).length;
+  const countEl = document.getElementById('opec-queue-count');
+  if(countEl) countEl.textContent = doneCount + '/' + items.length + ' confirmados';
+
+  // ── Log section count ──
+  const logCountEl = document.getElementById('opec-log-count');
+  if(logCountEl) logCountEl.textContent = doneCount;
+
+  // ── Build queue list ──
+  const queueEl = document.getElementById('opec-queue-list');
+  if(queueEl){
+    if(!items.length){
+      queueEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:11px">Sem materiais neste break</div>';
+    } else {
+      queueEl.innerHTML = items.map((it, ii) => {
+        const isDone   = isItemConfirmed(opecState.pi, opecState.bi, ii);
+        const isActive = (ii === activeItem) && isCurBreak;
+        const isNext   = !isDone && !isActive && ii === items.findIndex((_,j) => !isItemConfirmed(opecState.pi, opecState.bi, j));
+        const exp      = isExpired(it.dateEnd);
+
+        let bg   = isDone ? 'rgba(31,170,90,.07)' : isActive ? 'rgba(212,160,23,.1)' : 'var(--s3)';
+        let bl   = isDone ? '3px solid var(--green)' : isActive ? '3px solid var(--gold)' : '3px solid transparent';
+        let op   = isDone ? '.5' : '1';
+
+        return `<div style="display:flex;align-items:center;gap:8px;padding:9px 10px;
+          margin-bottom:3px;border-radius:6px;cursor:pointer;transition:all .15s;
+          background:${bg};border-left:${bl};opacity:${op}"
+          onclick="opecSelectItem(${ii})">
+          <span style="font-family:var(--font-m);font-size:9px;color:var(--gold2);
+            flex-shrink:0;min-width:22px;text-align:right">${it.seq||pad(ii+1)}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:${isActive?'700':'500'};
+              color:${isDone?'var(--text3)':isActive?'#fff':'var(--text)'};
+              overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.name}</div>
+            ${it.title ? `<div style="font-size:9px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${it.title}</div>` : ''}
+          </div>
+          <span style="font-family:var(--font-m);font-size:10px;color:var(--text3);flex-shrink:0">${fmtSec(it.dur)}</span>
+          ${isDone
+            ? `<span style="color:var(--green);font-size:16px;flex-shrink:0;line-height:1">✓</span>`
+            : `<button onclick="event.stopPropagation();opecConfirmItem(${ii})"
+                style="flex-shrink:0;padding:3px 9px;border-radius:4px;cursor:pointer;
+                  font-family:var(--font-d);font-size:8px;font-weight:700;letter-spacing:1px;
+                  background:rgba(31,170,90,.1);border:1px solid rgba(31,170,90,.3);
+                  color:var(--green);transition:all .15s"
+                onmouseover="this.style.background='rgba(31,170,90,.25)'"
+                onmouseout="this.style.background='rgba(31,170,90,.1)'">
+                Confirmar
+              </button>`
+          }
+        </div>`;
+      }).join('');
+    }
+  }
+
+  // ── Build log list (collapsed) ──
+  const logListEl = document.getElementById('opec-log-list');
+  if(logListEl && doneCount > 0){
+    const logs = getOpecLog().filter(l => l.pi===opecState.pi && l.bi===opecState.bi).slice().reverse();
+    logListEl.innerHTML = logs.map(l =>
+      `<div style="display:flex;align-items:center;gap:6px;padding:4px 12px;
+        font-size:10px;border-bottom:1px solid rgba(0,255,128,.04)">
+        <span style="font-family:var(--font-m);font-size:9px;color:var(--green);min-width:50px">${l.time||'—'}</span>
+        <span style="font-family:var(--font-m);font-size:9px;color:var(--gold);min-width:22px">${l.seq||'—'}</span>
+        <span style="flex:1;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.name||'—'}</span>
+      </div>`
+    ).join('');
+  }
+}
+
+
+function opecConfirm(){
+  // Confirm currently active item (legacy support)
+  const ps   = gradeForKey(viewDateKey);
+  const prog = ps && ps[opecState.pi];
+  const brk  = prog && (prog.breaks||[])[opecState.bi];
+  if(!brk) return;
   const isCurBreak = viewDow===cur.day && cur.progIdx===opecState.pi && cur.brkIdx===opecState.bi;
   const activeItem = isCurBreak ? cur.itemIdx : (opecState.itemIdx >= 0 ? opecState.itemIdx : 0);
-
-  const item = (brk.items||[])[activeItem];
-
-  // Labels
-  document.getElementById('opec-brk-label').textContent = brk.name;
-  document.getElementById('opec-prog-label').textContent = `${prog.time} ${prog.name}`;
-  document.getElementById('opec-clock').textContent = fmtClock();
-
-  // Badge NO AR
-  const badge = document.getElementById('opec-air-badge');
-  badge.textContent = isCurBreak ? '⏺ NO AR' : '📋 VISUALIZANDO';
-  badge.style.background = isCurBreak ? '' : 'var(--s3)';
-  badge.style.color = isCurBreak ? '' : 'var(--text2)';
-  badge.style.animation = isCurBreak ? '' : 'none';
-
-  // Horário atual
-  document.getElementById('opec-time-label').textContent = fmtClock();
-
-  // Material atual
-  if(item){
-    document.getElementById('opec-seq').textContent   = item.seq ? `Nº ${item.seq}` : `${pad(activeItem+1)}/${brk.items.length}`;
-    document.getElementById('opec-name').textContent  = item.name;
-    document.getElementById('opec-title').textContent = item.title || '';
-    const dur = document.getElementById('opec-dur');
-    const rem = isCurBreak ? cur.remaining : (parseInt(item.dur)||30);
-    dur.textContent  = fmtSec(rem);
-    dur.className    = 'opec-mat-dur' + (rem<=10&&rem>0&&isCurBreak?' warn':'');
-  } else {
-    document.getElementById('opec-seq').textContent   = '—';
-    document.getElementById('opec-name').textContent  = 'Sem material selecionado';
-    document.getElementById('opec-title').textContent = '';
-    document.getElementById('opec-dur').textContent   = '00:00';
-  }
-
-  // Botão confirmar
-  const confirmBtn = document.getElementById('opec-confirm-btn');
-  const alreadyConfirmed = item && isItemConfirmed(opecState.pi, opecState.bi, activeItem);
-  if(alreadyConfirmed){
-    confirmBtn.className    = 'opec-confirm-btn confirmed';
-    confirmBtn.textContent  = '✓ Confirmado no Ar';
-    confirmBtn.disabled     = true;
-  } else {
-    confirmBtn.className    = 'opec-confirm-btn';
-    confirmBtn.textContent  = '✓ Confirmar — Material estava no Ar';
-    confirmBtn.disabled     = !item;
-  }
-
-  // Fila do break
-  renderOpecQueue(brk, activeItem);
-
-  // Log de confirmações deste break
-  renderOpecLog();
+  opecConfirmItem(activeItem);
 }
 
-function renderOpecQueue(brk, activeItem){
-  const list = document.getElementById('opec-queue-list');
-  const items = brk.items || [];
-  const count = document.getElementById('opec-queue-count');
-  const done  = items.filter((_,ii) => isItemConfirmed(opecState.pi, opecState.bi, ii)).length;
-  count.textContent = `${done}/${items.length} confirmados`;
-
-  list.innerHTML = items.map((it,ii) => {
-    const isCur  = ii === activeItem;
-    const isDone = isItemConfirmed(opecState.pi, opecState.bi, ii);
-    const isNext = !isCur && !isDone && ii === items.findIndex((_,x)=>x>activeItem&&!isItemConfirmed(opecState.pi,opecState.bi,x));
-    let cls = 'opec-qitem';
-    if(isCur)  cls += ' q-cur';
-    else if(isDone) cls += ' q-done';
-    else if(isNext) cls += ' q-next';
-
-    return `<div class="${cls}" onclick="opecSelectItem(${ii})">
-      <div class="opec-q-num">${it.seq||pad(ii+1)}</div>
-      <div class="opec-q-body">
-        <div class="opec-q-name">${it.name}</div>
-        ${it.title?`<div class="opec-q-title">${it.title}</div>`:''}
-      </div>
-      <div class="opec-q-dur">${fmtSec(it.dur)}</div>
-      <div class="opec-q-check">${isDone?'✓':isCur?'▶':''}</div>
-    </div>`;
-  }).join('');
-}
-
-function renderOpecLog(){
-  const logs = getOpecLog().filter(l => l.pi===opecState.pi && l.bi===opecState.bi);
-  const section = document.getElementById('opec-log-section');
-  const list    = document.getElementById('opec-log-list');
-  if(!logs.length){ section.style.display='none'; return; }
-  section.style.display = '';
-  list.innerHTML = logs.slice().reverse().map(l => `
-    <div class="opec-log-item">
-      <span class="opec-log-time">${l.time}</span>
-      <span class="opec-log-seq">${l.seq||'—'}</span>
-      <span class="opec-log-name">${l.name}</span>
-    </div>`).join('');
-}
-
-// Verificar se item foi confirmado
-function isItemConfirmed(pi, bi, ii){
-  const logs = getOpecLog();
-  return logs.some(l => l.pi===pi && l.bi===bi && l.ii===ii);
-}
-
-// Confirmar material no ar
-function opecConfirm(){
+function opecConfirmItem(ii){
   const ps   = gradeForKey(viewDateKey);
-  const prog = ps[opecState.pi];
+  const prog = ps && ps[opecState.pi];
   const brk  = prog && (prog.breaks||[])[opecState.bi];
-  const isCurBreak = viewDow===cur.day && cur.progIdx===opecState.pi && cur.brkIdx===opecState.bi;
-  const ii   = isCurBreak ? cur.itemIdx : (opecState.itemIdx >= 0 ? opecState.itemIdx : 0);
-  const item = brk && (brk.items||[])[ii];
+  if(!brk) return;
+  const item = (brk.items||[])[ii];
   if(!item) return;
+  if(isItemConfirmed(opecState.pi, opecState.bi, ii)) return;
 
-  const now  = new Date();
-  const time = fmtClock(now);
-
-  const log = getOpecLog();
-  // Evitar duplicata
-  if(log.some(l=>l.pi===opecState.pi&&l.bi===opecState.bi&&l.ii===ii)) return;
-
-  log.push({
-    id:    Date.now().toString(36),
-    ts:    now.getTime(),
-    time,
-    date:  now.toLocaleDateString('pt-BR'),
-    pi:    opecState.pi,
-    bi:    opecState.bi,
-    ii,
-    seq:   item.seq || pad(ii+1),
-    name:  item.name,
-    title: item.title||'',
-    prog:  prog.name,
-    brk:   brk.name,
-    dur:   item.dur,
-    dow:   viewDow,
+  const now     = new Date();
+  const timeStr = fmtClock(now);
+  const logs    = getOpecLog();
+  logs.push({
+    ts: Date.now(), time: timeStr,
+    seq: item.seq||pad(ii+1), name: item.name, title: item.title||'',
+    dur: item.dur, prog: prog.name, brk: brk.name,
+    piNumber: item.piNumber||'', day: viewDow, pi: opecState.pi, bi: opecState.bi, ii
   });
-  saveOpecLog(log);
+  saveOpecLog(logs);
 
-  // Notifica o emissor escrevendo no localStorage partilhado
-  lsSet('roteiro_opec_ts', String(now.getTime()));
+  const key = `${viewDow}-${opecState.pi}-${opecState.bi}-${ii}`;
+  if(!cur.doneKeys) cur.doneKeys = [];
+  if(!cur.doneKeys.includes(key)) cur.doneKeys.push(key);
 
   renderOpec();
+  buildRoteiro();
 }
 
-// Selecionar item manualmente na fila
+function opecConfirmAll(){
+  const ps   = gradeForKey(viewDateKey);
+  const prog = ps && ps[opecState.pi];
+  const brk  = prog && (prog.breaks||[])[opecState.bi];
+  if(!brk || !(brk.items||[]).length) return;
+  brk.items.forEach((_, ii) => {
+    if(!isItemConfirmed(opecState.pi, opecState.bi, ii)) opecConfirmItem(ii);
+  });
+}
+
+
+function _opecToggleLog(){
+  const listEl = document.getElementById('opec-log-list');
+  if(!listEl) return;
+  listEl.style.maxHeight = listEl.style.maxHeight === '0px' || !listEl.style.maxHeight
+    ? '200px' : '0px';
+}
+
+
+
+// Auto-confirm mode
+let _opecAutoMode = false;
+let _opecAutoTimer = null;
+
+function opecToggleAuto(){
+  _opecAutoMode = !_opecAutoMode;
+  const btn  = document.getElementById('opec-auto-btn');
+  const hint = document.getElementById('opec-auto-hint');
+  if(_opecAutoMode){
+    btn.style.background   = 'rgba(212,160,23,.15)';
+    btn.style.borderColor  = 'var(--gold)';
+    btn.style.color        = 'var(--gold2)';
+    if(hint) hint.style.display = 'block';
+    _startAutoConfirm();
+  } else {
+    btn.style.background   = '';
+    btn.style.borderColor  = '';
+    btn.style.color        = '';
+    if(hint) hint.style.display = 'none';
+    _stopAutoConfirm();
+  }
+}
+
+function _startAutoConfirm(){
+  _stopAutoConfirm();
+  _opecAutoTimer = setInterval(()=>{
+    if(!_opecAutoMode || !opecState.open) return;
+    const ps   = gradeForKey(viewDateKey);
+    const prog = ps && ps[opecState.pi];
+    const brk  = prog && (prog.breaks||[])[opecState.bi];
+    if(!brk) return;
+    // Find first unconfirmed item
+    const items = brk.items || [];
+    const nextIdx = items.findIndex((_,ii) => !isItemConfirmed(opecState.pi, opecState.bi, ii));
+    if(nextIdx >= 0){
+      opecState.itemIdx = nextIdx;
+      opecConfirm();
+    } else {
+      // All confirmed
+      _opecAutoMode = false;
+      opecToggleAuto(); // reset button state
+    }
+  }, 1500); // confirma a cada 1.5s
+}
+
+function _stopAutoConfirm(){
+  if(_opecAutoTimer){ clearInterval(_opecAutoTimer); _opecAutoTimer = null; }
+}
+
 function opecSelectItem(ii){
   opecState.itemIdx = ii;
   renderOpec();
@@ -1832,170 +2433,3 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
 </script>
 
-
-<div id="opec-overlay">
-  <div class="opec-topbar">
-    <div style="display:flex;align-items:center;gap:14px">
-      <div class="opec-title">⏺ Modo Operação</div>
-      <div class="opec-brk-name" id="opec-brk-label">—</div>
-      <div class="opec-prog-name" id="opec-prog-label">—</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:10px">
-      <div class="tb-clock" id="opec-clock">00:00:00</div>
-      <button class="opec-close" onclick="closeOpec()">✕ Fechar</button>
-    </div>
-  </div>
-  <div class="opec-body">
-    <!-- Material atual -->
-    <div class="opec-main">
-      <div class="opec-status-bar">
-        <div class="opec-on-air-badge" id="opec-air-badge">⏺ NO AR</div>
-        <div style="font-family:var(--font-m);font-size:12px;color:var(--text2)" id="opec-time-label">—</div>
-      </div>
-      <div class="opec-mat-card">
-        <div class="opec-mat-seq" id="opec-seq">—</div>
-        <div class="opec-mat-name" id="opec-name">Selecione um material</div>
-        <div class="opec-mat-title" id="opec-title"></div>
-        <div class="opec-mat-dur" id="opec-dur">00:00</div>
-      </div>
-      <button class="opec-confirm-btn" id="opec-confirm-btn" onclick="opecConfirm()">
-        ✓ Confirmar — Material estava no Ar
-      </button>
-    </div>
-    <!-- Fila do break -->
-    <div class="opec-queue">
-      <div class="opec-queue-head">📋 Fila do Break &nbsp;<span id="opec-queue-count" style="color:var(--text2);font-weight:400">—</span></div>
-      <div class="opec-queue-list" id="opec-queue-list"></div>
-      <div class="opec-log-section" id="opec-log-section" style="display:none">
-        <div class="opec-log-head">✓ Confirmados neste break</div>
-        <div id="opec-log-list"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-
-
-<div id="master-estacao-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);
-  z-index:99999;align-items:center;justify-content:center"
-  onclick="if(event.target===this)this.style.display='none'">
-  <div style="background:#14141f;border:1px solid #333;border-radius:12px;
-    width:380px;padding:28px;font-family:system-ui,sans-serif">
-
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-      <div>
-        <div style="font-size:17px;font-weight:800;color:#fff;letter-spacing:1px">☁ ESTAÇÃO</div>
-        <div style="font-size:11px;color:#666;margin-top:3px">Digite o código criado no OPEC</div>
-      </div>
-      <button onclick="document.getElementById('master-estacao-modal').style.display='none'"
-        style="background:none;border:none;color:#555;font-size:22px;cursor:pointer">✕</button>
-    </div>
-
-    <!-- Status -->
-    <div style="background:#0e0e1a;border:1px solid #222;border-radius:8px;
-      padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
-      <span id="m-estacao-dot" style="width:10px;height:10px;border-radius:50%;background:#444;flex-shrink:0"></span>
-      <span id="m-estacao-txt" style="font-size:12px;color:#888">Nenhuma estação conectada</span>
-    </div>
-
-    <!-- Campo -->
-    <div style="margin-bottom:6px">
-      <div style="font-size:10px;color:#888;letter-spacing:1px;margin-bottom:6px">CÓDIGO DA ESTAÇÃO (criado no OPEC)</div>
-      <input id="m-estacao-inp" type="text" placeholder="Ex: SISTEMASFB" maxlength="20"
-        style="width:100%;background:#0a0a15;border:2px solid #f0c040;border-radius:7px;
-               padding:10px 14px;color:#f0c040;font-family:monospace;font-size:16px;
-               font-weight:800;letter-spacing:3px;text-transform:uppercase;outline:none;
-               box-sizing:border-box"
-        oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9\-_]/g,'')"
-        onkeydown="if(event.key==='Enter')_masterConectar()">
-    </div>
-    <div style="font-size:10px;color:#555;margin-bottom:16px">
-      Use o mesmo código que está no OPEC
-    </div>
-
-    <div style="display:flex;gap:8px">
-      <button onclick="document.getElementById('master-estacao-modal').style.display='none'"
-        style="flex:1;padding:10px;background:none;border:1px solid #333;border-radius:7px;color:#666;cursor:pointer">
-        Cancelar</button>
-      <button onclick="window._masterConectar()"
-        style="flex:2;padding:10px;background:#f0c040;border:none;border-radius:7px;
-               color:#000;font-weight:800;cursor:pointer;font-size:14px">✓ CONECTAR</button>
-    </div>
-
-    <div style="text-align:center;margin-top:10px">
-      <button onclick="window._masterDesconectar()"
-        style="background:none;border:none;color:#444;font-size:10px;cursor:pointer;text-decoration:underline">
-        Desconectar estação</button>
-    </div>
-  </div>
-</div>
-
-<script>
-function _masterAbrirModal(){
-  const code = localStorage.getItem('master_station_code')||'';
-  const fbOk = code && typeof window._masterSetCode==='function';
-
-  const inp = document.getElementById('m-estacao-inp');
-  if(inp) inp.value = code;
-
-  const dot = document.getElementById('m-estacao-dot');
-  const txt = document.getElementById('m-estacao-txt');
-
-  if(!code){
-    if(dot) dot.style.background='#666';
-    if(txt) txt.innerHTML='<span style="color:#888">Nenhuma estação conectada</span>';
-  } else {
-    // Checar se o ponto verde do botão está verde (indicador real do Firebase)
-    const btnDot = document.getElementById('fb-master-dot');
-    const isConnected = btnDot && btnDot.style.background==='rgb(74, 204, 122)';
-    if(isConnected){
-      if(dot) dot.style.background='#4acc7a';
-      if(txt) txt.innerHTML=
-        '<b style="color:#4acc7a;font-family:monospace;letter-spacing:2px;font-size:14px">'+code+'</b>'
-        +' <span style="color:#4acc7a;margin-left:6px">● Conectado</span>';
-    } else {
-      if(dot) dot.style.background='#f0c040';
-      if(txt) txt.innerHTML=
-        '<b style="color:#f0c040;font-family:monospace;letter-spacing:2px;font-size:14px">'+code+'</b>'
-        +' <span style="color:#f0c040;margin-left:6px">⟳ Aguardando dados...</span>';
-    }
-  }
-
-  document.getElementById('master-estacao-modal').style.display='flex';
-  setTimeout(()=>{ const i=document.getElementById('m-estacao-inp'); if(i){i.focus();i.select();} },100);
-}
-
-function _masterConectar(){
-  const inp  = document.getElementById('m-estacao-inp');
-  const code = (inp?.value||'').trim().toUpperCase().replace(/[^A-Z0-9\-_]/g,'');
-  if(!code){
-    if(inp){ inp.style.borderColor='#e07070'; setTimeout(()=>inp.style.borderColor='#f0c040',1200); }
-    return;
-  }
-  document.getElementById('master-estacao-modal').style.display='none';
-  if(typeof window._masterSetCode==='function') window._masterSetCode(code);
-  else { localStorage.setItem('master_station_code',code); location.reload(); }
-}
-
-function _masterDesconectar(){
-  if(!confirm('Desconectar estação?')) return;
-  document.getElementById('master-estacao-modal').style.display='none';
-  if(typeof window._masterDisconnect==='function') window._masterDisconnect();
-}
-
-// Boot
-document.addEventListener('DOMContentLoaded',()=>{
-  const code = localStorage.getItem('master_station_code')||'';
-  if(code){
-    const el=document.getElementById('fb-master-panel');
-    if(el) el.innerHTML='<button onclick="window._masterAbrirModal()" '
-      +'style="font-size:11px;font-weight:800;padding:4px 12px;background:rgba(74,204,122,.12);'
-      +'border:1px solid rgba(74,204,122,.4);border-radius:5px;color:#4acc7a;cursor:pointer;letter-spacing:1px">'
-      +'☁ '+code+' <span style="font-size:8px">●</span></button>';
-  }
-});
-</script>
-
-</div><!-- /master-app-root -->
-</body>
-</html>
