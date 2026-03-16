@@ -14,32 +14,32 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23080b0f'/><polygon points='16,3 28,10 28,22 16,29 4,22 4,10' fill='none' stroke='%23d4a017' stroke-width='2'/><text x='50%25' y='56%25' dominant-baseline='middle' text-anchor='middle' font-size='8' font-family='monospace' font-weight='bold' fill='%23d4a017'>SFB</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=Azeret+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-:root {
+:root{
   --bg:#080b0f;--s1:#0e1218;--s2:#141920;--s3:#1c2330;
   --border:#1f2836;--border2:#2a3545;
-  --gold:#d4a017;--gold2:#f0c040;--gold-dim:rgba(212,160,23,0.15);
-  --blue:#1e6fb5;--blue2:#3a9ae0;--blue-dim:rgba(30,111,181,0.15);
-  --green:#1faa5a;--red:#c0392b;--red2:#e05050;--red-dim:rgba(192,57,43,0.15);
+  --gold:#d4a017;--gold2:#f0c040;--gold-dim:rgba(212,160,23,.12);
+  --blue:#1e6fb5;--blue2:#3a9ae0;--blue-dim:rgba(30,111,181,.12);
+  --green:#1faa5a;--red:#c0392b;--red2:#e05050;
   --text:#d8e0ea;--text2:#7a8fa8;--text3:#3a4d60;
   --font-d:'Rajdhani',sans-serif;--font-b:'DM Sans',sans-serif;--font-m:'Azeret Mono',monospace;
 }
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b);font-size:14px;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b);-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
 *{-webkit-tap-highlight-color:transparent}
 
-/* ─── LANDING ─── */
 .land-outer{
-  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
   background:
     radial-gradient(ellipse 60% 50% at 25% 35%,rgba(30,111,181,.12),transparent 70%),
     radial-gradient(ellipse 50% 40% at 75% 65%,rgba(212,160,23,.08),transparent 70%),
     var(--bg);
+  padding:32px 20px;
 }
-.land-wrap{text-align:center;max-width:600px;padding:32px;width:100%}
+.land-wrap{text-align:center;max-width:600px;width:100%}
+
+/* Signal */
 .land-signal{display:flex;align-items:flex-end;justify-content:center;gap:5px;margin-bottom:28px}
-.land-signal span{display:block;width:6px;border-radius:3px 3px 0 0;
-  background:linear-gradient(180deg,var(--gold2),var(--gold));
-  animation:sig 1.6s ease-in-out infinite}
+.land-signal span{display:block;width:6px;border-radius:3px 3px 0 0;background:linear-gradient(180deg,var(--gold2),var(--gold));animation:sig 1.6s ease-in-out infinite}
 .land-signal span:nth-child(1){height:12px;animation-delay:0s}
 .land-signal span:nth-child(2){height:20px;animation-delay:.12s}
 .land-signal span:nth-child(3){height:30px;animation-delay:.24s}
@@ -49,14 +49,17 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .land-signal span:nth-child(7){height:12px;animation-delay:.72s}
 @keyframes sig{0%,100%{opacity:1}50%{opacity:.2}}
 
+/* Title */
 .land-h1{
   font-family:var(--font-d);font-size:52px;font-weight:700;
   letter-spacing:3px;text-transform:uppercase;line-height:1;margin-bottom:6px;
   background:linear-gradient(135deg,#fff,#8aa0bf);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
 }
-.land-sub{font-size:12px;letter-spacing:4px;color:var(--text3);text-transform:uppercase;margin-bottom:44px}
-.land-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:40px}
+.land-sub{font-size:12px;letter-spacing:4px;color:var(--text3);text-transform:uppercase;margin-bottom:40px}
+
+/* Cards */
+.land-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px}
 .land-card{
   background:var(--s1);border:1px solid var(--border);border-radius:14px;
   padding:30px 20px;cursor:pointer;transition:all .22s;
@@ -72,55 +75,53 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .land-card:hover::after{opacity:1}
 .card-ico{font-size:32px;line-height:1;position:relative;z-index:1}
 .card-ttl{font-family:var(--font-d);font-size:20px;font-weight:700;letter-spacing:3px;text-transform:uppercase;position:relative;z-index:1}
-.land-card.em .card-ttl{color:var(--blue2)}.land-card.ex .card-ttl{color:var(--gold2)}
+.land-card.em .card-ttl{color:var(--blue2)}
+.land-card.ex .card-ttl{color:var(--gold2)}
 .card-desc{font-size:12px;color:var(--text2);text-align:center;line-height:1.6;position:relative;z-index:1}
-.card-tag{
-  font-size:7px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
-  padding:2px 8px;border-radius:2px;position:relative;z-index:1;
-  -webkit-font-smoothing:antialiased;display:inline-flex;align-items:center;gap:4px;
-}
+.card-tag{font-size:7px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:2px 8px;border-radius:2px;position:relative;z-index:1;display:inline-flex;align-items:center}
 .land-card.em .card-tag{background:rgba(30,111,181,.08);color:var(--blue2);border:1px solid rgba(58,154,224,.15)}
 .land-card.ex .card-tag{background:rgba(212,160,23,.08);color:var(--gold2);border:1px solid rgba(212,160,23,.15)}
-.card-install-btn{
-  margin-top:4px;width:100%;
-  padding:8px 12px;cursor:pointer;
-  font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:2px;
-  text-transform:uppercase;
-  background:rgba(30,111,181,.12);
-  border:1px solid rgba(58,154,224,.3);
-  border-radius:6px;color:var(--blue2);
-  transition:all .2s;position:relative;z-index:2;
-  display:none;
-}
-.card-install-btn:hover{background:var(--blue2);color:#fff;border-color:var(--blue2)}
-.card-install-btn.visible{display:block}
-.card-install-btn.installed{background:rgba(31,170,90,.12);border-color:rgba(31,170,90,.3);color:var(--green)}
-.card-install-btn-ex{
-  background:rgba(212,160,23,.1);
-  border:1px solid rgba(212,160,23,.25);
-  color:var(--gold2);
-}
-.card-install-btn-ex:hover{background:var(--gold2);color:#000;border-color:var(--gold2)}
 
-/* ─── INSTALL MSG ─── */
+/* Install button */
+.install-btn{
+  width:100%;padding:14px 20px;
+  background:var(--s1);
+  border:1px solid var(--border);
+  border-radius:12px;
+  font-family:var(--font-d);font-size:9px;font-weight:700;
+  letter-spacing:3px;text-transform:uppercase;
+  color:var(--text3);
+  cursor:pointer;transition:all .25s;
+  position:relative;overflow:hidden;
+}
+.install-btn::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,rgba(212,160,23,.04),rgba(30,111,181,.04));
+  opacity:0;transition:opacity .25s;
+}
+.install-btn:hover{
+  border-color:var(--gold);
+  color:var(--gold2);
+  box-shadow:0 0 30px rgba(212,160,23,.1);
+}
+.install-btn:hover::before{opacity:1}
+.install-btn.done{border-color:var(--green);color:var(--green)}
+
+/* Install msg */
 .install-msg{
-  margin-top:12px;font-size:11px;color:var(--text3);
-  line-height:1.8;font-family:var(--font-b);
-  min-height:0;
+  margin-top:10px;font-size:11px;color:var(--text3);
+  line-height:1.8;font-family:var(--font-b);text-align:center;
 }
 .install-msg b{color:var(--text2)}
 
-
-
-/* ─── MOBILE ─── */
+/* Mobile */
 @media(max-width:520px){
   .land-h1{font-size:34px;letter-spacing:2px}
   .land-sub{font-size:10px;margin-bottom:28px}
   .land-cards{grid-template-columns:1fr;gap:10px}
-  .land-wrap{padding:24px 16px}
-  .itab{font-size:8px;padding:6px 4px}
+  .land-wrap{padding:0}
 }
-@supports(padding:env(safe-area-inset-top)){
+@supports(padding:env(safe-area-inset-bottom)){
   .land-outer{padding-bottom:env(safe-area-inset-bottom)}
 }
 </style>
@@ -129,7 +130,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 <div class="land-outer">
 <div class="land-wrap">
 
-  <!-- Signal bars -->
   <div class="land-signal">
     <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
   </div>
@@ -137,12 +137,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
   <h1 class="land-h1">Operação Comercial</h1>
   <p class="land-sub">Sistema de Programação de Mídia</p>
 
-  <!-- Cards originais com as insígnias SVG -->
   <div class="land-cards">
 
-    <div class="land-card em" onclick="window.location.href='OPEC.html'">
-      <div class="card-ico">
-        <svg width="36" height="40" viewBox="295 70 90 80" xmlns="http://www.w3.org/2000/svg">
+    <a class="land-card em" href="OPEC.html">
+      <div class="card-ico"><svg width="36" height="40" viewBox="295 70 90 80" xmlns="http://www.w3.org/2000/svg">
           <defs><linearGradient id="hxblu2" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stop-color="#5ab4f0"/><stop offset="100%" stop-color="#1060b0"/>
           </linearGradient></defs>
@@ -151,20 +149,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
           <rect x="331" y="97" width="3" height="26" fill="url(#hxblu2)"/>
           <rect x="331" y="97" width="15" height="3" fill="url(#hxblu2)"/>
           <rect x="331" y="108" width="11" height="3" fill="url(#hxblu2)"/>
-        </svg>
-      </div>
+        </svg></div>
       <div class="card-ttl">Operação Comercial</div>
       <div class="card-desc">Monte a grade semanal, gerencie contratos, programas, breaks e materiais com controle automático.</div>
       <div class="card-tag">PC Principal</div>
-      <button class="card-install-btn" id="cibtn-opec"
-        onclick="event.stopPropagation();installFromCard('opec')">
-        Instalar App
-      </button>
-    </div>
+    </a>
 
-    <div class="land-card ex" onclick="window.location.href='MASTER.html'">
-      <div class="card-ico">
-        <svg width="36" height="40" viewBox="295 70 90 80" xmlns="http://www.w3.org/2000/svg">
+    <a class="land-card ex" href="MASTER.html">
+      <div class="card-ico"><svg width="36" height="40" viewBox="295 70 90 80" xmlns="http://www.w3.org/2000/svg">
           <defs><linearGradient id="hxgld2" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stop-color="#f0c040"/><stop offset="100%" stop-color="#a07010"/>
           </linearGradient></defs>
@@ -173,98 +165,127 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
           <rect x="331" y="97" width="3" height="26" fill="url(#hxgld2)"/>
           <rect x="331" y="97" width="15" height="3" fill="url(#hxgld2)"/>
           <rect x="331" y="108" width="11" height="3" fill="url(#hxgld2)"/>
-        </svg>
-      </div>
+        </svg></div>
       <div class="card-ttl">Roteiro Master</div>
       <div class="card-desc">Visualize o roteiro completo com o material atual em destaque e contagem regressiva.</div>
       <div class="card-tag">PC Secundário</div>
-      <button class="card-install-btn card-install-btn-ex" id="cibtn-master"
-        onclick="event.stopPropagation();installFromCard('master')">
-        Instalar App
-      </button>
-    </div>
+    </a>
 
   </div>
 
-  <div id="install-msg" class="install-msg" style="text-align:center;margin-top:12px"></div>
+  <button class="install-btn" id="install-btn" onclick="doInstall()">
+    Instalar Aplicativo
+  </button>
+  <div class="install-msg" id="install-msg"></div>
 
-</div><!-- /land-wrap -->
-
-</div><!-- /land-outer -->
+</div>
+</div>
 
 <script>
-const _plat = (()=>{
-  const ua = navigator.userAgent.toLowerCase();
-  if(/iphone|ipad|ipod/.test(ua)) return 'ios';
-  if(/android/.test(ua)) return 'android';
-  return 'pc';
-})();
+const _ua  = navigator.userAgent;
+const _ios = /iphone|ipad|ipod/i.test(_ua);
+const _android = /android/i.test(_ua);
+const _firefox = /firefox/i.test(_ua);
+const _safari  = /safari/i.test(_ua) && !/chrome/i.test(_ua);
+const _samsung = /samsungbrowser/i.test(_ua);
+const _standalone = window.matchMedia('(display-mode:standalone)').matches || navigator.standalone;
 
-let _pwaPrompt = null;
-
+let _prompt = null;
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
-  _pwaPrompt = e;
-  showInstallBtns();
+  _prompt = e;
+  const btn = document.getElementById('install-btn');
+  if(btn) btn.style.borderColor = 'var(--gold)', btn.style.color = 'var(--gold2)';
 });
 
 window.addEventListener('appinstalled', () => {
-  _pwaPrompt = null;
-  ['cibtn-opec','cibtn-master'].forEach(id => {
-    const b = document.getElementById(id);
-    if(b){ b.textContent = 'Instalado'; b.classList.add('installed'); }
-  });
+  _prompt = null;
+  setBtn('Aplicativo Instalado', true);
 });
 
-function showInstallBtns(){
-  document.getElementById('cibtn-opec')?.classList.add('visible');
-  document.getElementById('cibtn-master')?.classList.add('visible');
+function setBtn(txt, done){
+  const b = document.getElementById('install-btn');
+  if(!b) return;
+  b.textContent = txt;
+  if(done) b.classList.add('done'), b.disabled = true;
 }
 
-function installFromCard(app){
-  const msg = document.getElementById('install-msg');
+function showMsg(html, secs){
+  const m = document.getElementById('install-msg');
+  if(!m) return;
+  m.innerHTML = html;
+  if(secs) setTimeout(() => m.innerHTML = '', secs * 1000);
+}
 
-  if(_pwaPrompt){
-    _pwaPrompt.prompt();
-    _pwaPrompt.userChoice.then(r => {
-      if(r.outcome === 'accepted'){
-        ['cibtn-opec','cibtn-master'].forEach(id=>{
-          const b=document.getElementById(id);
-          if(b){b.textContent='Instalado';b.classList.add('installed');}
-        });
-        if(msg) msg.textContent = '';
-      } else {
-        if(msg){ msg.textContent='Instalação cancelada.'; setTimeout(()=>msg.textContent='',4000); }
-      }
-      _pwaPrompt = null;
+function doInstall(){
+  // PWA prompt disponível (Chrome/Edge PC e Android)
+  if(_prompt){
+    _prompt.prompt();
+    _prompt.userChoice.then(r => {
+      if(r.outcome === 'accepted') setBtn('Aplicativo Instalado', true);
+      else showMsg('Instalação cancelada. Tente novamente.', 4);
+      _prompt = null;
     });
     return;
   }
 
-  if(_plat === 'ios'){
-    if(msg){ msg.innerHTML='No Safari: toque em <b>Compartilhar</b> → <b>Adicionar à Tela de Início</b>'; setTimeout(()=>msg.innerHTML='',8000); }
+  // iOS Safari
+  if(_ios && _safari){
+    showMsg('No Safari: toque em <b>Compartilhar ⎙</b> → <b>Adicionar à Tela de Início</b>', 10);
     return;
   }
 
-  // Abrir o sistema — navegador vai oferecer instalar na barra de endereço
-  window.location.href = app === 'master' ? 'MASTER.html' : 'OPEC.html';
+  // iOS outro navegador
+  if(_ios){
+    showMsg('No iPhone/iPad, abra este link no <b>Safari</b> e toque em <b>Compartilhar ⎙ → Adicionar à Tela de Início</b>', 10);
+    return;
+  }
+
+  // Android Samsung
+  if(_android && _samsung){
+    showMsg('No Samsung Internet: menu <b>☰</b> → <b>Adicionar página a</b> → <b>Tela inicial</b>', 10);
+    return;
+  }
+
+  // Android outros
+  if(_android){
+    showMsg('No Chrome: toque no menu <b>⋮</b> → <b>Adicionar à tela inicial</b> ou <b>Instalar app</b>', 10);
+    return;
+  }
+
+  // Firefox PC — não suporta PWA
+  if(_firefox){
+    showMsg('O Firefox não suporta instalação de apps. Abra no <b>Chrome</b> ou <b>Edge</b> para instalar.', 8);
+    return;
+  }
+
+  // Safari macOS
+  if(_safari){
+    showMsg('No Safari: clique em <b>Arquivo</b> → <b>Adicionar ao Dock</b>', 8);
+    return;
+  }
+
+  // Chrome/Edge PC sem prompt — abrir o sistema para capturar o prompt lá
+  window.location.href = 'OPEC.html';
 }
 
+// Init
 window.addEventListener('DOMContentLoaded', () => {
-  // iOS — sempre mostrar botões
-  if(_plat === 'ios') showInstallBtns();
-  // Standalone — já instalado, esconder botões
-  if(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone){
-    document.getElementById('cibtn-opec')?.remove();
-    document.getElementById('cibtn-master')?.remove();
+  if(_standalone){
+    setBtn('Abrir Sistema', false);
+    document.getElementById('install-btn').onclick = () => window.location.href = 'OPEC.html';
+    document.getElementById('install-btn').classList.add('done');
+    return;
   }
+  if(_ios) setBtn('Instalar no iPhone / iPad', false);
+  else if(_android) setBtn('Instalar no Android', false);
+  else setBtn('Instalar Aplicativo', false);
 });
 </script>
+
 <script>
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js')
-    .then(()=>console.log('SW registrado'))
-    .catch(e=>console.warn('SW erro:',e));
+if('serviceWorker' in navigator && !location.hostname.includes('claudeusercontent')){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
 </script>
 </body>
