@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Operação Comercial</title>
+<title>OperaçãoComercial</title>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=Azeret+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* ═══ THEME VARIABLES ═══ */
@@ -176,8 +176,24 @@ body.light .land-h1{background:linear-gradient(135deg,#1a2030,#4a6080);-webkit-b
 .item-row.expired .ir-seq{color:var(--red2)!important}
 .ir-seq{font-family:var(--font-m);font-size:9px;color:var(--text3);min-width:20px}
 .ir-name{flex:1;font-size:12px;font-weight:600;color:#e8eef6;line-height:1.3;letter-spacing:.3px}.ir-dur{font-family:var(--font-m);font-size:10px;color:var(--text2);flex-shrink:0}
-.ir-expire{font-size:9px;color:var(--text3);flex-shrink:0}
-.ir-expire.expired{color:var(--red2);font-weight:600}
+.ir-expire{
+  font-family:'Azeret Mono',monospace;
+  font-size:9px;font-weight:600;
+  color:#5a7a9a;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:3px;
+  padding:1px 5px;
+  flex-shrink:0;
+  letter-spacing:.3px;
+  white-space:nowrap;
+}
+.ir-expire.expired{
+  color:#e05050;
+  background:rgba(192,57,43,.15);
+  border-color:rgba(224,80,80,.35);
+  font-weight:700;
+}
 .empty-hint{padding:16px 12px;text-align:center;color:var(--text3);font-size:11px;line-height:1.7}
 
 /* RIGHT COL */
@@ -371,24 +387,10 @@ body.light .land-h1{background:linear-gradient(135deg,#1a2030,#4a6080);-webkit-b
 .ins-block-title{font-family:var(--font-d);font-size:10px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--text3)}
 
 /* TOAST */
-.toast{
-  position:fixed;
-  background:#0d1117;
-  border:1px solid rgba(255,255,255,.10);
-  border-left:3px solid #7a8fa8;
-  border-radius:7px;
-  padding:8px 16px 8px 12px;
-  font-family:'DM Sans',sans-serif;
-  font-size:12px;font-weight:500;
-  color:#d8e0ea;letter-spacing:.3px;
-  opacity:0;
-  transition:opacity .22s ease, transform .22s ease;
-  z-index:99999;pointer-events:none;
-  white-space:nowrap;
-  box-shadow:0 6px 28px rgba(0,0,0,.7);
-  max-width:90vw;overflow:hidden;text-overflow:ellipsis;
-}
-.toast.show{opacity:1;}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--s3);border:1px solid var(--border2);border-radius:8px;padding:10px 20px;
+  font-size:13px;color:var(--text);opacity:0;transition:all .3s;z-index:999;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
 /* DAY PILLS (new program modal) */
 .day-pill-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
@@ -397,7 +399,7 @@ body.light .land-h1{background:linear-gradient(135deg,#1a2030,#4a6080);-webkit-b
   background:var(--s3);color:var(--text3);transition:all .15s;user-select:none}
 .day-pill:hover{border-color:var(--border2);color:var(--text2)}
 .day-pill.on{background:var(--blue-dim);border-color:var(--blue2);color:var(--blue2)}
-/* Break config row in new program modal */
+/*Break config row in new program modal */
 .mp-brk-row{display:grid;grid-template-columns:80px 1fr 110px 30px;gap:8px;align-items:center;
   padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)}
 .mp-brk-row:last-child{border-bottom:none}
@@ -691,6 +693,52 @@ body.light .land-h1{background:linear-gradient(135deg,#1a2030,#4a6080);-webkit-b
 .card{position:relative;transition:box-shadow .15s,opacity .15s}
 .card.dragging{opacity:.35;box-shadow:0 0 0 2px var(--blue2)!important}
 .card.drag-over{box-shadow:0 -3px 0 0 var(--blue2)!important}
+.drop-indicator{
+  height:2px;background:var(--gold);border-radius:1px;
+  margin:1px 4px;pointer-events:none;
+}
+.drag-over-brk{
+  outline:1px dashed rgba(212,160,23,.4);border-radius:4px;
+}
+/* ──Break edit popover ── */
+.brk-edit-pop{
+  position:fixed;z-index:9000;
+  background:#0d1117;
+  border:1px solid rgba(255,255,255,.11);
+  border-radius:6px;
+  box-shadow:0 6px 24px rgba(0,0,0,.85);
+  overflow:hidden;
+  animation:bepop .12s cubic-bezier(.18,.89,.32,1.1);
+}
+@keyframes bepop{from{opacity:0;transform:scale(.93) translateY(3px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.brk-edit-pop-field{
+  padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.06);
+  display:flex;align-items:center;gap:6px;
+}
+.brk-edit-pop-input{
+  flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+  border-radius:4px;padding:4px 7px;font-size:11px;font-weight:600;
+  color:#d8e0ea;letter-spacing:.4px;text-transform:uppercase;
+  font-family:'Rajdhani',sans-serif;outline:none;width:120px;
+  transition:border-color .15s;
+}
+.brk-edit-pop-input:focus{border-color:rgba(212,160,23,.5);}
+.brk-edit-pop-save{
+  font-family:'Rajdhani',sans-serif;font-size:8px;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;
+  padding:4px 9px;border-radius:3px;cursor:pointer;
+  background:rgba(212,160,23,.15);border:1px solid rgba(212,160,23,.3);
+  color:#f0c040;transition:all .15s;flex-shrink:0;white-space:nowrap;
+}
+.brk-edit-pop-save:hover{background:rgba(212,160,23,.28);border-color:#f0c040;}
+.brk-edit-pop-del{
+  width:100%;padding:6px 10px;text-align:left;cursor:pointer;
+  font-family:'Rajdhani',sans-serif;font-size:9px;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;
+  color:#e05050;background:transparent;border:none;
+  transition:background .15s;display:flex;align-items:center;gap:6px;
+}
+.brk-edit-pop-del:hover{background:rgba(192,57,43,.16);}
 .panel-drag-handle{position:absolute;top:0;right:0;width:28px;height:100%;cursor:grab;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;z-index:10}
 .card:hover .panel-drag-handle{opacity:1}
 .panel-drag-handle:active{cursor:grabbing}
@@ -790,7 +838,7 @@ try{
           await auth.signOut();
           loginScreen.style.display = 'flex';
           const errEl = document.getElementById('ol-error');
-          if(errEl){ errEl.textContent='⛔ Seu usuário tem acesso apenas ao MASTER.'; errEl.style.color='#e05050'; }
+          if(errEl){ errEl.textContent=' Seu usuário tem acesso apenas ao MASTER.'; errEl.style.color='#e05050'; }
           return;
         }
       }catch(e){ console.warn('Permissão não verificada:', e.message); }
@@ -810,22 +858,22 @@ window._opecLogin = async function(){
   const pass  = (document.getElementById('ol-pass').value||'').trim();
   const errEl = document.getElementById('ol-error');
   const btn   = document.getElementById('ol-btn');
-  if(!nome||!pass){ errEl.textContent='⚠ Preencha usuário e senha.'; return; }
+  if(!nome||!pass){ errEl.textContent='! Preencha usuário e senha.'; return; }
   btn.disabled=true; btn.textContent='Verificando…'; errEl.textContent='';
   try{
     await signInWithEmailAndPassword(auth, nome+DOMINIO, pass);
   }catch(e){
     console.log('[OPEC LOGIN] erro:', e.code);
     const msgs={
-      'auth/invalid-credential':'❌ Usuário ou senha incorretos.',
-      'auth/user-not-found':'❌ Usuário não encontrado.',
-      'auth/wrong-password':'❌ Senha incorreta.',
-      'auth/too-many-requests':'⚠ Muitas tentativas. Aguarde alguns minutos.',
-      'auth/invalid-email':'❌ Nome de usuário inválido.',
-      'auth/network-request-failed':'❌ Sem conexão com a internet.',
-      'auth/user-disabled':'❌ Usuário desativado.'
+      'auth/invalid-credential':' Usuário ou senha incorretos.',
+      'auth/user-not-found':' Usuário não encontrado.',
+      'auth/wrong-password':' Senha incorreta.',
+      'auth/too-many-requests':'! Muitas tentativas. Aguarde alguns minutos.',
+      'auth/invalid-email':' Nome de usuário inválido.',
+      'auth/network-request-failed':' Sem conexão com a internet.',
+      'auth/user-disabled':' Usuário desativado.'
     };
-    errEl.textContent=msgs[e.code]||'❌ Erro: '+(e.code||e.message);
+    errEl.textContent=msgs[e.code]||' Erro: '+(e.code||e.message);
     btn.disabled=false; btn.textContent='Entrar';
   }
 };
@@ -844,11 +892,11 @@ function _renderUserTopbar(nome){
       <button onclick="window._opecAbrirUsuarios()"
         style="font-size:10px;font-weight:700;padding:3px 9px;background:rgba(255,255,255,.05);
         border:1px solid rgba(255,255,255,.1);border-radius:4px;color:var(--text2);cursor:pointer;
-        letter-spacing:1px" title="Gerenciar usuários">👥</button>
+        letter-spacing:1px" title="Gerenciar usuários"></button>
       <button onclick="window._opecLogout()"
         style="font-size:10px;font-weight:700;padding:3px 9px;background:rgba(255,255,255,.05);
         border:1px solid rgba(255,255,255,.1);border-radius:4px;color:var(--text2);cursor:pointer;
-        letter-spacing:1px" title="Sair">👤 ${nome.toUpperCase()} ✕</button>`;
+        letter-spacing:1px" title="Sair"> ${nome.toUpperCase()} ✕</button>`;
   });
 }
 
@@ -877,7 +925,7 @@ window._opecCarregarUsuarios = async function(){
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;color:#d8e0ea;font-weight:700;font-family:monospace;letter-spacing:1px">${nome}</div>
           <div style="display:flex;align-items:center;gap:8px;margin-top:3px;flex-wrap:wrap">
-            <span style="font-size:11px;color:#7a8fa8">${u.role==='admin'?'👑 Admin':'👤 Operador'}</span>
+            <span style="font-size:11px;color:#7a8fa8">${u.role==='admin'?' Admin':' Operador'}</span>
             <span style="font-size:9px;font-weight:700;letter-spacing:1px;padding:1px 6px;border-radius:3px;
               background:rgba(0,0,0,.3);border:1px solid ${accessColor(u.access||'ambos')};
               color:${accessColor(u.access||'ambos')}">${accessLabel(u.access||'ambos')}</span>
@@ -942,7 +990,7 @@ window._opecAlterarAcesso = async function(nome, access){
   }catch(e){ showToast('Erro: '+e.message); }
 };
 
-// ── Conectar ao canal da estação ──
+// ──Conectar ao canal da estação ──
 function _fbConnect(){
   if(!db||!_stationCode) return;
   _gradeRef = ref(db,`estacoes/${_stationCode}/grade`);
@@ -1086,7 +1134,7 @@ function _segConflictResp(ok){
     <!-- Header -->
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
       <div>
-        <div style="font-size:20px;font-weight:800;color:#fff">☁ Configurar Nuvem</div>
+        <div style="font-size:20px;font-weight:800;color:#fff"> Configurar Nuvem</div>
         <div style="font-size:12px;color:#666;margin-top:4px">Siga os 4 passos abaixo — leva menos de 5 minutos</div>
       </div>
       <button onclick="_fbCloseSetup()"
@@ -1162,8 +1210,7 @@ function _segConflictResp(ok){
                  padding:10px 12px;color:#fff;font-family:monospace;font-size:12px;
                  outline:none;box-sizing:border-box">
         <div id="fw-error" style="font-size:11px;color:#ff6060;margin-top:6px;min-height:16px"></div>
-        <div style="font-size:11px;color:#666;margin-top:6px">
-          Só precisa deste link — nada mais!
+        <div style="font-size:11px;color:#666;margin-top:6px"> Só precisa deste link — nada mais!
         </div>
       </div>
     </div>
@@ -1180,8 +1227,7 @@ function _segConflictResp(ok){
     </div>
 
     <div style="margin-top:14px;padding-top:14px;border-top:1px solid #1a1a2a;
-                font-size:10px;color:#444;text-align:center">
-      Firebase gratuito: até 1 GB armazenado · 10 GB/mês de transferência · sem cartão de crédito
+                font-size:10px;color:#444;text-align:center"> Firebase gratuito: até 1 GB armazenado · 10 GB/mês de transferência · sem cartão de crédito
     </div>
   </div>
 </div>
@@ -1192,7 +1238,7 @@ function _segConflictResp(ok){
     
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
       <div>
-        <div style="font-size:18px;font-weight:700;color:#fff">☁ Configurar Sincronização em Nuvem</div>
+        <div style="font-size:18px;font-weight:700;color:#fff"> Configurar Sincronização em Nuvem</div>
         <div style="font-size:12px;color:#888;margin-top:3px">Firebase Realtime Database — gratuito, sem servidor</div>
       </div>
       <button onclick="_fbCloseWizard()" style="background:none;border:none;color:#888;font-size:20px;cursor:pointer">✕</button>
@@ -1225,7 +1271,7 @@ function _segConflictResp(ok){
     <div style="background:rgba(255,255,255,.04);border-radius:8px;padding:16px;margin-bottom:16px">
       <div style="font-size:13px;font-weight:700;color:#ffaa00;margin-bottom:10px">③ Pegar as credenciais</div>
       <ol style="font-size:12px;color:#ccc;line-height:2;padding-left:18px;margin:0">
-        <li>Clique na engrenagem ⚙ ao lado de <b style="color:#fff">Visão geral do projeto</b></li>
+        <li>Clique na engrenagem  ao lado de <b style="color:#fff">Visão geral do projeto</b></li>
         <li>Clique em <b style="color:#fff">Configurações do projeto</b></li>
         <li>Role a página até <b style="color:#fff">"Seus aplicativos"</b></li>
         <li>Clique no ícone <b style="color:#fff">&lt;/&gt;</b> (Web)</li>
@@ -1276,8 +1322,7 @@ function _segConflictResp(ok){
         style="padding:8px 24px;background:#5aaaf0;border:none;border-radius:6px;color:#000;font-weight:700;cursor:pointer;font-size:13px">✓ Salvar e Conectar</button>
     </div>
 
-    <div style="margin-top:12px;font-size:10px;color:#555;text-align:center">
-      O plano gratuito do Firebase suporta até 1GB de dados e 10GB de transferência por mês — mais que suficiente para este sistema.
+    <div style="margin-top:12px;font-size:10px;color:#555;text-align:center"> O plano gratuito do Firebase suporta até 1GB de dados e 10GB de transferência por mês — mais que suficiente para este sistema.
     </div>
   </div>
 </div>
@@ -1373,7 +1418,7 @@ function _segConflictResp(ok){
     border:1px solid #1f2836;border-radius:14px;padding:26px 26px 22px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
       <div>
-        <div style="font-size:15px;font-weight:800;color:#fff;letter-spacing:1px">👥 Usuários</div>
+        <div style="font-size:15px;font-weight:800;color:#fff;letter-spacing:1px"> Usuários</div>
         <div style="font-size:10px;color:#3a4d60;margin-top:3px">Login válido no OPEC e MASTER</div>
       </div>
       <button onclick="window._opecFecharUsuarios()"
@@ -1398,8 +1443,8 @@ function _segConflictResp(ok){
           <select id="ou-role"
             style="width:100%;background:#0e1218;border:1px solid #1f2836;border-radius:6px;
               padding:8px 10px;color:#d8e0ea;font-size:12px;outline:none;box-sizing:border-box;cursor:pointer">
-            <option value="operador">👤 Operador</option>
-            <option value="admin">👑 Admin</option>
+            <option value="operador"> Operador</option>
+            <option value="admin"> Admin</option>
           </select>
         </div>
         <div>
@@ -1463,16 +1508,16 @@ function _segConflictResp(ok){
 <div id="landing" class="view active">
   <div style="position:absolute;top:14px;right:18px;z-index:10;display:flex;align-items:center;gap:8px">
     <div id="opec-user-btn-land" style="display:flex;align-items:center;gap:4px"></div>
-    <div id="fb-station-panel-land"><button onclick="_estacaoAbrirModal()" style="font-size:11px;font-weight:700;padding:5px 14px;background:rgba(212,160,23,.15);border:1px solid rgba(212,160,23,.5);border-radius:6px;color:#f0c040;cursor:pointer;letter-spacing:1px">☁ ESTAÇÃO</button></div>
+    <div id="fb-station-panel-land"><button onclick="_estacaoAbrirModal()" style="font-size:11px;font-weight:700;padding:5px 14px;background:rgba(212,160,23,.15);border:1px solid rgba(212,160,23,.5);border-radius:6px;color:#f0c040;cursor:pointer;letter-spacing:1px"> ESTAÇÃO</button></div>
   </div>
   <div class="land-wrap">
     <div class="land-signal"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
-    <h1 class="land-h1">Operação Comercial</h1>
-    <p class="land-sub">Sistema de Programação de Mídia</p>
+    <h1 class="land-h1">OperaçãoComercial</h1>
+    <p class="land-sub">Sistema deProgramação de Mídia</p>
     <div class="land-cards">
       <div class="land-card em" onclick="startEmissor()">
         <div class="card-ico" style="margin-bottom:4px"><svg width="36" height="40" viewBox="295 70 90 80" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="hxblu2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#5ab4f0"/><stop offset="100%" stop-color="#1060b0"/></linearGradient></defs><polygon points="378,110 359,143 321,143 302,110 321,77 359,77" fill="#1060b0" fill-opacity="0.18" stroke="url(#hxblu2)" stroke-width="8" stroke-linejoin="round"/><rect x="331" y="97" width="3" height="26" fill="url(#hxblu2)"/><rect x="331" y="97" width="15" height="3" fill="url(#hxblu2)"/><rect x="331" y="108" width="11" height="3" fill="url(#hxblu2)"/></svg></div>
-        <div class="card-ttl">Operação Comercial</div>
+        <div class="card-ttl">OperaçãoComercial</div>
         <div class="card-desc">Monte a grade semanal, gerencie contratos, programas, breaks e materiais com controle automático.</div>
         <div class="card-tag">PC Principal</div>
       </div>
@@ -1495,7 +1540,7 @@ function _segConflictResp(ok){
       <span class="tb-day" id="e-day"></span>
     </div>
     <div class="tb-right">
-      <div id="fb-station-panel" style="display:flex;align-items:center;gap:6px"><button onclick="_estacaoAbrirModal()" style="font-size:11px;font-weight:700;padding:4px 12px;background:rgba(212,160,23,.15);border:1px solid rgba(212,160,23,.5);border-radius:5px;color:#f0c040;cursor:pointer;letter-spacing:1px">☁ ESTAÇÃO</button></div>
+      <div id="fb-station-panel" style="display:flex;align-items:center;gap:6px"><button onclick="_estacaoAbrirModal()" style="font-size:11px;font-weight:700;padding:4px 12px;background:rgba(212,160,23,.15);border:1px solid rgba(212,160,23,.5);border-radius:5px;color:#f0c040;cursor:pointer;letter-spacing:1px"> ESTAÇÃO</button></div>
       <div class="tb-clock" id="e-clock">00:00:00</div>
       <span id="fb-status" title="Firebase" style="width:8px;height:8px;border-radius:50%;background:var(--text3);display:inline-block;margin-right:2px;transition:background .3s"></span>
       <button class="btn btn-ghost btn-sm" onclick="toggleProgsTab()">Programas</button>
@@ -1503,11 +1548,11 @@ function _segConflictResp(ok){
       <button id="pwa-install-btn" onclick="window._pwaInstall()" title="Instalar como aplicativo" style="display:none;align-items:center;gap:5px;font-size:10px;padding:3px 10px;background:rgba(74,204,122,.15);border:1px solid rgba(74,204,122,.4);border-radius:5px;color:#4acc7a;cursor:pointer;font-weight:700">Instalar App</button>
       <div id="opec-user-btn" style="display:flex;align-items:center;gap:4px"></div>
       <button class="btn btn-ghost btn-sm" onclick="goHome()">Home</button>
-      <button title="Configurar" onclick="toggleSettings()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:4px 7px;border-radius:4px;line-height:1;transition:color .15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'">⚙</button>
+      <button title="Configurar" onclick="toggleSettings()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:4px 7px;border-radius:4px;line-height:1;transition:color .15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text3)'"></button>
     </div>
   </div>
   <div class="alert-banner" id="alert-banner">
-    <span id="alert-text">⚠ Alerta</span>
+    <span id="alert-text">! Alerta</span>
     <button class="alert-banner-close" onclick="dismissAlert()">✕</button>
   </div>
   <div class="mobile-nav" id="mobile-nav">
@@ -1527,8 +1572,8 @@ function _segConflictResp(ok){
       <div class="left-header">
         <div class="left-title" id="left-title">Grade</div>
         <div class="left-header-btns">
-          <button class="btn btn-blue btn-sm" onclick="openAddProg()">＋ Prog</button>
-          <button class="btn btn-ghost btn-sm" onclick="openAddBreak()">＋ Break</button>
+          <button class="btn btn-blue btn-sm" onclick="openAddProg()">＋Prog</button>
+          <button class="btn btn-ghost btn-sm" onclick="openAddBreak()">＋Break</button>
         </div>
       </div>
       <div class="time-range" id="time-range"></div>
@@ -1577,11 +1622,11 @@ function _segConflictResp(ok){
         </div>
 <!-- Controle de Reprodução removido -->
 <!-- Próximos Materiais removido -->
-<!-- Progresso do Dia removido -->
+<!--Progresso do Dia removido -->
         <!-- DASHBOARD FINANCEIRO -->
         <div class="card" data-panel-id="dashboard" draggable="true" id="dash-card">
           <div class="card-head" style="display:flex;align-items:center;justify-content:space-between">
-            <span>Dashboard Comercial</span>
+            <span>DashboardComercial</span>
             <span id="ws-status-badge" class="ws-status ws-off">WS OFF</span>
           </div>
           <div class="dash-grid">
@@ -1636,7 +1681,7 @@ function _segConflictResp(ok){
           </div>
           <div class="opec-log-panel" id="opec-log-panel">
             <div class="opec-log-panel-head">
-              <span class="opec-log-panel-title">⏺ Confirmados pelo Operador</span>
+              <span class="opec-log-panel-title"> Confirmados pelo Operador</span>
               <span style="font-size:9px;color:var(--text3)" id="opec-log-count">0 registros</span>
             </div>
             <div id="opec-log-entries" style="max-height:100px;overflow-y:auto">
@@ -1655,7 +1700,7 @@ function _segConflictResp(ok){
   <!-- CONTRACTS PANEL -->
   <div class="contracts-panel" id="contracts-panel">
     <div class="cp-header">
-      <div class="cp-title">📋 Contratos</div>
+      <div class="cp-title">Contratos</div>
       <div style="display:flex;gap:6px">
         <button class="btn btn-gold btn-xs" onclick="openAddContract()">＋ Novo</button>
         <button class="btn btn-ghost btn-xs" onclick="toggleContracts()">✕</button>
@@ -1669,7 +1714,7 @@ function _segConflictResp(ok){
   <!-- SETTINGS PANEL -->
   <div class="settings-panel" id="settings-panel">
     <div class="sp-header">
-      <div class="sp-title">⚙ Ajustes</div>
+      <div class="sp-title"> Ajustes</div>
       <button class="btn btn-ghost btn-xs" onclick="toggleSettings()">✕</button>
     </div>
 
@@ -1677,8 +1722,8 @@ function _segConflictResp(ok){
     <div class="sp-section">
       <div class="sp-sec-title">Tema</div>
       <div class="sp-toggle-row">
-        <div class="sp-toggle" id="tog-dark" onclick="setTheme('dark')">🌙 Escuro</div>
-        <div class="sp-toggle" id="tog-light" onclick="setTheme('light')">☀️ Claro</div>
+        <div class="sp-toggle" id="tog-dark" onclick="setTheme('dark')"> Escuro</div>
+        <div class="sp-toggle" id="tog-light" onclick="setTheme('light')">️ Claro</div>
       </div>
     </div>
 
@@ -1699,14 +1744,14 @@ function _segConflictResp(ok){
       <div style="font-size:10px;color:var(--text3);margin-bottom:10px">Arraste os sliders para ajustar cada coluna</div>
 
       <div class="sp-row" style="margin-bottom:6px">
-        <span class="sp-lbl">📋 Roteiro</span>
+        <span class="sp-lbl">Roteiro</span>
         <span class="sp-slider-val" id="pw-val">320px</span>
       </div>
       <input type="range" class="sp-range" id="pw-range" min="60" max="1000" value="320"
         oninput="setPanelWidth(this.value)" style="margin-bottom:12px">
 
       <div class="sp-row" style="margin-bottom:6px">
-        <span class="sp-lbl">🎞 Mídias</span>
+        <span class="sp-lbl"> Mídias</span>
         <span class="sp-slider-val" id="mw-val">220px</span>
       </div>
       <input type="range" class="sp-range" id="mw-range" min="60" max="800" value="220"
@@ -1715,13 +1760,13 @@ function _segConflictResp(ok){
 
     <!-- COR DOS PROGRAMAS -->
     <div class="sp-section">
-      <div class="sp-sec-title">Cor dos Programas</div>
+      <div class="sp-sec-title">Cor dosProgramas</div>
       <div class="sp-swatch-row" id="prog-swatches"></div>
     </div>
 
     <!-- COR DOS BREAKS -->
     <div class="sp-section">
-      <div class="sp-sec-title">Cor dos Breaks</div>
+      <div class="sp-sec-title">Cor dosBreaks</div>
       <div class="sp-swatch-row" id="brk-swatches"></div>
     </div>
 
@@ -1735,7 +1780,7 @@ function _segConflictResp(ok){
     <!-- CONEXÃO -->
     <div class="sp-section">
       <div class="sp-sec-title">Conexão</div>
-      <button class="btn btn-ghost btn-sm" style="width:100%" onclick="showLinkModal();toggleSettings()">🔗 Conectar Exibidor</button>
+      <button class="btn btn-ghost btn-sm" style="width:100%" onclick="showLinkModal();toggleSettings()">Conectar Exibidor</button>
     </div>
 
     <!-- RESET -->
@@ -1758,23 +1803,22 @@ function _segConflictResp(ok){
           <path d="M11 6.5A4.5 4.5 0 0 1 2.5 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
           <polyline points="9.5,1.5 10.5,3.5 8.5,3.5" fill="currentColor"/>
           <polyline points="3.5,11.5 2.5,9.5 4.5,9.5" fill="currentColor"/>
-        </svg>
-        Restaurar Padrão
+        </svg> Restaurar Padrão
       </button>
     </div>
   </div>
 </div>
 
 <!-- MODALS -->
-<!-- Add Program — NOVO: multi-dia + breaks -->
+<!-- AddProgram — NOVO: multi-dia + breaks -->
 <div class="overlay" id="m-prog">
   <div class="modal modal-wide">
-    <div class="m-ttl">＋ Novo Programa</div>
+    <div class="m-ttl">＋ NovoPrograma</div>
     <div class="m-form">
 
       <!-- Nome -->
       <div class="fg">
-        <div class="fg-lbl">Nome do Programa</div>
+        <div class="fg-lbl">Nome doPrograma</div>
         <input class="inp" type="text" id="mp-name" placeholder="Ex: ROTATIVO MATUTINO" oninput="mpPreviewBreaks()">
       </div>
 
@@ -1808,14 +1852,13 @@ function _segConflictResp(ok){
         <div style="font-size:10px;color:var(--text3);margin-top:5px" id="mp-days-hint">Nenhum dia selecionado</div>
       </div>
 
-      <!-- Breaks -->
+      <!--Breaks -->
       <div class="fg">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <div class="fg-lbl" style="margin-bottom:0">Breaks do Programa</div>
-          <button class="btn btn-blue btn-xs" onclick="mpAddBreak()">＋ Break</button>
+          <div class="fg-lbl" style="margin-bottom:0">Breaks doPrograma</div>
+          <button class="btn btn-blue btn-xs" onclick="mpAddBreak()">＋Break</button>
         </div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:8px">
-          Configure quantos breaks e a duração de cada um. O nome é gerado automaticamente.
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px"> Configure quantos breaks e a duração de cada um. O nome é gerado automaticamente.
         </div>
         <!-- Header -->
         <div style="display:grid;grid-template-columns:80px 1fr 110px 30px;gap:8px;padding:0 4px;margin-bottom:4px">
@@ -1825,8 +1868,7 @@ function _segConflictResp(ok){
           <div></div>
         </div>
         <div id="mp-breaks-list"></div>
-        <div id="mp-breaks-empty" style="font-size:11px;color:var(--text3);padding:8px 4px">
-          Nenhum break configurado — o programa será criado sem breaks.
+        <div id="mp-breaks-empty" style="font-size:11px;color:var(--text3);padding:8px 4px"> Nenhum break configurado — o programa será criado sem breaks.
         </div>
       </div>
 
@@ -1846,7 +1888,7 @@ function _segConflictResp(ok){
     <div class="m-ttl" id="ep-modal-title">✏ Editar Programa</div>
     <div class="m-form">
       <div class="fg">
-        <div class="fg-lbl">Nome do Programa</div>
+        <div class="fg-lbl">Nome doPrograma</div>
         <input class="inp" type="text" id="ep-name" placeholder="Ex: ROTATIVO MATUTINO">
       </div>
       <div class="fg-row">
@@ -1865,8 +1907,8 @@ function _segConflictResp(ok){
       </div>
       <div class="fg">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <div class="fg-lbl" style="margin-bottom:0">Breaks do Programa</div>
-          <button class="btn btn-blue btn-xs" onclick="epAddBreak()">＋ Break</button>
+          <div class="fg-lbl" style="margin-bottom:0">Breaks doPrograma</div>
+          <button class="btn btn-blue btn-xs" onclick="epAddBreak()">＋Break</button>
         </div>
         <div style="display:grid;grid-template-columns:80px 1fr 110px 30px;gap:8px;padding:0 4px;margin-bottom:4px">
           <div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text3)">Break</div>
@@ -1877,32 +1919,32 @@ function _segConflictResp(ok){
         <div id="ep-breaks-list"></div>
         <div id="ep-breaks-empty" style="font-size:11px;color:var(--text3);padding:8px 4px;display:none">Nenhum break.</div>
         <div style="font-size:10px;color:var(--gold);margin-top:6px;padding:7px 10px;background:rgba(212,160,23,.07);border-radius:6px;border:1px solid rgba(212,160,23,.15)">
-          ⚠ Remover um break apaga os materiais dentro dele. Adicionar cria um break vazio.
+          !Remover um break apaga os materiais dentro dele. Adicionar cria um break vazio.
         </div>
       </div>
       <div class="m-actions" style="justify-content:space-between">
-        <button class="btn btn-red btn-xs" onclick="epDeleteProg()" title="Remover programa da grade">🗑 Remover</button>
+        <button class="btn btn-red btn-xs" onclick="epDeleteProg()" title="Remover programa da grade">Remover</button>
         <div style="display:flex;gap:8px">
           <button class="btn btn-ghost" onclick="closeModal('m-edit-prog')">Cancelar</button>
-          <button class="btn btn-gold" onclick="doEditProg()">💾 Salvar</button>
+          <button class="btn btn-gold" onclick="doEditProg()">Salvar</button>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Add Break -->
+<!-- AddBreak -->
 <div class="overlay" id="m-brk">
-  <div class="modal"><div class="m-ttl">＋ Novo Break</div>
+  <div class="modal"><div class="m-ttl">＋ NovoBreak</div>
     <div class="m-form">
       <div class="fg"><div class="fg-lbl">Programa</div><select class="sel" id="mb-prog"></select></div>
-      <div class="fg"><div class="fg-lbl">Nome do Break</div><input class="inp" type="text" id="mb-name" placeholder="Ex: 1º BREAK"></div>
+      <div class="fg"><div class="fg-lbl">Nome doBreak</div><input class="inp" type="text" id="mb-name" placeholder="Ex: 1º BREAK"></div>
       <div class="fg"><div class="fg-lbl">Tempo Total (segundos)</div><input class="inp" type="number" id="mb-tot" value="60" min="1"></div>
       <div class="m-actions"><button class="btn btn-ghost" onclick="closeModal('m-brk')">Cancelar</button><button class="btn btn-blue" onclick="doAddBreak()">Adicionar</button></div>
     </div>
   </div>
 </div>
-<!-- Add Item -->
+<!-- AddItem -->
 <div class="overlay" id="m-item">
   <div class="modal"><div class="m-ttl">＋ Novo Material</div>
     <div class="m-form">
@@ -1978,10 +2020,10 @@ function _segConflictResp(ok){
 </div>
 <!-- Add Contract -->
 <div class="overlay" id="m-contract">
-  <div class="modal modal-wide"><div class="m-ttl">📋 Novo Contrato</div>
+  <div class="modal modal-wide"><div class="m-ttl"> NovoContrato</div>
     <div class="m-form">
       <div class="fg-row">
-        <div class="fg"><div class="fg-lbl">Número do Contrato</div><input class="inp" type="text" id="mc-num" placeholder="Ex: CT-2024-001"></div>
+        <div class="fg"><div class="fg-lbl">Número doContrato</div><input class="inp" type="text" id="mc-num" placeholder="Ex: CT-2024-001"></div>
         <div class="fg"><div class="fg-lbl">Cliente</div><input class="inp" type="text" id="mc-client" placeholder="Ex: PREFEITURA MUNICIPAL"></div>
       </div>
       <div class="fg-row">
@@ -2005,14 +2047,14 @@ function _segConflictResp(ok){
       </div>
       <div class="m-actions">
         <button class="btn btn-ghost" onclick="closeModal('m-contract')">Cancelar</button>
-        <button class="btn btn-gold" onclick="doSaveContract()">💾 Salvar Contrato</button>
+        <button class="btn btn-gold" onclick="doSaveContract()">SalvarContrato</button>
       </div>
     </div>
   </div>
 </div>
 <!-- Link / IP Modal -->
 <div class="overlay" id="m-link">
-  <div class="modal"><div class="m-ttl">🔗 Conectar Exibidor</div>
+  <div class="modal"><div class="m-ttl">Conectar Exibidor</div>
     <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:16px">Abra o arquivo <b>exibidor.html</b> no PC secundário e insira o IP do emissor para sincronizar pela rede.</p>
     <div class="fg" style="margin-bottom:12px">
       <div class="fg-lbl">IP deste computador (aproximado)</div>
@@ -2023,7 +2065,7 @@ function _segConflictResp(ok){
       <div id="link-ls" onclick="copyLink()" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 14px;font-family:var(--font-m);font-size:12px;color:var(--text2);word-break:break-all;cursor:pointer">—</div>
       <p style="font-size:11px;color:var(--text3);margin-top:4px">Clique para copiar (funciona na mesma máquina/rede local)</p>
     </div>
-    <div class="m-actions"><button class="btn btn-ghost" onclick="closeModal('m-link')">Fechar</button><button class="btn btn-gold" onclick="copyLink()">📋 Copiar</button></div>
+    <div class="m-actions"><button class="btn btn-ghost" onclick="closeModal('m-link')">Fechar</button><button class="btn btn-gold" onclick="copyLink()">Copiar</button></div>
   </div>
 </div>
 
@@ -2043,7 +2085,7 @@ function _segConflictResp(ok){
     <button class="btn btn-ghost btn-sm" onclick="toggleProgsTab()">✕ Fechar</button>
   </div>
   <div class="progs-filters">
-    <input class="pf-inp" id="pf-search" placeholder="🔍 Buscar programa..." oninput="renderProgs()" style="flex:1;min-width:140px">
+    <input class="pf-inp" id="pf-search" placeholder=" Buscar programa..." oninput="renderProgs()" style="flex:1;min-width:140px">
     <select class="pf-inp" id="pf-day" onchange="renderProgs()">
       <option value="">Todos os dias</option>
       <option value="0">Dom</option><option value="1">Seg</option><option value="2">Ter</option>
@@ -2052,7 +2094,7 @@ function _segConflictResp(ok){
     <select class="pf-inp" id="pf-sort" onchange="renderProgs()">
       <option value="time">Por horário</option><option value="name">Por nome</option><option value="breaks">Por breaks</option>
     </select>
-    <button class="btn btn-ghost btn-sm" onclick="exportProgsCsv()">⬇ CSV</button>
+    <button class="btn btn-ghost btn-sm" onclick="exportProgsCsv()"> CSV</button>
   </div>
   <div class="progs-grid" id="progs-grid"></div>
   <div class="progs-summary"><span id="progs-sum-l">—</span><span id="progs-sum-r">—</span></div>
@@ -2121,7 +2163,7 @@ function _segConflictResp(ok){
           <div style="font-size:12px;color:var(--text2)" id="pi-action-info"></div>
           <div style="display:flex;gap:7px">
             <button class="btn btn-ghost btn-sm" onclick="piClearSel()">✕</button>
-            <button class="btn btn-blue btn-sm" id="pi-btn-dist" onclick="piComputeDist()" style="display:none">📊 Distribuição</button>
+            <button class="btn btn-blue btn-sm" id="pi-btn-dist" onclick="piComputeDist()" style="display:none"> Distribuição</button>
             <button class="btn btn-green btn-sm" id="pi-btn-apply" onclick="piShowConfirm()" style="display:none">✓ Aplicar</button>
           </div>
         </div>
@@ -2229,8 +2271,7 @@ function _segConflictResp(ok){
     <!-- Corpo do relatório -->
     <div id="report-by-client" style="padding:8px 20px 0;display:none"></div>
     <div style="max-height:38vh;overflow-y:auto;padding:0 20px 16px;margin-top:10px" id="report-body">
-      <div style="text-align:center;padding:32px;color:var(--text3);font-size:12px">
-        Selecione o período e clique em Filtrar
+      <div style="text-align:center;padding:32px;color:var(--text3);font-size:12px"> Selecione o período e clique em Filtrar
       </div>
     </div>
 
@@ -2503,7 +2544,7 @@ function renderMidList(){
 }
 
 
-// ── Remover material da biblioteca (com verificação no roteiro) ──
+// ──Remover material da biblioteca (com verificação no roteiro) ──
 function _doRemoveMedia(item){
   if(!item) return;
 
@@ -2538,7 +2579,7 @@ function _doRemoveMedia(item){
     const msg = `"${item.name}" está no roteiro em ${ocorrencias.length} local(is):\n\n${lista}${extra}\n\nRemover da biblioteca E de todos os breaks do roteiro?`;
     if(!confirm(msg)) return;
 
-    // Remover do roteiro
+    //Remover do roteiro
     for(const dow of Object.keys(grade)){
       (grade[dow]||[]).forEach(prog=>{
         (prog.breaks||[]).forEach(brk=>{
@@ -2555,7 +2596,7 @@ function _doRemoveMedia(item){
     if(!confirm(`Remover "${item.name}" da biblioteca?`)) return;
   }
 
-  // Remover da biblioteca
+  //Remover da biblioteca
   mediaLib = mediaLib.filter(m => {
     if(item.id && m.id===item.id) return false;
     if(item.piNumber && m.piNumber && String(m.piNumber).trim()===String(item.piNumber).trim()) return false;
@@ -2603,7 +2644,7 @@ function analyzeBrkConflict(items){
 
 function renderRoteiro(){
   const list=$('roteiro-list'),progs=grade[selectedDay]||[];
-  if(!progs.length){list.innerHTML=`<div class="empty-hint">Nenhum programa para ${DAYS_FULL[selectedDay]}.<br>Clique em <b>＋ Prog</b>.</div>`;buildJumpBtns();return;}
+  if(!progs.length){list.innerHTML=`<div class="empty-hint">Nenhum programa para ${DAYS_FULL[selectedDay]}.<br>Clique em <b>＋Prog</b>.</div>`;buildJumpBtns();return;}
   list.innerHTML=progs.map((prog,pi)=>{
     const isAP=cur.day===selectedDay&&cur.progIdx===pi;
     const bHtml=!(prog.breaks||[]).length
@@ -2618,7 +2659,7 @@ function renderRoteiro(){
             const exp=isExpired(item.dateEnd);
             let cls='item-row';
             if(act)cls+=' active'; if(dn)cls+=' done'; if(exp)cls+=' expired';
-            const expLabel=item.dateEnd?`<span class="ir-expire${exp?' expired':''}">${exp?'⚠ ':''} ${fmtDate(item.dateEnd)}</span>`:'';
+            const expLabel=item.dateEnd?`<span class="ir-expire${exp?' expired':''}">${exp?'! ':''}${fmtDate(item.dateEnd)}</span>`:'';
             // Cor do segmento
             const _sc  = SEG_TEXT[item.segment]  || 'transparent';
             const _sb  = SEG_BG[item.segment]    || 'transparent';
@@ -2651,7 +2692,7 @@ function renderRoteiro(){
               ${_segBar}
               <span class="ir-seq" style="margin-left:6px;font-weight:700;color:${_libSeq?'var(--gold2)':'var(--text3)'};font-size:11px;min-width:28px;cursor:${_libSeq?'default':'pointer'}"
                 title="${_libSeq?'Nº Mídia: '+_libSeq:'Sem Nº Mídia — clique em Mídias para numerar'}"
-                onclick="${_libSeq?'':'event.stopPropagation();showToast(\'ℹ Acesse Comercial → Mídias → 🔢 Auto-numerar ou clique no ✏ para definir o Nº Mídia\')'}">
+                onclick="${_libSeq?'':'event.stopPropagation();showToast(\'ℹAcesseComercial → Mídias → Auto-numerar ou clique no ✏ para definir o Nº Mídia\')'}">
                 ${_libSeq||'—'}
               </span>
               <span class="ir-name" style="margin-left:4px">
@@ -2659,25 +2700,24 @@ function renderRoteiro(){
               </span>
               ${_segBadge}
               ${item.piNumber?`<span style="font-family:var(--font-m);font-size:8px;color:var(--gold);background:rgba(212,160,23,.1);border:1px solid rgba(212,160,23,.2);border-radius:3px;padding:1px 4px;flex-shrink:0;white-space:nowrap">PI-${item.piNumber}</span>`:''}
-              ${item.manual?`<span title="Inserido manualmente" style="font-family:var(--font-m);font-size:8px;font-weight:700;color:var(--text3);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:3px;padding:1px 4px;flex-shrink:0">M</span>`:''}
+
               ${expLabel}
               <span class="ir-dur">${fmtSec(item.dur)}</span>
-              <button class="btn btn-red btn-xs" onclick="event.stopPropagation();removeItem(${pi},${bi},${ii})">✕</button>
+
             </div>`;
           }).join('');
         // Verificar conflitos de segmento no break
         const _conf = analyzeBrkConflict(brk.items||[]);
         const _confHtml = _conf.hasConflict
-          ? `<span class="brk-conflict" title="Concorrência detectada: ${_conf.conflicts.map(s=>SEG_LABELS[s]||s).join(', ')}">⚠ CONCORRÊNCIA: ${_conf.conflicts.map(s=>SEG_LABELS[s]||s).join(' + ')}</span>`
+          ? `<span class="brk-conflict" title="Concorrência detectada: ${_conf.conflicts.map(s=>SEG_LABELS[s]||s).join(', ')}">! CONCORRÊNCIA: ${_conf.conflicts.map(s=>SEG_LABELS[s]||s).join(' + ')}</span>`
           : '';
         return `<div class="brk-block" id="bb-${pi}-${bi}">
           <div class="brk-head" onclick="toggleBrk(${pi},${bi})">
             <span class="bh-lbl">${brk.name}</span><span class="bh-cnt">${(brk.items||[]).length} mat.</span><span class="bh-tot">${fmtSec((brk.items||[]).reduce((s,it)=>s+(parseInt(it.dur)||0),0))}</span>${_confHtml}
             ${getBrkAirLog(selectedDay,pi,bi)
               ?`<button class="brk-air-btn logged" onclick="event.stopPropagation();clearBrkAir(${pi},${bi})">✓ ${getBrkAirLog(selectedDay,pi,bi).time}</button>`
-              :`<button class="brk-air-btn idle" onclick="event.stopPropagation();logBrkAir(${pi},${bi})" title="Registrar horário no ar">⏺ Ar</button>`}
-            <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();openAddItemFor(${pi},${bi})">+M</button>
-            <button class="btn btn-red btn-xs" onclick="event.stopPropagation();removeBreak(${pi},${bi})">✕</button>
+              :`<button class="brk-air-btn idle" onclick="event.stopPropagation();logBrkAir(${pi},${bi})" title="Registrar horário no ar"> Ar</button>`}
+            <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();openBrkEdit(${pi},${bi},this)" title="Editar break">✏</button>
             <span class="ph-chev" style="font-size:9px">▼</span>
           </div>
           <div class="brk-body" data-pi="${pi}" data-bi="${bi}">${iHtml}</div>
@@ -2688,7 +2728,6 @@ function renderRoteiro(){
         <span class="ph-time">${prog.time}${prog.timeEnd?`<span style="font-size:9px;color:var(--text3);margin-left:2px">–${prog.timeEnd}</span>`:''}</span><span class="ph-name">${prog.name}</span>
         <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();openEditProg(${pi})" title="Editar programa">✏</button>
         <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();openAddBreakFor(${pi})">+B</button>
-        <button class="btn btn-red btn-xs" onclick="event.stopPropagation();removeProg(${pi})">✕</button>
         <span class="ph-chev">▼</span>
       </div>
       <div class="prog-body">${bHtml}</div>
@@ -2700,7 +2739,7 @@ function toggleProg(pi){const e=document.getElementById(`pb-${pi}`);if(e)e.class
 function toggleBrk(pi,bi){const e=document.getElementById(`bb-${pi}-${bi}`);if(e)e.classList.toggle('collapsed');}
 
 // ═══ CONTRACTS ═══
-// toggleContracts() é definida mais abaixo (abre a view OPC → aba Contratos)
+// toggleContracts() é definida mais abaixo (abre a view OPC → abaContratos)
 
 function renderContractList(){
   const el=$('contract-list');
@@ -2711,7 +2750,7 @@ function renderContractList(){
     let cls=`contract-card${selectedContractId===c.id?' selected':''}${hasExpIns?' has-expired':''}`;
     const insTags=(c.insertions||[]).map(i=>{
       const e=isExpired(i.dateEnd);
-      return `<span class="cc-ins-tag${e?' expired':''}" title="Vence: ${fmtDate(i.dateEnd)}">${i.num||'—'} · ${i.name||'?'}${e?' ⚠':''}</span>`;
+      return `<span class="cc-ins-tag${e?' expired':''}" title="Vence: ${fmtDate(i.dateEnd)}">${i.num||'—'} · ${i.name||'?'}${e?' !':''}</span>`;
     }).join('');
     return `<div class="${cls}" onclick="selectContract('${c.id}')">
       <div class="cc-head">
@@ -2781,7 +2820,7 @@ function doSaveContract(){
   saveContracts();
   renderContractList();
   closeModal('m-contract');
-  showToast(`✓ Contrato ${num} salvo!`);
+  showToast(`✓Contrato ${num} salvo!`);
 }
 
 // ═══ PLAYER ═══
@@ -2816,7 +2855,7 @@ function advance(){
   if(cur.itemIdx<(brk.items||[]).length-1){cur.itemIdx++;cur.remaining=parseInt(brk.items[cur.itemIdx].dur)||30;return;}
   if(cur.brkIdx<(prog.breaks||[]).length-1){cur.brkIdx++;cur.itemIdx=0;const nb=(prog.breaks||[])[cur.brkIdx];cur.remaining=(nb.items&&nb.items.length)?(parseInt(nb.items[0].dur)||30):0;return;}
   if(cur.progIdx<progs.length-1){cur.progIdx++;cur.brkIdx=0;cur.itemIdx=0;const np=progs[cur.progIdx];const nb=(np.breaks||[])[0];cur.remaining=(nb&&nb.items&&nb.items.length)?(parseInt(nb.items[0].dur)||30):0;return;}
-  stopTimer();cur.playing=false;$('btn-play').textContent='▶';showToast('✓ Roteiro concluído!');
+  stopTimer();cur.playing=false;$('btn-play').textContent='▶';showToast('✓Roteiro concluído!');
 }
 
 // ═══ RENDER CONTROL ═══
@@ -3052,7 +3091,7 @@ Atenção: este programa tem materiais nos breaks. Tudo será apagado.`
   if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
   saveGrade();
   if(document.getElementById('progs-tab')?.classList.contains('open')) renderProgs();
-  showToast('✓ Programa removido');
+  showToast('✓Programa removido');
 }
 
 function epAddBreak(){
@@ -3063,7 +3102,7 @@ function epAddBreak(){
 function epRemoveBreak(idx){
   const brk = epBreakData[idx];
   const hasItems = (brk.items||[]).length > 0;
-  if(hasItems && !confirm(`O ${ordinal(idx+1)} BREAK tem ${brk.items.length} material(is). Remover apaga tudo. Confirmar?`)) return;
+  if(hasItems && !confirm(`O ${ordinal(idx+1)} BREAK tem ${brk.items.length} material(is).Remover apaga tudo. Confirmar?`)) return;
   epBreakData.splice(idx, 1);
   epRenderBreaks();
 }
@@ -3109,7 +3148,7 @@ function doEditProg(){
   renderMidList();
   if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
   if(document.getElementById('progs-tab')?.classList.contains('open')) renderProgs();
-  showToast(`✓ Programa atualizado!`);
+  showToast(`✓Programa atualizado!`);
   broadcastState();
 }
 function doAddBreak(){
@@ -3118,7 +3157,80 @@ function doAddBreak(){
   (grade[selectedDay][pi].breaks=grade[selectedDay][pi].breaks||[]).push({id:uid(),name,total,items:[]});
   closeModal('m-brk');saveGrade();renderRoteiro();showToast('Break adicionado!');
 }
-function removeBreak(pi,bi){if(!confirm('Remover break?'))return;grade[selectedDay][pi].breaks.splice(bi,1);saveGrade();renderRoteiro();}
+function removeBreak(pi,bi){
+  grade[selectedDay][pi].breaks.splice(bi,1);
+  saveGrade();renderRoteiro();
+  showToast('Break removido','err');
+}
+
+// ──Break edit popover ──
+let _brkEditPop = null;
+function _closeBrkEditPop(){ if(_brkEditPop){_brkEditPop.remove();_brkEditPop=null;} document.removeEventListener('click',_brkEditPopOutside,true); }
+function _brkEditPopOutside(e){ if(_brkEditPop && !_brkEditPop.contains(e.target)) _closeBrkEditPop(); }
+
+function openBrkEdit(pi, bi, btnEl){
+  if(_brkEditPop){ _closeBrkEditPop(); return; }
+  const brk = grade[selectedDay]?.[pi]?.breaks?.[bi];
+  if(!brk) return;
+
+  const pop = document.createElement('div');
+  pop.className = 'brk-edit-pop';
+  pop.innerHTML = `
+    <div class="brk-edit-pop-field">
+      <input class="brk-edit-pop-input" id="_bep-name" value="${brk.name}" maxlength="40" spellcheck="false">
+      <button class="brk-edit-pop-save" id="_bep-save">✓ Salvar</button>
+    </div>
+    <button class="brk-edit-pop-del" id="_bep-del">Excluir break</button>`;
+
+  document.body.appendChild(pop);
+  _brkEditPop = pop;
+
+  // Posicionar abaixo do botão
+  const r  = btnEl.getBoundingClientRect();
+  // Measure after insert
+  void pop.offsetWidth;
+  const pw = pop.offsetWidth || 200;
+  let left = r.right - pw;
+  left = Math.max(8, Math.min(left, window.innerWidth - pw - 8));
+  pop.style.left = left + 'px';
+  const spaceBelow = window.innerHeight - r.bottom;
+  if(spaceBelow > 120){
+    pop.style.top    = (r.bottom + 6) + 'px';
+    pop.style.bottom = '';
+  } else {
+    pop.style.bottom = (window.innerHeight - r.top + 6) + 'px';
+    pop.style.top    = '';
+  }
+
+  // Focus no input
+  setTimeout(()=>{ const inp = document.getElementById('_bep-name'); if(inp){ inp.focus(); inp.select(); } }, 30);
+
+  pop.querySelector('#_bep-save').addEventListener('click', e=>{
+    e.stopPropagation();
+    const newName = (document.getElementById('_bep-name')?.value||'').trim().toUpperCase();
+    if(!newName){ showToast('! Nome não pode ser vazio'); return; }
+    grade[selectedDay][pi].breaks[bi].name = newName;
+    saveGrade(); renderRoteiro();
+    showToast('✓Break renomeado');
+    _closeBrkEditPop();
+  });
+
+  pop.querySelector('#_bep-del').addEventListener('click', e=>{
+    e.stopPropagation();
+    _closeBrkEditPop();
+    const hasItems = (brk.items||[]).length > 0;
+    if(hasItems && !confirm(`O break "${brk.name}" tem ${brk.items.length} material(is).Remover apaga tudo. Confirmar?`)) return;
+    removeBreak(pi, bi);
+  });
+
+  // Enter salva
+  pop.querySelector('#_bep-name').addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ pop.querySelector('#_bep-save').click(); }
+    if(e.key==='Escape'){ _closeBrkEditPop(); }
+  });
+
+  setTimeout(()=>{ document.addEventListener('click', _brkEditPopOutside, true); }, 50);
+}
 function removeItem(pi,bi,ii){grade[selectedDay][pi].breaks[bi].items.splice(ii,1);saveGrade();renderRoteiro();broadcastState();}
 
 // ═══ OPEN MODALS ═══
@@ -3222,7 +3334,7 @@ function doAddItem(){
   // Bloquear material com data de vencimento já expirada
   const _dateEndVal = $('mi-dateend').value;
   if(_dateEndVal && isExpired(_dateEndVal)){
-    if(!confirm(`⚠ A data de vencimento (${_dateEndVal}) já passou.\nMateriais vencidos não entram no roteiro.\n\nDeseja cadastrar mesmo assim (apenas para arquivo)?`)) return;
+    if(!confirm(`! A data de vencimento (${_dateEndVal}) já passou.\nMateriais vencidos não entram no roteiro.\n\nDeseja cadastrar mesmo assim (apenas para arquivo)?`)) return;
   }
 
   // Vincular PI se informada
@@ -3242,7 +3354,7 @@ function doAddItem(){
 
   // Verificar duplicata pelo nome+seq
   const dup = mediaLib.some(m => m.name===name && (m.seq||'')===(seq||''));
-  if(dup){ showToast('⚠ Material já existe na biblioteca'); return; }
+  if(dup){ showToast('! Material já existe na biblioteca'); return; }
 
   // Verificar conflito de segmento no break de destino (se vier do +M)
   const _piF = typeof _addItemForPi!=='undefined' ? _addItemForPi : -1;
@@ -3307,7 +3419,7 @@ function openEditMidia(idx){
   if(ttl) ttl.textContent = '✏ Editar Material';
   const btn = document.querySelector('#m-item .m-actions .btn-blue');
   if(btn){
-    btn.textContent = '💾 Salvar';
+    btn.textContent = 'Salvar';
     btn.onclick = function(){ doSaveMidia(realIdx); };
   }
   openModal('m-item');
@@ -3321,7 +3433,7 @@ function doSaveMidia(realIdx){
   // Warn if setting expired date
   const dateEnd = $('mi-dateend').value;
   if(dateEnd && isExpired(dateEnd)){
-    if(!confirm('⚠ A data de vencimento já passou.\nMaterial ficará marcado como vencido. Confirmar?')) return;
+    if(!confirm('! A data de vencimento já passou.\nMaterial ficará marcado como vencido. Confirmar?')) return;
   }
   const _savedLinks = miGetPiLinks();
   const _primary = _savedLinks[0];
@@ -3645,7 +3757,7 @@ function setupResizeHandle(){
     if(save) saveLayout();
   }
 
-  /* ── Resize: Roteiro ── */
+  /* ── Resize:Roteiro ── */
   const handle = document.getElementById('resize-handle');
   if(handle){
     let dragging=false, startX=0, startW=0, _prevW=320;
@@ -3815,7 +3927,7 @@ function resetLayout(){
   // 6. Atualizar lista de painéis no settings
   if(typeof window._rvPanels==='function') setTimeout(window._rvPanels,50);
 
-  showToast('✓ Layout restaurado para o padrão');
+  showToast('✓Layout restaurado para o padrão');
 }
 
 // ═══ STORAGE ═══
@@ -3887,61 +3999,7 @@ function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2
 function pad(n){return String(n).padStart(2,'0');}
 function mkKey(d,pi,bi,ii){return `${d}-${pi}-${bi}-${ii}`;}
 function fmtSec(s){s=parseInt(s)||0;return `${pad(Math.floor(s/60))}:${pad(s%60)}`;}
-// Rastreia o último elemento clicado para ancorar o toast
-let _lastClickedEl = null;
-document.addEventListener('click', e=>{ _lastClickedEl = e.target; }, true);
-
-function showToast(msg, type, anchorEl){
-  const t=$('toast');
-  if(!t) return;
-  const isWarn = msg.startsWith('⚠') || type==='warn';
-  const isErr  = msg.startsWith('✕') || type==='err';
-  const isOk   = msg.startsWith('✓') || msg.startsWith('⏺') || type==='ok';
-  const accent = isErr?'#e05050':isWarn?'#f0c040':isOk?'#1faa5a':'#7a8fa8';
-  t.style.borderLeftColor = accent;
-  t.textContent = msg;
-
-  // Âncora: preferência explícita > último clicado > centro
-  const anchor = anchorEl || _lastClickedEl;
-
-  if(anchor && anchor.getBoundingClientRect){
-    const r   = anchor.getBoundingClientRect();
-    const vw  = window.innerWidth;
-    const vh  = window.innerHeight;
-    // Força um render para medir a largura real do toast
-    t.style.opacity='0'; t.style.left='-9999px'; t.style.top='0';
-    t.style.transform='none'; t.style.bottom='';
-    void t.offsetWidth;
-    const tw = Math.min(t.offsetWidth || 260, vw - 16);
-    // Horizontal: centrado no elemento, sem sair da viewport
-    let left = r.left + r.width/2 - tw/2;
-    left = Math.max(8, Math.min(left, vw - tw - 8));
-    t.style.left = left+'px';
-    // Vertical: acima se tiver espaço, senão abaixo
-    if(r.top > 56){
-      t.style.bottom = (vh - r.top + 8)+'px';
-      t.style.top    = '';
-      t.style.transform = 'translateY(10px)';
-    } else {
-      t.style.top    = (r.bottom + 8)+'px';
-      t.style.bottom = '';
-      t.style.transform = 'translateY(-10px)';
-    }
-  } else {
-    t.style.left='50%'; t.style.bottom='28px';
-    t.style.top=''; t.style.right='';
-    t.style.transform='translateX(-50%) translateY(16px)';
-  }
-
-  void t.offsetWidth;
-  t.classList.add('show');
-  t.style.transform = (anchor && anchor.getBoundingClientRect) ? 'translateY(0)' : 'translateX(-50%) translateY(0)';
-  clearTimeout(t._to);
-  t._to = setTimeout(()=>{
-    t.classList.remove('show');
-    t.style.transform = (anchor && anchor.getBoundingClientRect) ? 'translateY(-6px)' : 'translateX(-50%) translateY(16px)';
-  }, 2800);
-}
+function showToast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
 // ══════════════════════════════════════════════
 // MELHORIAS — FASE 2 + 3 + 4
@@ -4044,7 +4102,7 @@ function logBrkAir(pi,bi){
   const logs=getAirLogs();
   logs[`${selectedDay}-${pi}-${bi}`]={time:timeStr,progName:prog?.name||'—',brkName:brk?.name||'—',day:selectedDay,pi,bi,ts:Date.now()};
   saveAirLogs(logs);lsSet('roteiro_ts',Date.now());
-  renderRoteiro();showToast(`⏺ ${brk?.name||'Break'} — ${timeStr}`);
+  renderRoteiro();showToast(`${brk?.name||'Break'} — ${timeStr}`);
 }
 function clearBrkAir(pi,bi){
   const logs=getAirLogs();delete logs[`${selectedDay}-${pi}-${bi}`];saveAirLogs(logs);renderRoteiro();
@@ -4175,12 +4233,12 @@ function renderMidias(){
       <div class="mp2-meta">
         ${item.segment?`<span class="mp2-tag" style="background:${sb};color:${sc};border:1px solid ${sc}44">${SEG_LABELS[item.segment]||item.segment}</span>`:''}
         <span class="mp2-tag" style="background:var(--blue-dim);color:var(--blue2);border:1px solid rgba(58,154,224,.2)">${item.progTime} ${item.progName}</span>
-        ${exp?`<span class="mp2-tag" style="background:rgba(192,57,43,.12);color:var(--red2);border:1px solid rgba(192,57,43,.2)">⚠ Vencido</span>`:item.dateEnd?`<span class="mp2-tag" style="background:rgba(31,170,90,.12);color:var(--green);border:1px solid rgba(31,170,90,.2)">Ativo</span>`:''}
+        ${exp?`<span class="mp2-tag" style="background:rgba(192,57,43,.12);color:var(--red2);border:1px solid rgba(192,57,43,.2)">! Vencido</span>`:item.dateEnd?`<span class="mp2-tag" style="background:rgba(31,170,90,.12);color:var(--green);border:1px solid rgba(31,170,90,.2)">Ativo</span>`:''}
       </div>
     </div>`;
   }).join('');
   const exp=items.filter(i=>isExpired(i.dateEnd)).length;
-  $('mp2-foot').innerHTML=`<span>${items.length} mídia(s)</span>${exp?`<span style="color:var(--red2)">⚠ ${exp} vencida(s) — não entram no roteiro</span>`:''}`;
+  $('mp2-foot').innerHTML=`<span>${items.length} mídia(s)</span>${exp?`<span style="color:var(--red2)">! ${exp} vencida(s) — não entram no roteiro</span>`:''}`;
 }
 
 // ── PROGRAMS TAB ──
@@ -4226,7 +4284,7 @@ function renderProgs(){
         <span class="psc-brk-nm">${brk.name}</span>
         <span class="psc-brk-tot">${fmtSec(brk.total)}</span>
         <span class="psc-brk-ct">${(brk.items||[]).length} mat.</span>
-        ${al?`<span class="psc-brk-air">⏺ ${al.time}</span>`:''}
+        ${al?`<span class="psc-brk-air"> ${al.time}</span>`:''}
       </div>`;
     }).join('');
     return `<div class="psc${onAir?' on-air':''}" onclick="openEditProgFromGrid(${prog.dow},${prog.pi})" style="cursor:pointer">
@@ -4329,7 +4387,7 @@ function renderOpcMidias(){
   const expCnt=items.filter(i=>isExpired(i.dateEnd)).length;
   const ce=$('opc-cnt'),ee=$('opc-exp-cnt');
   if(ce)ce.textContent=`${items.length} mídia(s)`;
-  if(ee)ee.textContent=expCnt?`⚠ ${expCnt} vencida(s)`:'';
+  if(ee)ee.textContent=expCnt?`! ${expCnt} vencida(s)`:'';
 }
 
 // ── Auto-numeração de materiais por cliente ──
@@ -4370,7 +4428,7 @@ function autoNumberMediaLib(){
   saveMediaLib();
   renderOpcMidias();
   renderMidList();
-  showToast('✓ Numeração automática aplicada');
+  showToast('✓Numeração automática aplicada');
 }
 
 // ── Editar Nº Mídia inline ──
@@ -4398,7 +4456,7 @@ function opcEditSeq(id, currentSeq){
 
 function opcRemoveMidia(id){
   const item = mediaLib.find(m => m.id === id);
-  if(!item){ showToast('⚠ Material não encontrado'); return; }
+  if(!item){ showToast('! Material não encontrado'); return; }
   _doRemoveMedia(item);
 }
 function opcSort(k){if(opcSortKey===k)opcSortDir*=-1;else{opcSortKey=k;opcSortDir=1;}renderOpcMidias();}
@@ -4409,7 +4467,7 @@ function exportMidiasCSV(){
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));a.download=`midias_${new Date().toISOString().slice(0,10)}.csv`;a.click();
 }
 
-// OPC Contratos
+// OPCContratos
 let editingCtrId=null;
 function renderOpcContractList(){
   const el=$('opc-contract-list');if(!el)return;
@@ -4437,7 +4495,7 @@ function selectCtr(id){
 function buildCtrForm(c){
   return `<div class="ctr-form">
     <div class="ctr-row">
-      <div class="ctr-field"><div class="ctr-lbl">Número do Contrato</div><input class="ctr-inp" id="ctr-number" value="${c.number||''}"></div>
+      <div class="ctr-field"><div class="ctr-lbl">Número doContrato</div><input class="ctr-inp" id="ctr-number" value="${c.number||''}"></div>
       <div class="ctr-field"><div class="ctr-lbl">Cliente</div><input class="ctr-inp" id="ctr-client" value="${c.client||''}"></div>
     </div>
     <div class="ctr-row">
@@ -4470,8 +4528,8 @@ function buildCtrForm(c){
       </div>
     </div>
     <div style="display:flex;gap:7px;justify-content:flex-end;margin-top:9px">
-      <button class="btn btn-red btn-sm" onclick="deleteCtr()">🗑 Excluir</button>
-      <button class="btn btn-gold" onclick="saveCtrEdit()">💾 Salvar</button>
+      <button class="btn btn-red btn-sm" onclick="deleteCtr()"> Excluir</button>
+      <button class="btn btn-gold" onclick="saveCtrEdit()">Salvar</button>
     </div>
   </div>`;
 }
@@ -4503,7 +4561,7 @@ function saveCtrEdit(){
     const e=document.getElementById(`ci-end-${id}`)?.value;
     if(name||seq)c.insertions.push({num:seq,seq,name,dur,dateStart:s,dateEnd:e});
   });
-  saveContracts();renderOpcContractList();showToast(`✓ Contrato ${c.number} salvo!`);
+  saveContracts();renderOpcContractList();showToast(`✓Contrato ${c.number} salvo!`);
 }
 function deleteCtr(){
   if(!editingCtrId)return;
@@ -4521,7 +4579,7 @@ function deleteCtr(){
 let currentPin=null;
 function generatePin(){
   currentPin=String(Math.floor(100000+Math.random()*900000));
-  lsSet('roteiro_pin',currentPin);renderPinModal();showToast('🔐 PIN: '+currentPin);
+  lsSet('roteiro_pin',currentPin);renderPinModal();showToast(' PIN: '+currentPin);
 }
 function revokePin(){currentPin=null;lsSet('roteiro_pin','');showToast('PIN revogado');}
 function copyPin(){
@@ -4542,7 +4600,7 @@ function renderPinModal(){
   if(d)d.textContent=currentPin||'——————';
   if(info)info.innerHTML=currentPin?`PIN: <strong style="color:var(--gold2);font-family:var(--font-m)">${currentPin}</strong><br>Abra o Exibidor e insira este PIN.<br>URL: <code style="color:var(--blue2)">${location.href.replace('emissor.html','exibidor.html')}</code>`:'Clique em Gerar para criar um PIN.';
 }
-// toggleContracts — abre a view OPC na aba Contratos
+// toggleContracts — abre a view OPC na abaContratos
 
 // ── REPORT ──
 function openReport(){
@@ -4704,7 +4762,7 @@ function printReport(){
       brk      : l.brkName||'',
       durSec   : 0,
       durFmt   : '—',
-      cliente  : '— Break no Ar —',
+      cliente  : '—Break no Ar —',
       piNum    : '',
       fonte    : 'air',
       tipoLabel: 'BREAK NO AR',
@@ -4808,7 +4866,7 @@ function printReport(){
             <th style="width:13%">Data</th>
             <th style="width:7%;text-align:center">Dur.</th>
             <th style="width:35%">Horários</th>
-            <th>Programa · Break · Material</th>
+            <th>Programa ·Break · Material</th>
             <th style="width:7%;text-align:center">Total</th>
           </tr>
         </thead>
@@ -5041,7 +5099,7 @@ function printReport(){
 <div class="print-bar">
   <div class="print-bar-brand">OPEC</div>
   <div class="print-bar-actions">
-    <button class="btn-print" onclick="window.print()">⬇&nbsp; Salvar PDF</button>
+    <button class="btn-print" onclick="window.print()">&nbsp;Salvar PDF</button>
     <button class="btn-close" onclick="window.close()">✕ Fechar</button>
   </div>
 </div>
@@ -5063,7 +5121,7 @@ function printReport(){
         </div>
         <div>
           <div class="hdr-brand-name">OPEC</div>
-          <div class="hdr-brand-sub">Operação Comercial · Radiodifusão</div>
+          <div class="hdr-brand-sub">OperaçãoComercial · Radiodifusão</div>
         </div>
         <div class="hdr-sep"></div>
         <div>
@@ -5233,7 +5291,7 @@ function printReport(){
 
   <!-- RODAPÉ -->
   <div class="doc-footer">
-    <div class="df-left"><b>OPEC</b> · Sistema de Operação Comercial · sistemasfb007.github.io/OPEC-Master</div>
+    <div class="df-left"><b>OPEC</b> · Sistema de OperaçãoComercial · sistemasfb007.github.io/OPEC-Master</div>
     <div class="df-right">Gerado automaticamente · ${new Date().toLocaleString('pt-BR')}</div>
   </div>
 
@@ -5373,12 +5431,12 @@ function updateDelayIndicator(){
   const el = $('e-delay');
   if(!el) return;
   if(!cur.playing || !_scheduleStartTs || !_scheduleExpectedTs){
-    el.className='delay-indicator on-time';el.textContent='⏱ EM DIA';return;
+    el.className='delay-indicator on-time';el.textContent=' EM DIA';return;
   }
   // Diferença entre quando deveria ter começado e quando começou de fato
   const diff = Math.round((_scheduleStartTs - _scheduleExpectedTs) / 1000);
   if(Math.abs(diff) < 5){
-    el.className='delay-indicator on-time';el.textContent='⏱ EM DIA';
+    el.className='delay-indicator on-time';el.textContent=' EM DIA';
   } else if(diff > 0){
     el.className='delay-indicator late';el.textContent=`▲ ATRASO +${fmtSec(diff)}`;
   } else {
@@ -5415,7 +5473,7 @@ function updateDashboard(){
   const eIH = $('dash-ins-hoje'); if(eIH) eIH.textContent = insDone;
   const eIHS = $('dash-ins-hoje-sub'); if(eIHS) eIHS.textContent = `de ${insTotal} programadas`;
   const eCT = $('dash-contratos'); if(eCT){ eCT.textContent=cAtivos; eCT.className='dt-val'+(cAtivos>0?' green':''); }
-  const eCTS = $('dash-contratos-sub'); if(eCTS) eCTS.textContent = cVencidos > 0 ? `⚠ ${cVencidos} vencido(s)` : 'todos em dia';
+  const eCTS = $('dash-contratos-sub'); if(eCTS) eCTS.textContent = cVencidos > 0 ? `! ${cVencidos} vencido(s)` : 'todos em dia';
   const eVE = $('dash-vencidos'); if(eVE){ eVE.textContent=vencidos; eVE.className='dt-val'+(vencidos>0?' red':' green'); }
   const eCO = $('dash-cobertura'); if(eCO){ eCO.textContent=cobertura+'%'; eCO.className='dt-val'+(cobertura>=80?' green':cobertura>=40?' blue':' red'); }
   const eCOS = $('dash-cobertura-sub'); if(eCOS) eCOS.textContent=`${brkComMat} de ${brkTotal} breaks`;
@@ -5452,11 +5510,11 @@ function checkAlerts(vencidos, contratosVencidos){
   if(_alertDismissed) return;
   let msg = '';
   if(vencidos > 0 && contratosVencidos > 0)
-    msg = `⚠ ${vencidos} material(is) vencido(s) na grade · ${contratosVencidos} contrato(s) vencido(s)`;
+    msg = `! ${vencidos} material(is) vencido(s) na grade · ${contratosVencidos} contrato(s) vencido(s)`;
   else if(vencidos > 0)
-    msg = `⚠ ${vencidos} material(is) com data de veiculação vencida na grade`;
+    msg = `! ${vencidos} material(is) com data de veiculação vencida na grade`;
   else if(contratosVencidos > 0)
-    msg = `⚠ ${contratosVencidos} contrato(s) vencido(s) — verifique os contratos`;
+    msg = `! ${contratosVencidos} contrato(s) vencido(s) — verifique os contratos`;
 
   if(msg && msg !== _lastAlertMsg){
     _lastAlertMsg = msg;
@@ -5533,7 +5591,7 @@ document.addEventListener('keydown', e=>{
       // Repetir: reinicia o item atual
       if(cur.progIdx>=0){
         const brk=(grade[cur.day]||[])[cur.progIdx]?.breaks?.[cur.brkIdx];
-        if(brk){ cur.remaining=parseInt(brk.items[cur.itemIdx]?.dur)||30; renderCtrl();save();broadcastState(); showToast('🔁 Material repetindo'); }
+        if(brk){ cur.remaining=parseInt(brk.items[cur.itemIdx]?.dur)||30; renderCtrl();save();broadcastState(); showToast(' Material repetindo'); }
       }
       break;
     case 'KeyM':
@@ -5563,7 +5621,7 @@ function startWebSocket(){
     ws.onopen = ()=>{
       wsConnected=true;
       updateWsStatus(true);
-      showToast('🔗 WebSocket conectado!');
+      showToast(' WebSocket conectado!');
       wsBroadcast();
     };
     ws.onclose = ()=>{
@@ -5591,7 +5649,7 @@ function startWebSocket(){
             renderRoteiro();
             renderMidList();
             renderCtrl();
-            showToast('🔄 Roteiro sincronizado');
+            showToast('Roteiro sincronizado');
           }
         }
       }catch(err){ console.warn('WS msg error:',err); }
@@ -5828,6 +5886,15 @@ function initPanels(){
     const brk = brkBodyAt(e.clientX, e.clientY);
     clearHighlights();
     if(brk) showIndicator(brk, e.clientY);
+    // Ghost vermelho quando fora de qualquer brk-body (vai excluir)
+    if(_drag.type === 'item'){
+      const g = document.getElementById('drag-ghost');
+      if(g){
+        g.style.borderColor = brk ? 'var(--gold)' : 'var(--red2)';
+        g.style.color       = brk ? 'var(--gold2)' : 'var(--red2)';
+        g.style.background  = brk ? 'var(--s3)' : 'rgba(192,57,43,.18)';
+      }
+    }
   });
 
   // ── MOUSEUP: drop ──
@@ -5841,6 +5908,18 @@ function initPanels(){
     removeGhost();
     clearHighlights();
 
+    // ── Drop fora de qualquer brk-body: excluir item ──
+    if(_drag.type === 'item' && !brk){
+      const srcBrk = grade[selectedDay]?.[_drag.pi]?.breaks?.[_drag.bi];
+      if(srcBrk){
+        srcBrk.items.splice(_drag.ii, 1);
+        showToast(`${_drag.item.name} removido`,'err');
+        saveGrade(); renderRoteiro(); renderMidList(); broadcastState();
+      }
+      _drag = null;
+      return;
+    }
+
     if(brk){
       const tgtPi  = parseInt(brk.dataset.pi);
       const tgtBi  = parseInt(brk.dataset.bi);
@@ -5852,7 +5931,7 @@ function initPanels(){
         if(_drag.type === 'mid'){
           // Bloquear material vencido
           if(_drag.item.dateEnd && isExpired(_drag.item.dateEnd)){
-            showToast(`⚠ Material vencido desde ${fmtDate(_drag.item.dateEnd)} — não pode ser inserido no roteiro`,'err');
+            showToast(`! Material vencido desde ${fmtDate(_drag.item.dateEnd)} — não pode ser inserido no roteiro`,'err');
             _drag = null;
             return;
           }
@@ -5880,7 +5959,7 @@ function initPanels(){
               function(ok){
                 if(!ok) return;
                 _capturedBrk.items.splice(_capturedAt, 0, newItem);
-                showToast(`✓ ${newItem.name} → ${_capturedBrk.name} ⚠ Conflito de segmento`);
+                showToast(`✓ ${newItem.name} → ${_capturedBrk.name} ! Conflito de segmento`);
                 saveGrade(); renderRoteiro(); renderMidList(); broadcastState();
               }
             );
@@ -5987,7 +6066,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       if(right && right.innerHTML.includes('IMPORTAR PI')){
         // Limpar tela de boas vindas e mostrar instrução de seleção
         right.innerHTML='<div style="padding:40px 24px;text-align:center;color:var(--text3);line-height:2.2">'
-          +'<div style="font-size:36px;margin-bottom:10px;opacity:.4">📋</div>'
+          +'<div style="font-size:36px;margin-bottom:10px;opacity:.4"></div>'
           +'<div style="font-size:12px">Selecione uma PI da lista à esquerda.</div>'
           +'</div>';
       }
@@ -6002,7 +6081,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
   function _savePiList(){
     try{
-      // Salvar lista sem piDist (grande demais) — só metadados
+      //Salvar lista sem piDist (grande demais) — só metadados
       const toSave = piList.map(p=>({
         id:p.id, piNumber:p.piNumber, status:p.status, client:p.client,
         campaign:p.campaign, title:p.title, period:p.period, duration:p.duration,
@@ -6232,7 +6311,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         const {monthNum,yearNum}=parsePeriod(pi.period||'');
         const MNAMES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
         piHideLoading();
-        piToast(`⛔ PI ${pi.piNumber||'?'} recusada — período ${MNAMES[monthNum]||'?'}/${yearNum} já encerrado`);
+        piToast(` PI ${pi.piNumber||'?'} recusada — período ${MNAMES[monthNum]||'?'}/${yearNum} já encerrado`);
         return;
       }
 
@@ -6240,7 +6319,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       const _dup = piList.find(x => x.piNumber && pi.piNumber &&
         String(x.piNumber).trim() === String(pi.piNumber).trim());
       if(_dup){
-        piToast('⚠ PI ' + pi.piNumber + ' já está carregada. Selecione ela na lista.');
+        piToast('! PI ' + pi.piNumber + ' já está carregada. Selecione ela na lista.');
         piSelectPi(_dup.id);
         piHideLoading && piHideLoading();
         return;
@@ -6416,14 +6495,14 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     const problemsHtml = Object.values(problemMap).map(p=>`
       <div style="background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.25);border-radius:8px;padding:10px 14px;margin-bottom:8px">
         <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
-          <span style="font-size:14px;flex-shrink:0">⚠</span>
+          <span style="font-size:14px;flex-shrink:0">!</span>
           <div style="flex:1">
             <div style="font-size:11px;font-weight:600;color:var(--red2);margin-bottom:3px">${esc(p.warn)}</div>
             <div style="font-size:10px;color:var(--text3)">Dias afetados: <span style="color:var(--text2)">${p.dias.join(' · ')}</span> &nbsp;·&nbsp; <span style="color:var(--gold)">${p.count} inserção(ões) pendente(s)</span></div>
           </div>
         </div>
         <div style="display:flex;align-items:flex-start;gap:8px;background:rgba(58,154,224,.08);border:1px solid rgba(58,154,224,.2);border-radius:5px;padding:7px 10px">
-          <span style="font-size:12px;flex-shrink:0">💡</span>
+          <span style="font-size:12px;flex-shrink:0"></span>
           <div style="font-size:10px;color:var(--blue2);line-height:1.6">${esc(p.acao||'Verifique a grade de programação.')}</div>
         </div>
       </div>`).join('');
@@ -6435,18 +6514,18 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       const items=day.inserts.map((ins,idx)=>{
         if(ins.warn) return `<div class="pi-dist-item warn" style="flex-direction:column;align-items:flex-start;gap:3px;padding:7px 12px">
             <div style="display:flex;align-items:center;gap:8px;width:100%">
-              <span style="color:var(--red2);font-size:12px">⚠</span>
+              <span style="color:var(--red2);font-size:12px">!</span>
               <span style="font-size:11px;flex:1;color:var(--red2);font-weight:600">${esc(ins.warn)}</span>
               <span style="font-family:var(--font-m);font-size:10px;color:var(--gold)">${ins.count}×</span>
             </div>
-            ${ins.acao?`<div style="font-size:10px;color:var(--blue2);padding-left:20px">💡 ${esc(ins.acao)}</div>`:''}
+            ${ins.acao?`<div style="font-size:10px;color:var(--blue2);padding-left:20px"> ${esc(ins.acao)}</div>`:''}
           </div>`;
         if(ins.flex){
           const _vtf = (selPi.title||selPi.campaign||'VT').replace(/^VT\s+/i,'');
           const _brkf = ins.brk.name.replace(/º\s+BREAK/i,'ºB');
           return `<div class="pi-dist-item" style="background:rgba(255,160,0,.06);border-left:2px solid #ffaa00"
-            title="⚡ ${esc(ins.program.name)} / ${esc(ins.brk.name)}\n${esc(ins.flexMotivo||'')}">
-            <span class="pi-di-num" style="color:#ffaa00">⚡</span>
+            title=" ${esc(ins.program.name)} / ${esc(ins.brk.name)}\n${esc(ins.flexMotivo||'')}">
+            <span class="pi-di-num" style="color:#ffaa00"></span>
             <span class="pi-di-vt" style="color:#ffaa00">${esc(_vtf)}</span>
             <span class="pi-di-prog" style="color:#ffaa00">${esc(ins.program.name)}</span>
             <span class="pi-di-brk">${esc(_brkf)}</span>
@@ -6468,7 +6547,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         <div class="pi-dist-head" style="${headBg}">
           <span style="font-family:var(--font-m);font-size:11px;color:${hasWarn?'var(--red2)':'var(--blue2)'};min-width:60px">${dStr}</span>
           <span style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--gold);flex:1">${day.dayShort} — ${day.dayName}</span>
-          <span style="font-size:10px;color:${hasWarn?'var(--red2)':'var(--text2)'}">${hasWarn?'⚠':'✓'} ${total}×</span>
+          <span style="font-size:10px;color:${hasWarn?'var(--red2)':'var(--text2)'}">${hasWarn?'!':'✓'} ${total}×</span>
         </div>${items}</div>`;
     }).join('');
     piShowRight(`
@@ -6481,7 +6560,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
           <span>Distribuição — PI ${selPi.piNumber}</span>
           <div style="display:flex;gap:10px">
             <span style="font-size:11px;color:var(--green)">✓ ${matched} distribuídas</span>
-            ${unmatched?`<span style="font-size:11px;color:var(--red2)">⚠ ${unmatched} pendentes</span>`:''}
+            ${unmatched?`<span style="font-size:11px;color:var(--red2)">! ${unmatched} pendentes</span>`:''}
           </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 16px">
@@ -6494,7 +6573,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       ${daysWarn.length ? `
       <div class="card" data-panel-id="avisos" draggable="true">
         <div class="card-head" style="display:flex;align-items:center;gap:8px">
-          <span style="color:var(--red2)">⚠</span>
+          <span style="color:var(--red2)">!</span>
           <span>${daysWarn.length} dia(s) com inserções não distribuídas</span>
         </div>
         <div style="padding:12px 14px">${problemsHtml}</div>
@@ -6643,7 +6722,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
           <div style="font-size:10px;color:var(--text3)"><span style="color:var(--green)">● ok</span>&nbsp;<span style="color:var(--red2)">● sem programa</span></div>
         </div>
         ${!(pi.lines||[]).length
-          ?`<div style="padding:18px;text-align:center;color:var(--text3)">⚠ Nenhuma faixa identificada.<br><small>Verifique o PDF.</small></div>`
+          ?`<div style="padding:18px;text-align:center;color:var(--text3)">! Nenhuma faixa identificada.<br><small>Verifique o PDF.</small></div>`
           :`<div style="overflow-x:auto"><table class="pi-mapa-table"><thead><tr><th>Faixa</th><th>Horário</th><th>Dias</th><th>Ins/dia</th><th>Total</th></tr></thead><tbody>${mapRows}</tbody></table></div>`}
       </div>
       <div class="card" data-panel-id="materiais" draggable="true">
@@ -6671,7 +6750,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       } else if(n.endsWith('.xlsx')||n.endsWith('.xlsm')||n.endsWith('.xls')){
         window.piProcessExcel(f);
       } else {
-        piToast('⚠ Formatos suportados: PDF, XLSX, XLSM');
+        piToast('! Formatos suportados: PDF, XLSX, XLSM');
       }
     });
     const inp=document.getElementById('pi-file-input');
@@ -6749,7 +6828,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         });
       });
 
-      if(!faixas.length){ piToast('⚠ Nenhuma inserção no mapa'); piHideLoading(); return; }
+      if(!faixas.length){ piToast('! Nenhuma inserção no mapa'); piHideLoading(); return; }
 
       const totalIns=faixas.reduce((s,f)=>s+f.totalInsertions,0);
       const dim=new Date(yearNum,monthNum+1,0).getDate();
@@ -6768,7 +6847,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         const {monthNum,yearNum}=parsePeriod(pi.period||'');
         const MNAMES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
         piHideLoading();
-        piToast(`⛔ PI ${pi.piNumber||'?'} recusada — período ${MNAMES[monthNum]||'?'}/${yearNum} já encerrado`);
+        piToast(` PI ${pi.piNumber||'?'} recusada — período ${MNAMES[monthNum]||'?'}/${yearNum} já encerrado`);
         return;
       }
       piList.push(pi); window._piList=piList;
@@ -6777,14 +6856,14 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       piToast('✓ Mapa Excel: '+faixas.length+' faixas · '+totalIns+' inserções');
     }catch(e){
       console.error('[Excel]',e);
-      piToast('⚠ Erro ao ler Excel: '+e.message);
+      piToast('! Erro ao ler Excel: '+e.message);
     }
     piHideLoading();
   };
 
   window.piClearSel=function(){
     selPi=null;piDist=null;piRenderList();
-    piShowRight('<div style="padding:48px 24px;text-align:center;color:var(--text3);line-height:2.2"><div style="font-size:44px;margin-bottom:14px;opacity:.5">📋</div>Selecione um PI da lista.</div>');
+    piShowRight('<div style="padding:48px 24px;text-align:center;color:var(--text3);line-height:2.2"><div style="font-size:44px;margin-bottom:14px;opacity:.5"></div>Selecione um PI da lista.</div>');
     piSetStep(1);
     document.getElementById('pi-action-bar').style.display='none';
   };
@@ -6812,8 +6891,8 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
     let summaryHtml=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
       <div class="pi-sb-row"><span style="color:var(--text2)">✓ Exatas</span><span style="font-family:var(--font-m);color:var(--green)">${matched}</span></div>
-      <div class="pi-sb-row"><span style="color:#ffaa00">⚡ Sugeridas</span><span style="font-family:var(--font-m);color:#ffaa00">${flexCount}</span></div>
-      <div class="pi-sb-row"><span style="color:var(--red2)">⚠ Sem prog.</span><span style="font-family:var(--font-m);color:var(--red2)">${unmatched}</span></div>
+      <div class="pi-sb-row"><span style="color:#ffaa00"> Sugeridas</span><span style="font-family:var(--font-m);color:#ffaa00">${flexCount}</span></div>
+      <div class="pi-sb-row"><span style="color:var(--red2)">! Sem prog.</span><span style="font-family:var(--font-m);color:var(--red2)">${unmatched}</span></div>
     </div>`;
 
     let warnsHtml='';
@@ -6831,16 +6910,15 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         </div>`);
       }));
       warnsHtml+=`<div style="background:rgba(255,160,0,.08);border:1px solid rgba(255,160,0,.3);border-radius:8px;padding:10px 12px;margin-bottom:8px">
-        <div style="font-size:11px;font-weight:600;color:#ffaa00;margin-bottom:8px">⚡ ${flexCount} inserção(ões) com encaixe sugerido (programa próximo/similar):</div>
+        <div style="font-size:11px;font-weight:600;color:#ffaa00;margin-bottom:8px"> ${flexCount} inserção(ões) com encaixe sugerido (programa próximo/similar):</div>
         ${flexItems.join('')}
-        <div style="font-size:10px;color:var(--text2);margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.07)">
-          Ao confirmar, essas inserções serão aplicadas nos programas sugeridos acima.
+        <div style="font-size:10px;color:var(--text2);margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.07)"> Ao confirmar, essas inserções serão aplicadas nos programas sugeridos acima.
           Você pode ajustar manualmente depois.
         </div>
       </div>`;
     }
     if(unmatched){
-      warnsHtml+=`<div class="pi-warn-box">⚠ ${unmatched} inserção(ões) sem programa compatível serão ignoradas.</div>`;
+      warnsHtml+=`<div class="pi-warn-box">! ${unmatched} inserção(ões) sem programa compatível serão ignoradas.</div>`;
     }
 
     document.getElementById('pi-modal-summary').innerHTML=summaryHtml;
@@ -7009,7 +7087,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       insertions:[{num:selPi.piNumber,name:selPi.title||selPi.client,dateStart:selPi.dateStart||'',dateEnd:selPi.dateEnd||''}],
       createdAt:Date.now()};
     if((contracts||[]).some(x=>x.number===c.number)){showToast('Contrato PI já existe!');return;}
-    contracts.push(c);saveContracts();showToast(`✓ Contrato PI-${selPi.piNumber} criado!`);
+    contracts.push(c);saveContracts();showToast(`✓Contrato PI-${selPi.piNumber} criado!`);
   };
 
 
@@ -7024,7 +7102,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
     if(!confirm(msg)) return;
 
-    // Remover inserções da grade se a PI foi aplicada
+    //Remover inserções da grade se a PI foi aplicada
     if(p.applied && p.piNumber){
       const g = JSON.parse(lsGet('roteiro_grade')||'{}');
       let removed = 0;
@@ -7047,7 +7125,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       showToast(`✓ PI ${p.piNumber} excluída`);
     }
 
-    // Remover material vinculado da biblioteca
+    //Remover material vinculado da biblioteca
     if(p.piNumber){
       const piNum = String(p.piNumber).trim();
       const before = mediaLib.length;
@@ -7076,7 +7154,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       }
     }
 
-    // Remover da lista
+    //Remover da lista
     const idx = piList.findIndex(x=>x.id===id);
     if(idx>=0) piList.splice(idx,1);
     window._piList = piList;
@@ -7179,7 +7257,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       const isPast    = piEndDate < now;
       const isThisMonth = pm===now.getMonth() && py===now.getFullYear();
       const alertPast = isPast
-        ? `<span style="font-size:9px;background:rgba(192,57,43,.15);color:#e07070;border:1px solid rgba(192,57,43,.3);border-radius:3px;padding:1px 5px">⚠ MÊS PASSADO</span>`
+        ? `<span style="font-size:9px;background:rgba(192,57,43,.15);color:#e07070;border:1px solid rgba(192,57,43,.3);border-radius:3px;padding:1px 5px">! MÊS PASSADO</span>`
         : '';
       const alertCurrent = isThisMonth
         ? `<span style="font-size:9px;background:rgba(240,192,64,.1);color:var(--gold);border:1px solid rgba(240,192,64,.25);border-radius:3px;padding:1px 5px">● MÊS ATUAL</span>`
@@ -7209,7 +7287,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
           ${p.title?`<span style="font-size:9px;color:var(--text3)"> · ${esc(p.title.replace(/^VT\s+/i,''))}</span>`:''}
           <span style="flex:1"></span>
           ${_badge}
-          ${alertPast?'<span style="font-size:8px;color:#e07070">⚠</span>':''}
+          ${alertPast?'<span style="font-size:8px;color:#e07070">!</span>':''}
         </div>
       </div>`;
     }).join('')+zone;
@@ -7260,14 +7338,14 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     const t = toMin(prog.time);
     const s = toMin(faixaStart);
     const e = faixaEnd==='00:00' ? 1440 : toMin(faixaEnd);
-    // 1. Programa inicia dentro da faixa
+    // 1.Programa inicia dentro da faixa
     if(t >= s && t < e) return true;
-    // 2. Programa tem timeEnd e há sobreposição real
+    // 2.Programa tem timeEnd e há sobreposição real
     if(prog.timeEnd){
       const pe = toMin(prog.timeEnd) || (t + 180);
       if(t < e && pe > s) return true;
     }
-    // 3. Programa começa até 90min antes do início da faixa
+    // 3.Programa começa até 90min antes do início da faixa
     if(t < s && (s - t) <= 90) return true;
     return false;
   }
@@ -7497,7 +7575,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     <!-- Título -->
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
       <div>
-        <div style="font-size:17px;font-weight:800;color:#fff;letter-spacing:1px">☁ ESTAÇÃO</div>
+        <div style="font-size:17px;font-weight:800;color:#fff;letter-spacing:1px"> ESTAÇÃO</div>
         <div style="font-size:11px;color:#666;margin-top:3px">Código de sincronização entre OPEC e MASTER</div>
       </div>
       <button onclick="document.getElementById('estacao-modal').style.display='none'"
@@ -7523,8 +7601,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9\-_]/g,'')"
         onkeydown="if(event.key==='Enter')_estacaoSalvar()">
     </div>
-    <div style="font-size:10px;color:#555;margin-bottom:16px">
-      Use letras e números. Ex: <b style="color:#f0c040">TV-RO-01</b>, <b style="color:#f0c040">RECORD-PVH</b>
+    <div style="font-size:10px;color:#555;margin-bottom:16px"> Use letras e números. Ex: <b style="color:#f0c040">TV-RO-01</b>, <b style="color:#f0c040">RECORD-PVH</b>
     </div>
 
     <!-- Botões -->
@@ -7597,13 +7674,13 @@ function _estacaoAtualizarBotoes(code){
         '<button onclick="_estacaoAbrirModal()"'
         +' style="font-size:11px;font-weight:800;padding:4px 12px;background:rgba(74,204,122,.12);'
         +'border:1px solid rgba(74,204,122,.4);border-radius:5px;color:#4acc7a;cursor:pointer;letter-spacing:1px">'
-        +'☁ '+code+' <span style="font-size:8px;margin-left:4px" id="'+id+'-dot">●</span></button>';
+        +' '+code+' <span style="font-size:8px;margin-left:4px" id="'+id+'-dot">●</span></button>';
     } else {
       el.innerHTML =
         '<button onclick="_estacaoAbrirModal()"'
         +' style="font-size:11px;font-weight:700;padding:4px 12px;background:rgba(255,160,0,.15);'
         +'border:1px solid rgba(255,160,0,.5);border-radius:5px;color:#ffaa00;cursor:pointer;letter-spacing:1px;'
-        +'animation:pulse-conflict 2s infinite">☁ ESTAÇÃO</button>';
+        +'animation:pulse-conflict 2s infinite"> ESTAÇÃO</button>';
     }
   });
 }
@@ -7663,10 +7740,10 @@ function _estacaoAtualizarBotoes(code){
     el.innerHTML = code
       ? '<button onclick="_estacaoAbrirModal()" style="font-size:11px;font-weight:800;padding:4px 12px;'
         +'background:rgba(74,204,122,.12);border:1px solid rgba(74,204,122,.4);border-radius:5px;'
-        +'color:#4acc7a;cursor:pointer;letter-spacing:1px">☁ '+code+'</button>'
+        +'color:#4acc7a;cursor:pointer;letter-spacing:1px"> '+code+'</button>'
       : '<button onclick="_estacaoAbrirModal()" style="font-size:11px;font-weight:700;padding:4px 12px;'
         +'background:rgba(255,160,0,.15);border:1px solid rgba(255,160,0,.5);border-radius:5px;'
-        +'color:#ffaa00;cursor:pointer;animation:pulse-conflict 2s infinite">☁ ESTAÇÃO</button>';
+        +'color:#ffaa00;cursor:pointer;animation:pulse-conflict 2s infinite"> ESTAÇÃO</button>';
   });
 }
 
@@ -7747,7 +7824,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     width:380px;padding:28px;font-family:system-ui,sans-serif">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
       <div>
-        <div style="font-size:17px;font-weight:800;color:#fff;letter-spacing:1px">☁ ESTAÇÃO</div>
+        <div style="font-size:17px;font-weight:800;color:#fff;letter-spacing:1px"> ESTAÇÃO</div>
         <div style="font-size:11px;color:#666;margin-top:3px">Código de sincronização OPEC ↔ MASTER</div>
       </div>
       <button onclick="document.getElementById('estacao-modal').style.display='none'"
@@ -7766,21 +7843,18 @@ document.addEventListener('DOMContentLoaded',()=>{
                font-weight:800;letter-spacing:3px;text-transform:uppercase;outline:none;
                box-sizing:border-box">
     </div>
-    <div style="font-size:10px;color:#555;margin-bottom:16px">
-      Use letras e números. Ex: <b style="color:#f0c040">TV-RO-01</b>
+    <div style="font-size:10px;color:#555;margin-bottom:16px"> Use letras e números. Ex: <b style="color:#f0c040">TV-RO-01</b>
     </div>
     <div style="display:flex;gap:8px">
       <button onclick="document.getElementById('estacao-modal').style.display='none'"
-        style="flex:1;padding:10px;background:none;border:1px solid #333;border-radius:7px;color:#666;cursor:pointer">
-        Cancelar</button>
+        style="flex:1;padding:10px;background:none;border:1px solid #333;border-radius:7px;color:#666;cursor:pointer"> Cancelar</button>
       <button onclick="_estacaoSalvar()"
         style="flex:2;padding:10px;background:#f0c040;border:none;border-radius:7px;
                color:#000;font-weight:800;cursor:pointer;font-size:14px">✓ CONECTAR</button>
     </div>
     <div style="text-align:center;margin-top:10px">
       <button onclick="_estacaoLimpar()"
-        style="background:none;border:none;color:#444;font-size:10px;cursor:pointer;text-decoration:underline">
-        Desconectar estação</button>
+        style="background:none;border:none;color:#444;font-size:10px;cursor:pointer;text-decoration:underline"> Desconectar estação</button>
     </div>
   </div>
 </div>
@@ -7840,7 +7914,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     </div>
     <div style="font-size:11px;color:#aaa;line-height:1.9;margin-bottom:10px">
       <b style="color:#fff">Como fazer (1 vez):</b><br>
-      1. Acesse <a href="https://github.com" target="_blank" style="color:#5aaaf0">github.com</a> — crie conta gratuita<br>
+      1.Acesse <a href="https://github.com" target="_blank" style="color:#5aaaf0">github.com</a> — crie conta gratuita<br>
       2. Crie um repositorio com o nome <b style="color:#fff">master-tv</b><br>
       3. Envie o arquivo <b style="color:#f0c040">MASTER.html</b> para o repositorio<br>
       4. Va em <b style="color:#fff">Settings → Pages → Branch: main</b> → Save<br>
@@ -7854,7 +7928,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       <button onclick="_masterAbrirGH()"
         style="padding:7px 12px;background:#4acc7a;border:none;border-radius:5px;color:#000;font-weight:700;cursor:pointer;white-space:nowrap">Abrir</button>
       <button onclick="_masterCopiarGH()"
-        style="padding:7px 12px;background:#333;border:none;border-radius:5px;color:#fff;font-size:11px;cursor:pointer;white-space:nowrap">&#128203; Copiar</button>
+        style="padding:7px 12px;background:#333;border:none;border-radius:5px;color:#fff;font-size:11px;cursor:pointer;white-space:nowrap">&#128203;Copiar</button>
     </div>
     <div id="master-gh-saved-hint" style="font-size:10px;color:#555;margin-top:6px"></div>
   </div>
@@ -7878,12 +7952,12 @@ var _K='opec_panel_layout_v1';
 /* Nomes de exibição */
 var _N={
   /* colunas principais */
-  'col-roteiro' :'📋 Roteiro',
-  'col-midias'  :'🎞 Mídias',
-  'col-controle':'⚙ Controle',
+  'col-roteiro' :'Roteiro',
+  'col-midias'  :' Mídias',
+  'col-controle':' Controle',
   /* painéis do controle */
   'no-ar'       :'No Ar Agora',
-  'dashboard'   :'Dashboard Comercial',
+  'dashboard'   :'DashboardComercial',
   'distribuicao':'Distribuição',
   'avisos'      :'Avisos',
   'calendario'  :'Calendário',
@@ -7899,7 +7973,7 @@ var _COLS={
   'col-controle':'ms-controle'
 };
 
-/* ── Salvar/restaurar ordem das colunas ── */
+/* ──Salvar/restaurar ordem das colunas ── */
 var _CK=_K+'_col_order';
 function _getColOrder(){try{return JSON.parse(localStorage.getItem(_CK)||'null');}catch(e){return null;}}
 function _saveColOrder(order){localStorage.setItem(_CK,JSON.stringify(order));}
