@@ -4569,10 +4569,24 @@ function autoNumberMediaLib(){
     }
     baseNum++;
   });
+  // Propagar seq atualizado para todos os itens do roteiro
+  Object.values(grade).forEach(progs=>(progs||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>{
+    (brk.items||[]).forEach(it=>{
+      const m = mediaLib.find(m=>
+        (it.piNumber && m.piNumber && String(m.piNumber).trim()===String(it.piNumber).trim() && m.name===it.name) ||
+        (it.id && m.id===it.id) ||
+        (it.libId && m.id===it.libId)
+      );
+      if(m && m.seq) it.seq = m.seq;
+    });
+  })));
   saveMediaLib();
+  saveGrade();
+  broadcastState();
   renderOpcMidias();
   renderMidList();
-  showToast('✓Numeração automática aplicada');
+  renderRoteiro();
+  showToast('Numeração automática aplicada');
 }
 
 // ── Editar Nº Mídia inline ──

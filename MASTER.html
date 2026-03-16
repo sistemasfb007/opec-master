@@ -217,6 +217,8 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 .i-name{font-size:12px;font-weight:500;color:var(--text);line-height:1.3}
 .item.exp .i-name{color:var(--red2)}
 .i-title{font-size:11px;color:var(--text3);font-style:italic;margin-top:1px}
+.i-seg-pill{font-size:8px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:1px 5px;border-radius:3px;margin-left:6px;vertical-align:middle;flex-shrink:0;white-space:nowrap;opacity:.85}
+.bh-conflict{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,80,80,.15);color:#ff6060;border:1px solid rgba(255,80,80,.3);letter-spacing:.5px;flex-shrink:0;white-space:nowrap;animation:pulse-conflict 1.5s ease-in-out infinite}
 .i-date{font-family:var(--font-m);font-size:10px;color:var(--text3)}
 .i-date.exp{color:var(--red2);font-weight:600}
 .i-dur{font-family:var(--font-m);font-size:11px;color:var(--text2);text-align:right}
@@ -560,6 +562,8 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 .i-name{font-size:12px;font-weight:500;color:var(--text);line-height:1.3}
 .item.exp .i-name{color:var(--red2)}
 .i-title{font-size:11px;color:var(--text3);font-style:italic;margin-top:1px}
+.i-seg-pill{font-size:8px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:1px 5px;border-radius:3px;margin-left:6px;vertical-align:middle;flex-shrink:0;white-space:nowrap;opacity:.85}
+.bh-conflict{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:rgba(255,80,80,.15);color:#ff6060;border:1px solid rgba(255,80,80,.3);letter-spacing:.5px;flex-shrink:0;white-space:nowrap;animation:pulse-conflict 1.5s ease-in-out infinite}
 .i-date{font-family:var(--font-m);font-size:10px;color:var(--text3)}
 .i-date.exp{color:var(--red2);font-weight:600}
 .i-dur{font-family:var(--font-m);font-size:11px;color:var(--text2);text-align:right}
@@ -1703,6 +1707,23 @@ function loadStorage(){
   if(_prog && cur.brkIdx >= (_prog.breaks||[]).length) cur.brkIdx = -1;
 }
 
+// ── SEGMENTOS ──
+const SEG_LABELS={CONCESSIONARIA:'Concessionária',MECANICA:'Mecânica',SUPERMERCADO:'Supermercado',HOSPITAL:'Hospital',MIDIA:'Mídia Oficial',ESTETICA:'Estética',ENSINO:'Ensino',VAREJO:'Varejo',CONSTRUCAO:'Construção',INTERNET:'Internet',SORTEIOS:'Sorteios',CONSORCIO:'Consórcio',BANCO:'Banco',FARMACIA:'Farmácia',JOIAS:'Joias',VESTUARIO:'Vestuário',OUTRO:'Outro'};
+const SEG_TEXT={CONCESSIONARIA:'#f0c040',MECANICA:'#d4883a',SUPERMERCADO:'#4acc7a',HOSPITAL:'#e07070',MIDIA:'#5aaaf0',ESTETICA:'#e070c0',ENSINO:'#9080e0',VAREJO:'#60b8e0',CONSTRUCAO:'#c09060',INTERNET:'#00d0d0',SORTEIOS:'#d070e0',CONSORCIO:'#70a0d8',BANCO:'#40b880',FARMACIA:'#30c090',JOIAS:'#d4c040',VESTUARIO:'#d87090',OUTRO:'var(--text2)'};
+
+function analyzeBrkConflict(items){
+  // Conflito = mesmo segmento com clientes diferentes (por piNumber ou piClient)
+  const clientsBySegment={};
+  (items||[]).forEach(it=>{
+    if(!it.segment) return;
+    const clientKey = it.piNumber ? String(it.piNumber).trim() : (it.piClient||it.name||'');
+    if(!clientsBySegment[it.segment]) clientsBySegment[it.segment]=new Set();
+    clientsBySegment[it.segment].add(clientKey);
+  });
+  const conflictSegs=Object.keys(clientsBySegment).filter(s=>clientsBySegment[s].size>1);
+  return {hasConflict:conflictSegs.length>0, conflicts:conflictSegs};
+}
+
 // ── BUILD ROTEIRO — constrói o DOM completo ──
 function buildRoteiro(){
   snap.grade = JSON.stringify(grade);
@@ -1759,19 +1780,28 @@ function buildRoteiro(){
                   ? `<div class="i-date${exp?' exp':''}">${exp?'⚠ ':''}${fmtDate(it.dateEnd)}</div>`
                   : `<div class="i-date">—</div>`;
                 const tip=`<div class="i-tooltip"><b>${it.name}</b>`+(it.title?`<br><i style="color:var(--text2)">${it.title}</i>`:'')+`<br>Dur: <b>${fmtSec(it.dur)}</b>`+(it.dateEnd?`<br>Vence: <b>${fmtDate(it.dateEnd)}${isExpired(it.dateEnd)?' ⚠':''}</b>`:'')+`</div>`;
+                const _sc = SEG_TEXT[it.segment]||'';
+                const _slb = SEG_LABELS[it.segment]||'';
+                const _segPill = (it.segment&&_slb) ? `<span class="i-seg-pill" style="background:${_sc}22;color:${_sc};border:1px solid ${_sc}44">${_slb}</span>` : '';
                 return `<div class="${cls}" id="it-${pi}-${bi}-${ii}" onclick="openOpec(${pi},${bi},${ii})" style="cursor:pointer">
                   <div class="i-seq">${it.seq||pad(ii+1)}</div>
-                  <div class="i-body"><div class="i-name">${it.name}</div>${it.title?`<div class="i-title">${it.title}</div>`:''}</div>
+                  <div class="i-body">
+                    <div class="i-name" style="display:flex;align-items:center;gap:0">${it.title||it.name}${_segPill}</div>
+                    ${(it.title&&it.name&&it.title!==it.name&&it.name!==(_slb||'__'))?`<div class="i-title">${it.name}</div>`:''}
+                  </div>
                   ${dateHtml}<div class="i-dur">${fmtSec(it.dur)}</div>
                   ${tip}
                 </div>`;
               }).join('');
+          const _brkConflict = analyzeBrkConflict(brk.items||[]);
+          const _conflictHtml = _brkConflict.hasConflict ? `<span class="bh-conflict">! CONCORRÊNCIA: ${_brkConflict.conflicts.map(s=>SEG_LABELS[s]||s).join(' + ')}</span>` : '';
           return `<div class="brk-block" id="bb-${pi}-${bi}">
             <div class="brk-hdr${isCB?' cur':''}">
               <span class="bh-chev" onclick="toggleBrk(${pi},${bi})" title="Expandir/recolher">▼</span>
               <span class="bh-name" onclick="toggleBrk(${pi},${bi})" style="cursor:pointer">${brk.name}</span>
               <span class="bh-dur">${fmtSec(brk.total)}</span>
               <span class="bh-cnt">${bDone}/${bTot} inserções</span>
+              ${_conflictHtml}
               ${bExp>0?`<span class="bh-warn">⚠ ${bExp} venc.</span>`:''}
               ${getMasterBrkAirLog(viewDow,pi,bi)
                 ?`<button class="brk-air-btn logged" onclick="arSingleOrDouble(${pi},${bi},event)" title="Clique: atualizar horário · Duplo clique: abrir gaveta">✓ ${getMasterBrkAirLog(viewDow,pi,bi).time}</button>`
