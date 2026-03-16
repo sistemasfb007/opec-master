@@ -1110,15 +1110,18 @@ function _fbConnect(){
   // ── Escutar air_logs publicados pelo MASTER ──
   if(_unsubAirLogs){ _unsubAirLogs(); _unsubAirLogs=null; }
   const _airRef = ref(db,`estacoes/${_stationCode}/air_logs`);
+  console.log('[OPEC] escutando air_logs em:', `estacoes/${_stationCode}/air_logs`);
   _unsubAirLogs = onValue(_airRef, snap=>{
+    console.log('[OPEC] air_logs recebido, exists:', snap.exists());
     if(!snap.exists()) return;
     const d = snap.val();
     const ts = d._ts||0;
     const localTs = parseInt(localStorage.getItem('roteiro_air_ts')||'0');
-    if(ts <= localTs) return;
+    if(ts <= localTs){ console.log('[OPEC] air_logs ignorado — ts não avançou'); return; }
     const logs = {...d}; delete logs._ts;
     localStorage.setItem('roteiro_air_logs', JSON.stringify(logs));
     localStorage.setItem('roteiro_air_ts', String(ts));
+    console.log('[OPEC] air_logs aplicado —', Object.keys(logs).length, 'entradas');
     if(typeof renderRoteiro==='function') renderRoteiro();
   });
 }

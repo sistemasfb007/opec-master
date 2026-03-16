@@ -2203,7 +2203,13 @@ function saveMasterAirLogs(logs){
   lsSet('roteiro_air_ts', String(Date.now()));
   // Publicar no Firebase para o OPEC receber em tempo real
   if(_db && _code){
-    try{ _db.ref('estacoes/'+_code+'/air_logs').set({...logs, _ts: Date.now()}); }catch(e){}
+    try{
+      const _ts = Date.now();
+      ref(_db, 'estacoes/'+_code+'/air_logs').set({...logs, _ts});
+      console.log('[MASTER] air_logs publicado no Firebase:', _code, Object.keys(logs).length, 'entradas');
+    }catch(e){ console.warn('[MASTER] erro ao publicar air_logs:', e); }
+  } else {
+    console.warn('[MASTER] air_logs NÃO publicado — _db:', !!_db, '_code:', _code);
   }
 }
 function getMasterBrkAirLog(day,pi,bi){ return getMasterAirLogs()[`${day}-${pi}-${bi}`]||null; }
