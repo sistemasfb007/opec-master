@@ -172,6 +172,100 @@ body.light .land-h1{background:linear-gradient(135deg,#1a2030,#4a6080);-webkit-b
 .item-row.active{background:rgba(212,160,23,.1);border-left:2px solid var(--gold)}.item-row.done{opacity:.3}
 /* Expired items - red highlight */
 .item-row.expired{background:var(--red-dim)!important;border-left:2px solid var(--red2)!important}
+.item-row.manual{outline:1px solid rgba(160,100,240,.45);outline-offset:-1px;}
+.item-row.manual:hover{outline-color:rgba(180,120,255,.7);}
+.item-row.manual.active{outline:none;}
+.ir-title{font-size:9px;color:var(--text3);font-style:italic;margin-top:1px;letter-spacing:.2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* ── Gaveta de remoção de mídia ── */
+#remove-media-drawer{
+  position:fixed;right:0;top:0;bottom:0;width:340px;
+  background:#0d1117;
+  border-left:1px solid rgba(255,255,255,.1);
+  box-shadow:-8px 0 32px rgba(0,0,0,.7);
+  z-index:9999;
+  display:flex;flex-direction:column;
+  transform:translateX(100%);
+  transition:transform .22s cubic-bezier(.22,.61,.36,1);
+}
+#remove-media-drawer.open{transform:translateX(0);}
+#remove-media-drawer-backdrop{
+  position:fixed;inset:0;z-index:9998;
+  background:rgba(0,0,0,.45);
+  display:none;backdrop-filter:blur(2px);
+}
+#remove-media-drawer-backdrop.open{display:block;}
+.rmd-head{
+  padding:16px 18px 12px;
+  border-bottom:1px solid rgba(255,255,255,.07);
+  flex-shrink:0;
+}
+.rmd-title{
+  font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;color:#3a4d60;
+  margin-bottom:6px;
+}
+.rmd-name{
+  font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;color:#d8e0ea;
+  line-height:1.2;
+}
+.rmd-count{
+  font-family:'Azeret Mono',monospace;font-size:10px;
+  color:#e05050;margin-top:4px;letter-spacing:.5px;
+}
+.rmd-list{
+  flex:1;overflow-y:auto;padding:8px 0;
+}
+.rmd-list::-webkit-scrollbar{width:3px;}
+.rmd-list::-webkit-scrollbar-thumb{background:#1f2836;}
+.rmd-item{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 18px;
+  border-bottom:1px solid rgba(255,255,255,.04);
+  transition:background .12s;
+}
+.rmd-item:hover{background:rgba(255,255,255,.03);}
+.rmd-dow{
+  font-family:'Rajdhani',sans-serif;font-size:9px;font-weight:700;
+  letter-spacing:1.5px;text-transform:uppercase;color:#3a4d60;
+  min-width:26px;flex-shrink:0;
+}
+.rmd-time{
+  font-family:'Azeret Mono',monospace;font-size:10px;color:#f0c040;
+  flex-shrink:0;min-width:40px;
+}
+.rmd-loc{
+  font-size:11px;color:#7a8fa8;flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.rmd-loc b{color:#d8e0ea;font-weight:600;}
+.rmd-foot{
+  padding:14px 18px;border-top:1px solid rgba(255,255,255,.07);
+  display:flex;flex-direction:column;gap:8px;flex-shrink:0;
+}
+.rmd-warn{
+  font-size:10px;color:#f0c040;
+  background:rgba(212,160,23,.07);border:1px solid rgba(212,160,23,.15);
+  border-radius:5px;padding:7px 10px;line-height:1.5;
+}
+.rmd-btn-del{
+  width:100%;padding:10px;
+  font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;
+  background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.4);
+  border-radius:6px;color:#e05050;cursor:pointer;
+  transition:all .15s;
+}
+.rmd-btn-del:hover{background:rgba(192,57,43,.3);border-color:#e05050;}
+.rmd-btn-cancel{
+  width:100%;padding:8px;
+  font-family:'Rajdhani',sans-serif;font-size:10px;font-weight:700;
+  letter-spacing:1.5px;text-transform:uppercase;
+  background:transparent;border:1px solid rgba(255,255,255,.1);
+  border-radius:6px;color:#3a4d60;cursor:pointer;
+  transition:all .15s;
+}
+.rmd-btn-cancel:hover{border-color:rgba(255,255,255,.2);color:#7a8fa8;}
 .item-row.expired .ir-name{color:var(--red2)!important}
 .item-row.expired .ir-seq{color:var(--red2)!important}
 .ir-seq{font-family:var(--font-m);font-size:9px;color:var(--text3);min-width:20px}
@@ -2579,19 +2673,65 @@ function _doRemoveMedia(item){
 
   const DAYS_SHORT_PT=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
-  if(ocorrencias.length > 0){
-    const lista = ocorrencias.slice(0,8).map(o=>
-      `  • ${DAYS_SHORT_PT[parseInt(o.dow)]} ${o.time} — ${o.prog} / ${o.brk}`
-    ).join('\n');
-    const extra = ocorrencias.length > 8 ? `\n  ... e mais ${ocorrencias.length-8} ocorrência(s)` : '';
-    const msg = `"${item.name}" está no roteiro em ${ocorrencias.length} local(is):\n\n${lista}${extra}\n\nRemover da biblioteca E de todos os breaks do roteiro?`;
-    if(!confirm(msg)) return;
+  // Abrir gaveta de confirmação
+  _openRemoveDrawer(item, ocorrencias, _isMatch);
+}
 
-    //Remover do roteiro
+let _rmdItem = null, _rmdOcorrencias = [], _rmdIsMatch = null;
+
+function _openRemoveDrawer(item, ocorrencias, isMatch){
+  _rmdItem = item; _rmdOcorrencias = ocorrencias; _rmdIsMatch = isMatch;
+  const DAYS_SHORT_PT=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+  document.getElementById('rmd-item-name').textContent = item.name;
+
+  const countEl = document.getElementById('rmd-item-count');
+  countEl.textContent = ocorrencias.length > 0
+    ? `Presente em ${ocorrencias.length} local(is) no roteiro`
+    : 'Não está no roteiro';
+  countEl.style.color = ocorrencias.length > 0 ? '#e05050' : '#3a4d60';
+
+  const listEl = document.getElementById('rmd-list');
+  if(ocorrencias.length === 0){
+    listEl.innerHTML = '<div style="padding:24px 18px;text-align:center;font-size:11px;color:#3a4d60">Nenhuma ocorrência no roteiro</div>';
+  } else {
+    listEl.innerHTML = ocorrencias.map(o => `
+      <div class="rmd-item">
+        <span class="rmd-dow">${DAYS_SHORT_PT[parseInt(o.dow)]}</span>
+        <span class="rmd-time">${o.time}</span>
+        <span class="rmd-loc"><b>${o.prog}</b> · ${o.brk}</span>
+      </div>`).join('');
+  }
+
+  const warnEl = document.getElementById('rmd-warn');
+  if(ocorrencias.length > 0){
+    warnEl.textContent = 'Remove da biblioteca e de todos os breaks do roteiro.';
+    warnEl.style.display = 'block';
+  } else {
+    warnEl.style.display = 'none';
+  }
+
+  document.getElementById('rmd-btn-del').onclick = _confirmRemoveMedia;
+  document.getElementById('remove-media-drawer').classList.add('open');
+  document.getElementById('remove-media-drawer-backdrop').classList.add('open');
+}
+
+function _closeRemoveDrawer(){
+  document.getElementById('remove-media-drawer').classList.remove('open');
+  document.getElementById('remove-media-drawer-backdrop').classList.remove('open');
+  _rmdItem = null; _rmdOcorrencias = []; _rmdIsMatch = null;
+}
+
+function _confirmRemoveMedia(){
+  if(!_rmdItem) return;
+  const item = _rmdItem, ocorrencias = _rmdOcorrencias, isMatch = _rmdIsMatch;
+  _closeRemoveDrawer();
+
+  if(ocorrencias.length > 0){
     for(const dow of Object.keys(grade)){
       (grade[dow]||[]).forEach(prog=>{
         (prog.breaks||[]).forEach(brk=>{
-          brk.items = (brk.items||[]).filter(it=>!_isMatch(it));
+          brk.items = (brk.items||[]).filter(it=>!isMatch(it));
         });
       });
     }
@@ -2600,11 +2740,8 @@ function _doRemoveMedia(item){
     renderRoteiro();
     broadcastState();
     if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
-  } else {
-    if(!confirm(`Remover "${item.name}" da biblioteca?`)) return;
   }
 
-  //Remover da biblioteca
   mediaLib = mediaLib.filter(m => {
     if(item.id && m.id===item.id) return false;
     if(item.piNumber && m.piNumber && String(m.piNumber).trim()===String(item.piNumber).trim()) return false;
@@ -2612,8 +2749,7 @@ function _doRemoveMedia(item){
   });
   saveMediaLib();
   renderMidList();
-
-  showToast(`✓ "${item.name}" removido${ocorrencias.length>0?' da biblioteca e do roteiro ('+ocorrencias.length+' local(is))':' da biblioteca'}`);
+  showToast(`"${item.name}" removido${ocorrencias.length>0?' da biblioteca e do roteiro ('+ocorrencias.length+' local(is))':' da biblioteca'}`);
 }
 
 function removeFromLib(idx){
@@ -2666,7 +2802,7 @@ function renderRoteiro(){
             const act=isAB&&cur.itemIdx===ii,dn=cur.doneKeys.includes(key);
             const exp=isExpired(item.dateEnd);
             let cls='item-row';
-            if(act)cls+=' active'; if(dn)cls+=' done'; if(exp)cls+=' expired';
+            if(act)cls+=' active'; if(dn)cls+=' done'; if(exp)cls+=' expired'; if(item.manual)cls+=' manual';
             const expLabel=item.dateEnd?`<span class="ir-expire${exp?' expired':''}">${exp?'! ':''}${fmtDate(item.dateEnd)}</span>`:'';
             // Cor do segmento
             const _sc  = SEG_TEXT[item.segment]  || 'transparent';
@@ -2703,10 +2839,10 @@ function renderRoteiro(){
                 onclick="${_libSeq?'':'event.stopPropagation();showToast(\'ℹAcesseComercial → Mídias → Auto-numerar ou clique no ✏ para definir o Nº Mídia\')'}">
                 ${_libSeq||'—'}
               </span>
-              <span class="ir-name" style="margin-left:4px">
-                ${_libTitle?`<span style="font-size:12px;font-weight:600;color:#e8eef6;letter-spacing:.3px">${_libTitle}</span>`:`<span style="font-size:12px;font-weight:600;color:#e8eef6;letter-spacing:.3px">${item.name}</span>`}
+              <span class="ir-name" style="margin-left:4px;display:flex;flex-direction:column;justify-content:center;min-width:0">
+                <span style="font-size:12px;font-weight:600;color:#e8eef6;letter-spacing:.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_libTitle||item.name}</span>
+                ${(item.segment && SEG_LABELS[item.segment])?`<span class="ir-title">${SEG_LABELS[item.segment]}</span>`:''}
               </span>
-              ${_segBadge}
               ${item.piNumber?`<span style="font-family:var(--font-m);font-size:8px;color:var(--gold);background:rgba(212,160,23,.1);border:1px solid rgba(212,160,23,.2);border-radius:3px;padding:1px 4px;flex-shrink:0;white-space:nowrap">PI-${item.piNumber}</span>`:''}
 
               ${expLabel}
@@ -5304,6 +5440,20 @@ function printReport(){
   </div>
 
 </div>
+<div id="remove-media-drawer-backdrop" onclick="_closeRemoveDrawer()"></div>
+<div id="remove-media-drawer">
+  <div class="rmd-head">
+    <div class="rmd-title">Remover mídia</div>
+    <div class="rmd-name" id="rmd-item-name">—</div>
+    <div class="rmd-count" id="rmd-item-count"></div>
+  </div>
+  <div class="rmd-list" id="rmd-list"></div>
+  <div class="rmd-foot">
+    <div class="rmd-warn" id="rmd-warn"></div>
+    <button class="rmd-btn-del" id="rmd-btn-del">Confirmar remoção</button>
+    <button class="rmd-btn-cancel" onclick="_closeRemoveDrawer()">Cancelar</button>
+  </div>
+</div>
 </body>
 </html>`);
   win.document.close();
@@ -7035,8 +7185,11 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       const insertsValidos = day.inserts.filter(i=>!i.warn&&i.program&&i.brk);
       const progIds = [...new Set(insertsValidos.map(i=>i.program.id))];
 
+      // Suporta grade indexada por data (YYYY-MM-DD) ou por dow (0-6)
+      const _dayProgs = g[day.key] || g[day.dow] || g[String(day.dow)] || [];
+
       progIds.forEach(progId=>{
-        const prog = (g[day.dow]||[]).find(p=>p.id===progId);
+        const prog = _dayProgs.find(p=>p.id===progId);
         if(!prog) return;
 
         // Passo 1: remover TODOS os itens desta PI deste programa (qualquer break)
@@ -7078,8 +7231,10 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     });
     lsSet('roteiro_grade',JSON.stringify(g));lsSet('roteiro_ts',String(Date.now()));lsSet('roteiro_cur_ts',String(Date.now()));
     grade=g;
-    // Sincronizar via Firebase
+    recalcBrkTotals();
+    // Sincronizar via Firebase e broadcast
     if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(g);
+    if(typeof broadcastState==='function') broadcastState();
     renderRoteiro();if(typeof renderMidList==='function')renderMidList();renderCtrl();
     selPi.applied=true;_savePiList();piRenderList();piSetStep(4);
     document.getElementById('pi-btn-apply').textContent='✓ Aplicado';
@@ -7100,37 +7255,96 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
 
   // ── Excluir PI ──
-  window.piDeletePI = function(id){
+  window.piDeletePI = function(id, btnEl){
     const p = piList.find(x=>x.id===id);
     if(!p) return;
 
-    const msg = p.applied
-      ? `Excluir PI ${p.piNumber} — ${p.client}?\n\nAVISO: Esta PI foi aplicada no roteiro.\nAs inserções serão removidas de todos os breaks.\n\nDeseja continuar?`
-      : `Excluir PI ${p.piNumber} — ${p.client}?`;
+    // Fechar popover se já aberto para o mesmo PI
+    const existing = document.getElementById('_pi-del-pop');
+    if(existing){ existing.remove(); document.removeEventListener('click',_piPopOutside,true); if(existing.dataset.id===id) return; }
 
-    if(!confirm(msg)) return;
+    const pop = document.createElement('div');
+    pop.id = '_pi-del-pop';
+    pop.dataset.id = id;
+    pop.style.cssText = 'position:fixed;z-index:9999;background:#0d1117;border:1px solid rgba(255,255,255,.11);border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.85);overflow:hidden;min-width:220px;animation:bepop .12s cubic-bezier(.18,.89,.32,1.1)';
 
-    //Remover inserções da grade se a PI foi aplicada
-    if(p.applied && p.piNumber){
+    const nameLabel = `PI ${p.piNumber} — ${(p.client||'').substring(0,22)}`;
+    const warnHtml = p.applied
+      ? `<div style="font-size:9px;color:#f0c040;padding:5px 10px 0;font-family:'DM Sans',sans-serif">! Inserções serão removidas do roteiro</div>`
+      : '';
+
+    pop.innerHTML = `
+      <div style="padding:7px 10px 5px;border-bottom:1px solid rgba(255,255,255,.06)">
+        <div style="font-family:'Rajdhani',sans-serif;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#3a4d60;margin-bottom:3px">Excluir PI</div>
+        <div style="font-family:'Azeret Mono',monospace;font-size:10px;font-weight:700;color:#d8e0ea;letter-spacing:.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nameLabel}</div>
+        ${warnHtml}
+      </div>
+      <div style="display:flex;gap:0">
+        <button id="_pi-del-yes" style="flex:1;padding:7px 10px;background:rgba(192,57,43,.15);border:none;border-right:1px solid rgba(255,255,255,.06);font-family:'Rajdhani',sans-serif;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#e05050;cursor:pointer;transition:background .15s" onmouseover="this.style.background='rgba(192,57,43,.3)'" onmouseout="this.style.background='rgba(192,57,43,.15)'">Excluir</button>
+        <button id="_pi-del-no"  style="flex:1;padding:7px 10px;background:transparent;border:none;font-family:'Rajdhani',sans-serif;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#3a4d60;cursor:pointer;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.05)'" onmouseout="this.style.background='transparent'">Cancelar</button>
+      </div>`;
+
+    document.body.appendChild(pop);
+
+    // Posicionar abaixo/acima do botão
+    const r = btnEl.getBoundingClientRect();
+    const pw = pop.offsetWidth || 220;
+    let left = r.right - pw;
+    left = Math.max(8, Math.min(left, window.innerWidth - pw - 8));
+    pop.style.left = left + 'px';
+    if(window.innerHeight - r.bottom > 100){
+      pop.style.top  = (r.bottom + 4) + 'px';
+    } else {
+      pop.style.bottom = (window.innerHeight - r.top + 4) + 'px';
+    }
+
+    pop.querySelector('#_pi-del-yes').addEventListener('click', e=>{
+      e.stopPropagation();
+      pop.remove();
+      document.removeEventListener('click',_piPopOutside,true);
+      _doDeletePI(id);
+    });
+    pop.querySelector('#_pi-del-no').addEventListener('click', e=>{
+      e.stopPropagation();
+      pop.remove();
+      document.removeEventListener('click',_piPopOutside,true);
+    });
+    setTimeout(()=>document.addEventListener('click',_piPopOutside,true), 50);
+  };
+
+  function _piPopOutside(e){
+    const pop = document.getElementById('_pi-del-pop');
+    if(pop && !pop.contains(e.target)){ pop.remove(); document.removeEventListener('click',_piPopOutside,true); }
+  }
+
+  function _doDeletePI(id){
+    const p = piList.find(x=>x.id===id);
+    if(!p) return;
+
+    //Remover inserções da grade sempre que a PI tiver número (independente do flag applied)
+    if(p.piNumber){
       const g = JSON.parse(lsGet('roteiro_grade')||'{}');
+      const _piNum = String(p.piNumber).trim();
       let removed = 0;
       Object.values(g).forEach(progs=>(progs||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>{
         const before = (brk.items||[]).length;
-        brk.items = (brk.items||[]).filter(it=>String(it.piNumber||'').trim()!==String(p.piNumber).trim());
+        brk.items = (brk.items||[]).filter(it=>String(it.piNumber||'').trim()!==_piNum);
         removed += before - brk.items.length;
       })));
       if(removed > 0){
         lsSet('roteiro_grade', JSON.stringify(g));
+        lsSet('roteiro_ts', String(Date.now()));
         grade = g;
         recalcBrkTotals();
         renderRoteiro();
+        broadcastState();
         if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
-        showToast(`✓ PI ${p.piNumber} excluída — ${removed} inserção(ões) removidas do roteiro`);
+        showToast(`PI ${p.piNumber} excluída — ${removed} inserção(ões) removidas do roteiro`);
       } else {
-        showToast(`✓ PI ${p.piNumber} excluída`);
+        showToast(`PI ${p.piNumber} excluída`);
       }
     } else {
-      showToast(`✓ PI ${p.piNumber} excluída`);
+      showToast(`PI excluída`);
     }
 
     //Remover material vinculado da biblioteca
@@ -7177,7 +7391,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     }
 
     piRenderList();
-  };
+  }  // end _doPiDelete
 
 
 
@@ -7284,7 +7498,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
           <span style="font-family:var(--font-m);font-size:9px;color:${_piColor};flex-shrink:0;min-width:46px">PI ${p.piNumber||'—'}</span>
           <span style="font-size:11px;font-weight:700;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
             title="${esc(p.client||'')}">${esc((p.client||'Sem cliente').substring(0,20))}</span>
-          <button onclick="event.stopPropagation();piDeletePI('${p.id}')"
+          <button onclick="event.stopPropagation();piDeletePI('${p.id}',this)"
             style="background:none;border:none;color:rgba(192,57,43,.5);cursor:pointer;font-size:11px;padding:0 2px;flex-shrink:0;line-height:1" title="Excluir">✕</button>
         </div>
         <!-- Linha de meta + status -->
@@ -8418,5 +8632,19 @@ function _initColDrag(){
 }
 })();
 </script>
+<div id="remove-media-drawer-backdrop" onclick="_closeRemoveDrawer()"></div>
+<div id="remove-media-drawer">
+  <div class="rmd-head">
+    <div class="rmd-title">Remover mídia</div>
+    <div class="rmd-name" id="rmd-item-name">—</div>
+    <div class="rmd-count" id="rmd-item-count"></div>
+  </div>
+  <div class="rmd-list" id="rmd-list"></div>
+  <div class="rmd-foot">
+    <div class="rmd-warn" id="rmd-warn"></div>
+    <button class="rmd-btn-del" id="rmd-btn-del">Confirmar remoção</button>
+    <button class="rmd-btn-cancel" onclick="_closeRemoveDrawer()">Cancelar</button>
+  </div>
+</div>
 </body>
 </html>
