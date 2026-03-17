@@ -1100,8 +1100,19 @@ function _fbConnect(){
   if(_unsubscribe) _unsubscribe();
   _unsubscribe=onValue(_gradeRef, snap=>{
     if(!_fbReady||!snap.exists()) return;
-    if(_fbIgnore){ _fbIgnore=false; return; }
     const d=snap.val(), ts=d?._ts||0;
+    // Sempre processar __air_logs, mesmo quando ignorando atualização de grade
+    if(d.__air_logs){
+      const airTs = d.__air_logs._ts||0;
+      const localAirTs = parseInt(localStorage.getItem('roteiro_air_ts')||'0');
+      if(airTs > localAirTs){
+        const logs = {...d.__air_logs}; delete logs._ts;
+        localStorage.setItem('roteiro_air_logs', JSON.stringify(logs));
+        localStorage.setItem('roteiro_air_ts', String(airTs));
+        if(typeof renderRoteiro==='function') renderRoteiro();
+      }
+    }
+    if(_fbIgnore){ _fbIgnore=false; return; }
     if(ts<=_fbLastTs) return;
     _applyGrade(d);
   });
@@ -1457,21 +1468,18 @@ function _segConflictResp(ok){
   <meta name="mobile-web-app-capable" content="yes">
   <script>
     if('serviceWorker' in navigator && location.protocol !== 'file:'){
-      // Desregistrar SW antigo para garantir que o arquivo mais recente seja carregado
-      navigator.serviceWorker.getRegistrations().then(regs=>{
-        regs.forEach(r=>r.unregister());
-      });
       navigator.serviceWorker.register('./sw.js').then(reg=>{
         console.log('[PWA] Service Worker registrado:', reg.scope);
-        // Forçar verificação de atualização imediatamente
-        reg.update();
+        // Verificar atualizações
         reg.addEventListener('updatefound', ()=>{
           const w=reg.installing;
           w.addEventListener('statechange', ()=>{
             if(w.state==='installed' && navigator.serviceWorker.controller){
-              // Nova versão disponível — atualizar automaticamente
-              w.postMessage('skipWaiting');
-              location.reload();
+              // Nova versão disponível
+              if(confirm('Nova versão disponível! Atualizar agora?')){
+                w.postMessage('skipWaiting');
+                location.reload();
+              }
             }
           });
         });
