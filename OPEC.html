@@ -6355,6 +6355,32 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       piList = JSON.parse(_saved);
       // Sanitizar: garantir que campos essenciais existem
       piList = piList.filter(p=>p && p.id && p.piNumber);
+      // Migração: detectar PIs que estão na grade mas applied=false (versão antiga)
+      try{
+        const _gradeRaw = localStorage.getItem('roteiro_grade');
+        const _grade = _gradeRaw ? JSON.parse(_gradeRaw) : {};
+        let _migrated = false;
+        piList.forEach(p=>{
+          if(!p.applied){
+            // Contar inserções desta PI na grade
+            let _cnt=0;
+            Object.values(_grade).forEach(progs=>(progs||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>{
+              (brk.items||[]).forEach(it=>{ if(String(it.piNumber||'').trim()===String(p.piNumber).trim()) _cnt++; });
+            })));
+            if(_cnt>0){
+              p.applied=true;
+              p.appliedCount=_cnt;
+              _migrated=true;
+            }
+          }
+        });
+        if(_migrated) localStorage.setItem('roteiro_pilist', JSON.stringify(piList.map(p=>({
+          id:p.id,piNumber:p.piNumber,status:p.status,client:p.client,
+          campaign:p.campaign,title:p.title,period:p.period,duration:p.duration,
+          totalInsertions:p.totalInsertions,dateStart:p.dateStart,dateEnd:p.dateEnd,
+          materialSeq:p.materialSeq,lines:p.lines,applied:p.applied||false,appliedCount:p.appliedCount||0
+        }))));
+      }catch(e){}
     }
   }catch(e){ piList=[]; }
   window._piList=piList;
@@ -6391,7 +6417,8 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         id:p.id, piNumber:p.piNumber, status:p.status, client:p.client,
         campaign:p.campaign, title:p.title, period:p.period, duration:p.duration,
         totalInsertions:p.totalInsertions, dateStart:p.dateStart, dateEnd:p.dateEnd,
-        materialSeq:p.materialSeq, lines:p.lines, applied:p.applied||false
+        materialSeq:p.materialSeq, lines:p.lines, applied:p.applied||false,
+        appliedCount:p.appliedCount||0
       }));
       localStorage.setItem('roteiro_pilist', JSON.stringify(toSave));
     }catch(e){ console.warn('[PI] Erro ao salvar lista:', e); }
@@ -7010,19 +7037,15 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       <div class="card" data-panel-id="dados-pi" draggable="true">
         <div class="card-head" style="display:flex;align-items:center;justify-content:space-between">
           <span>Dados do PI</span>
-          <span style="font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:2px 8px;border-radius:3px;border:1px solid;${pi.status==='APROVADO'?'background:rgba(31,170,90,.12);color:var(--green);border-color:rgba(31,170,90,.2)':'background:rgba(224,120,32,.12);color:#e07820;border-color:rgba(224,120,32,.2)'}">${pi.status}</span>
-          ${(()=>{
-            const s=_piCalcStatus(pi);
-            // Se aplicada OU 100% distribuído -> verde
-            if(pi.applied || s.pct>=100){
-              return '<span style="font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(31,170,90,.15);color:var(--green);border:1px solid rgba(31,170,90,.3);font-weight:700;margin-left:4px">✓ 100% na grade</span>';
-            }
-            // Parcialmente distribuída
-            if(s.pct>0){
-              return '<span style="font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(240,192,64,.1);color:var(--gold);border:1px solid rgba(240,192,64,.25);margin-left:4px">'+s.pct+'% na grade</span>';
-            }
-            return '';
-          })()} 
+          <span style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:2px 8px;border-radius:3px;border:1px solid;${pi.applied?'background:rgba(31,170,90,.25);color:#2ddf80;border-color:rgba(45,223,128,.55)':pi.status==='APROVADO'?'background:rgba(31,170,90,.12);color:var(--green);border-color:rgba(31,170,90,.2)':'background:rgba(224,120,32,.12);color:#e07820;border-color:rgba(224,120,32,.2)'}">${pi.applied?'✓ '+pi.status:pi.status}</span>
+          ${pi.applied
+            ? '<span style="font-size:9px;padding:3px 10px;border-radius:4px;background:rgba(31,170,90,.22);color:#2ddf80;border:1px solid rgba(31,170,90,.5);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-left:4px">✓ CONFIRMADO</span>'
+            : (()=>{
+                const s=_piCalcStatus(pi);
+                if(s.pct>=100) return '<span style="font-size:9px;padding:3px 10px;border-radius:4px;background:rgba(31,170,90,.22);color:#2ddf80;border:1px solid rgba(31,170,90,.5);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-left:4px">✓ CONFIRMADO</span>';
+                if(s.pct>0) return '<span style="font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(240,192,64,.1);color:var(--gold);border:1px solid rgba(240,192,64,.25);margin-left:4px">'+s.pct+'% na grade</span>';
+                return '';
+              })()} 
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px 16px">
           <div><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:3px">Número</div><div style="font-family:var(--font-d);font-size:15px;font-weight:700;color:var(--gold2)">PI ${pi.piNumber||'—'}</div></div>
@@ -7413,16 +7436,22 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     if(typeof broadcastState==='function') broadcastState();
     renderRoteiro();if(typeof renderMidList==='function')renderMidList();renderCtrl();
     selPi.applied=true;
-    selPi.appliedCount = added + synced; // guardar quantas inserções foram aplicadas
-    _savePiList();piRenderList();piSetStep(4);
-    // Botão verde ao confirmar distribuição
-    const _applyBtn = document.getElementById('pi-btn-apply');
-    if(_applyBtn){
-      _applyBtn.textContent='✓ Distribuído';
-      _applyBtn.className='btn btn-sm';
-      _applyBtn.style.cssText='background:rgba(31,170,90,.18);border:1px solid rgba(31,170,90,.5);color:var(--green);font-weight:700';
-    }
+    selPi.appliedCount = added + synced;
+    _savePiList();
+    piSetStep(4);
+
+    // Agora applied=true está na memória → piRenderList gera badge verde diretamente
+    piRenderList();
     piRenderPreview();
+
+    // Botão Aplicar → verde
+    var _applyBtn = document.getElementById('pi-btn-apply');
+    if(_applyBtn){
+      var _lbl = selPi.status||'APROVADO';
+      _applyBtn.textContent = '✓ '+_lbl;
+      _applyBtn.className = 'btn btn-sm';
+      _applyBtn.style.cssText = 'background:rgba(31,170,90,.22);border:1px solid rgba(31,170,90,.6);color:#2ddf80;font-weight:700;letter-spacing:.8px;display:inline-flex';
+    }
     const msg=[];if(added)msg.push(added+' inserções');if(synced)msg.push(synced+' sincronizados');
     showToast('✓ PI '+selPi.piNumber+': '+(msg.join(' · ')||'nada a fazer')+' em '+Object.values(piDist).filter(d=>d.inserts.some(i=>!i.warn&&i.program&&i.brk)).length+' dia(s)');
   };
@@ -7596,7 +7625,30 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       });
     })));
 
-    // 2) Calcular quantas inserções são encaixáveis via piBuildDist
+    // 2) Se já foi aplicada: usar appliedCount gravado, ou reparar pelo que está na grade
+    if(p.applied){
+      // Reparar appliedCount se ausente ou zerado (PI aplicada em versão antiga do código)
+      if(!(p.appliedCount > 0)){
+        if(distribuidas > 0){
+          // Já temos inserções na grade — usar essa contagem como referência
+          p.appliedCount = distribuidas;
+        } else {
+          // Grade pode estar vazia/outro mês — usar totalInsertions como fallback
+          p.appliedCount = p.totalInsertions || 0;
+        }
+        if(p.appliedCount > 0) _savePiList();
+      }
+      // Se appliedCount ainda zerado, evitar divisão por zero
+      if(!(p.appliedCount > 0)){
+        return {total:p.totalInsertions||0, distribuidas, pendentes:0, pct:100, encaixaveis:0};
+      }
+      const total = p.appliedCount;
+      const pendentes = Math.max(0, total - distribuidas);
+      const pct = Math.min(100, Math.round(distribuidas / total * 100));
+      return {total, distribuidas, pendentes, pct, encaixaveis: total};
+    }
+
+    // 3) Ainda não aplicada: calcular encaixáveis via piBuildDist
     let encaixaveis = 0;
     try{
       const {monthNum:pm, yearNum:py} = parsePeriod(p.period||'');
@@ -7608,11 +7660,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       });
     }catch(e){ encaixaveis = 0; }
 
-    // 3) Se appliedCount disponível (gravado ao aplicar), usar como referência
-    const total = p.appliedCount > 0 ? p.appliedCount :
-                  encaixaveis > 0    ? encaixaveis    :
-                  (p.totalInsertions||0);
-
+    const total = encaixaveis > 0 ? encaixaveis : (p.totalInsertions||0);
     const pendentes = Math.max(0, total - distribuidas);
     const pct = total > 0 ? Math.min(100, Math.round(distribuidas / total * 100)) : 0;
     return {total, distribuidas, pendentes, pct, encaixaveis};
@@ -7623,11 +7671,17 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
   // Verde    = 100% distribuída no roteiro
   // Vermelho = aplicada mas com inserções faltando
   function _piStatusBadge(p){
+    // Se o operador já aplicou → status do PDF (ex: APROVADO) em VERDE
+    if(p.applied){
+      var _lbl = p.status||'APROVADO';
+      return `<span style="font-size:8px;padding:2px 7px;border-radius:3px;background:rgba(31,170,90,.22);color:#2ddf80;border:1px solid rgba(31,170,90,.5);font-weight:700;letter-spacing:.8px;text-transform:uppercase">✓ ${_lbl}</span>`;
+    }
+
     const s = _piCalcStatus(p);
 
-    // Aplicada OU 100% distribuído → verde com "100% na grade"
-    if(p.applied || s.pct>=100){
-      return `<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(31,170,90,.15);color:var(--green);border:1px solid rgba(31,170,90,.3);font-weight:600">✓ 100% na grade</span>`;
+    // 100% distribuído sem ter clicado aplicar (ex: via sync)
+    if(s.pct>=100){
+      return `<span style="font-size:8px;padding:2px 7px;border-radius:3px;background:rgba(31,170,90,.22);color:#2ddf80;border:1px solid rgba(31,170,90,.5);font-weight:700;letter-spacing:.8px;text-transform:uppercase">✓ CONFIRMADO</span>`;
     }
 
     // Parcialmente na grade → dourado com %
@@ -7685,9 +7739,10 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         : '';
       // Card compacto com status real de distribuição
       const _piColor = isPast?'#c8956a':'var(--gold)';
-      const _badge   = _piStatusBadge(p);
       const _st      = _piCalcStatus(p);
-      const _borderColor = isPast?'rgba(180,120,60,.5)':p.applied?'rgba(31,170,90,.4)':_st.pct>0?'rgba(240,192,64,.35)':'';
+      const _badge   = _piStatusBadge(p);
+      const _isConfirmed = p.applied && _st.pendentes===0;
+      const _borderColor = isPast?'rgba(180,120,60,.5)':_isConfirmed?'rgba(45,223,128,.6)':p.applied?'rgba(31,170,90,.4)':_st.pct>0?'rgba(240,192,64,.35)':'';
       return `
       <div class="pi-card-inner${selPi?.id===p.id?' pi-active':''}"
         style="${_borderColor?'border-left:2px solid '+_borderColor:''}"
@@ -7726,9 +7781,13 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     const _btnA = document.getElementById('pi-btn-apply');
     if(_btnA){
       if(selPi.applied){
-        _btnA.textContent='✓ Distribuído';
+        const _stSel = _piCalcStatus(selPi);
+        const _fitSel = _stSel.pendentes===0;
+        _btnA.textContent = _fitSel ? '✓ CONFIRMADO' : '✓ Distribuído';
         _btnA.className='btn btn-sm';
-        _btnA.style.cssText='background:rgba(31,170,90,.18);border:1px solid rgba(31,170,90,.5);color:var(--green);font-weight:700';
+        _btnA.style.cssText = _fitSel
+          ? 'background:rgba(31,170,90,.22);border:1px solid rgba(31,170,90,.6);color:#2ddf80;font-weight:700;letter-spacing:.8px'
+          : 'background:rgba(31,170,90,.18);border:1px solid rgba(31,170,90,.5);color:var(--green);font-weight:700';
       } else {
         _btnA.textContent='✓ Aplicar';
         _btnA.className='btn btn-green btn-sm';
