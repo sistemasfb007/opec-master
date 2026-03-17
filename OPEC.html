@@ -1122,57 +1122,58 @@ function _fbConnect(){
     _applyGrade(d);
   });
 
-  // ── Escutar air_logs dedicado (persistido pelo MASTER) ──
-  if(_unsubAirLogs){ _unsubAirLogs(); _unsubAirLogs=null; }
-  const rAir = ref(db,`estacoes/${_stationCode}/air_logs`);
-  get(rAir).then(snap=>{ if(snap.exists()) _applyAirLogsDedicated(snap.val()); }).catch(()=>{});
-  _unsubAirLogs = onValue(rAir, snap=>{ if(snap.exists()) _applyAirLogsDedicated(snap.val()); });
+  // ── Escutar air_logs e opec_log persistidos ──
+  if(_unsubAirLogs){ try{ _unsubAirLogs(); }catch(e){} _unsubAirLogs=null; }
+  if(_unsubOpecLog){ try{ _unsubOpecLog(); }catch(e){} _unsubOpecLog=null; }
+  try{
+    const rAir = ref(db,`estacoes/${_stationCode}/air_logs`);
+    get(rAir).then(snap=>{ if(snap.exists()) _applyAirLogsDedicated(snap.val()); }).catch(()=>{});
+    _unsubAirLogs = onValue(rAir, snap=>{ if(snap.exists()) _applyAirLogsDedicated(snap.val()); });
 
-  // ── Escutar opec_log do Firebase ──
-  if(_unsubOpecLog){ _unsubOpecLog(); _unsubOpecLog=null; }
-  const rOpec = ref(db,`estacoes/${_stationCode}/opec_log`);
-  get(rOpec).then(snap=>{ if(snap.exists()) _applyOpecLogFb(snap.val()); }).catch(()=>{});
-  _unsubOpecLog = onValue(rOpec, snap=>{ if(snap.exists()) _applyOpecLogFb(snap.val()); });
+    const rOpec = ref(db,`estacoes/${_stationCode}/opec_log`);
+    get(rOpec).then(snap=>{ if(snap.exists()) _applyOpecLogFb(snap.val()); }).catch(()=>{});
+    _unsubOpecLog = onValue(rOpec, snap=>{ if(snap.exists()) _applyOpecLogFb(snap.val()); });
 
-  // ── Restaurar cur (estado em andamento) do Firebase ──
-  const rCur = ref(db,`estacoes/${_stationCode}/cur`);
-  get(rCur).then(snap=>{
-    if(!snap.exists()) return;
-    const d = snap.val();
-    const localTs = parseInt(lsGet('roteiro_cur_ts')||'0');
-    const fbTs = d._ts||0;
-    if(fbTs > localTs){
-      const c = {...d}; delete c._ts;
-      cur = {...cur, ...c};
-      if(!Array.isArray(cur.doneKeys)) cur.doneKeys=[];
-      lsSet('roteiro_cur', JSON.stringify(cur));
-      lsSet('roteiro_cur_ts', String(fbTs));
-      if(typeof renderRoteiro==='function') renderRoteiro();
-      if(typeof renderCtrl==='function') renderCtrl();
-    }
-  }).catch(()=>{});
+    // Restaurar cur do Firebase
+    const rCur = ref(db,`estacoes/${_stationCode}/cur`);
+    get(rCur).then(snap=>{
+      if(!snap.exists()) return;
+      const d = snap.val(), fbTs = d._ts||0;
+      const localTs = parseInt(localStorage.getItem('roteiro_cur_ts')||'0');
+      if(fbTs > localTs){
+        const c = {...d}; delete c._ts;
+        cur = {...cur, ...c};
+        if(!Array.isArray(cur.doneKeys)) cur.doneKeys=[];
+        localStorage.setItem('roteiro_cur', JSON.stringify(cur));
+        localStorage.setItem('roteiro_cur_ts', String(fbTs));
+        if(typeof renderRoteiro==='function') renderRoteiro();
+        if(typeof renderCtrl==='function') renderCtrl();
+      }
+    }).catch(()=>{});
+  }catch(e){ console.warn('[OPEC] _fbConnect extras:', e); }
 }
 
 function _applyAirLogsDedicated(data){
-  const ts = data._ts||0;
-  if(ts && ts <= _lastAirLogsTs) return;
-  const localAirTs = parseInt(localStorage.getItem('roteiro_air_ts')||'0');
-  if(ts <= localAirTs) return;
-  _lastAirLogsTs = ts;
-  const logs = {...data}; delete logs._ts;
-  localStorage.setItem('roteiro_air_logs', JSON.stringify(logs));
-  localStorage.setItem('roteiro_air_ts', String(ts));
-  if(typeof renderRoteiro==='function') renderRoteiro();
+  try{
+    const ts = data._ts||0;
+    const localTs = parseInt(localStorage.getItem('roteiro_air_ts')||'0');
+    if(ts && ts <= Math.max(_lastAirLogsTs, localTs)) return;
+    _lastAirLogsTs = ts||Date.now();
+    const logs = {...data}; delete logs._ts;
+    localStorage.setItem('roteiro_air_logs', JSON.stringify(logs));
+    localStorage.setItem('roteiro_air_ts', String(_lastAirLogsTs));
+    if(typeof renderRoteiro==='function') renderRoteiro();
+  }catch(e){}
 }
 
 function _applyOpecLogFb(data){
-  const ts = data._ts||0;
-  if(ts && ts <= _lastOpecLogTs) return;
-  _lastOpecLogTs = ts||Date.now();
-  const entries = data.entries||[];
-  localStorage.setItem('roteiro_opec_log', JSON.stringify(entries));
-  // renderizar confirmações OPEC se a função existir
-  if(typeof _renderOpecConfirmacoes==='function') _renderOpecConfirmacoes();
+  try{
+    const ts = data._ts||0;
+    if(ts && ts <= _lastOpecLogTs) return;
+    _lastOpecLogTs = ts||Date.now();
+    const entries = data.entries||[];
+    localStorage.setItem('roteiro_opec_log', JSON.stringify(entries));
+  }catch(e){}
 }
 
 function _applyGrade(d){
@@ -3201,18 +3202,13 @@ function broadcastState(){
     const payload=JSON.stringify({grade,cur,ts:Date.now()});
     lsSet('roteiro_ip_state',payload);
   }
-  // ── Persistir cur e doneKeys no Firebase para sobreviver a reloads ──
-  if(typeof db !== 'undefined' && db && _stationCode){
-    try{
-      const ts = Date.now();
-      const curPayload = {
-        ...cur,
-        doneKeys: cur.doneKeys||[],
-        _ts: ts
-      };
-      ref(db,`estacoes/${_stationCode}/cur`).set(curPayload).catch(()=>{});
-    }catch(e){}
-  }
+  // Persistir cur no Firebase para sobreviver a reloads
+  try{
+    if(typeof db!=='undefined' && db && _stationCode){
+      const ts=Date.now();
+      ref(db,`estacoes/${_stationCode}/cur`).set({...cur, doneKeys:cur.doneKeys||[], _ts:ts}).catch(()=>{});
+    }
+  }catch(e){}
 }
 
 // ═══ CRUD ═══
@@ -3723,6 +3719,18 @@ function doSaveMidia(realIdx){
   closeModal('m-item');
   renderMidList();
   showToast('✓ Material atualizado' + (_gradeChanged ? ' e grade sincronizada' : ''));
+
+  // Atualizar painel do Leitor de PI se o material editado pertence à PI selecionada
+  try{
+    const _upd = mediaLib[realIdx];
+    if(typeof window.piRenderPreview==='function' && window._piCurrentSelPiNum){
+      const _linked = (_upd.piNumber && String(_upd.piNumber).trim()===String(window._piCurrentSelPiNum).trim()) ||
+                      (_upd.piLinks||[]).some(lk=>String(lk.piNumber||'').trim()===String(window._piCurrentSelPiNum).trim());
+      if(_linked) window.piRenderPreview();
+    }
+    if(typeof window.piRenderList==='function') window.piRenderList();
+  }catch(e){}
+
   // Reset modal back to "add" mode
   _resetAddItemModal();
 }
@@ -6881,8 +6889,10 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       </div>`);
   }
 
+  window.piRenderPreview = function(){ piRenderPreview(); };
   function piRenderPreview(){
     const pi=selPi;
+    window._piCurrentSelPiNum = selPi ? String(selPi.piNumber||'') : '';
     const g=JSON.parse(lsGet('roteiro_grade')||'{}');
     const {monthNum,yearNum}=parsePeriod(pi.period);
     const totalIns=(pi.lines||[]).reduce((s,l)=>s+l.totalInsertions,0);
@@ -7001,7 +7011,18 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         <div class="card-head" style="display:flex;align-items:center;justify-content:space-between">
           <span>Dados do PI</span>
           <span style="font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:2px 8px;border-radius:3px;border:1px solid;${pi.status==='APROVADO'?'background:rgba(31,170,90,.12);color:var(--green);border-color:rgba(31,170,90,.2)':'background:rgba(224,120,32,.12);color:#e07820;border-color:rgba(224,120,32,.2)'}">${pi.status}</span>
-          ${(()=>{const s=_piCalcStatus(pi);return pi.applied?'<span style="font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(31,170,90,.15);color:var(--green);border:1px solid rgba(31,170,90,.3);font-weight:700;margin-left:4px">✓ DISTRIBUÍDO</span>':s.pct>0?'<span style="font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(240,192,64,.1);color:var(--gold);border:1px solid rgba(240,192,64,.25);margin-left:4px">'+s.pct+'% na grade</span>':'';})()} 
+          ${(()=>{
+            const s=_piCalcStatus(pi);
+            // Se aplicada OU 100% distribuído -> verde
+            if(pi.applied || s.pct>=100){
+              return '<span style="font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(31,170,90,.15);color:var(--green);border:1px solid rgba(31,170,90,.3);font-weight:700;margin-left:4px">✓ 100% na grade</span>';
+            }
+            // Parcialmente distribuída
+            if(s.pct>0){
+              return '<span style="font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(240,192,64,.1);color:var(--gold);border:1px solid rgba(240,192,64,.25);margin-left:4px">'+s.pct+'% na grade</span>';
+            }
+            return '';
+          })()} 
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px 16px">
           <div><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:3px">Número</div><div style="font-family:var(--font-d);font-size:15px;font-weight:700;color:var(--gold2)">PI ${pi.piNumber||'—'}</div></div>
@@ -7176,7 +7197,15 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
   };
 
   window.piShowConfirm=function(){
-    if(!selPi||!piDist)return;
+    if(!selPi) return;
+    // Se piDist não foi calculado ainda (ex: PI já aplicada e usuário clicou direto),
+    // calcular automaticamente antes de abrir o modal
+    if(!piDist){
+      const g=JSON.parse(lsGet('roteiro_grade')||'{}');
+      const {monthNum,yearNum}=parsePeriod(selPi.period);
+      piDist=piBuildDist(selPi,g,monthNum,yearNum);
+    }
+    if(!piDist) return;
     let matched=0, flexCount=0, unmatched=0;
     Object.values(piDist).forEach(d=>d.inserts.forEach(i=>{
       if(i.warn)         unmatched+=i.count;
@@ -7286,6 +7315,14 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
   window.piDoApply=function(){
     document.getElementById('pi-modal-confirm').style.display='none';
+    if(!selPi) return;
+    // Garantir que piDist existe antes de aplicar
+    if(!piDist){
+      const _g=JSON.parse(lsGet('roteiro_grade')||'{}');
+      const {monthNum:_mn,yearNum:_yn}=parsePeriod(selPi.period);
+      piDist=piBuildDist(selPi,_g,_mn,_yn);
+    }
+    if(!piDist) return;
     const g=JSON.parse(lsGet('roteiro_grade')||'{}');
     let added=0,synced=0;
     // Sincronizar materiais já vinculados
@@ -7375,9 +7412,17 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(g);
     if(typeof broadcastState==='function') broadcastState();
     renderRoteiro();if(typeof renderMidList==='function')renderMidList();renderCtrl();
-    selPi.applied=true;_savePiList();piRenderList();piSetStep(4);
-    document.getElementById('pi-btn-apply').textContent='✓ Aplicado';
-    document.getElementById('pi-btn-apply').className='btn btn-ghost btn-sm';
+    selPi.applied=true;
+    selPi.appliedCount = added + synced; // guardar quantas inserções foram aplicadas
+    _savePiList();piRenderList();piSetStep(4);
+    // Botão verde ao confirmar distribuição
+    const _applyBtn = document.getElementById('pi-btn-apply');
+    if(_applyBtn){
+      _applyBtn.textContent='✓ Distribuído';
+      _applyBtn.className='btn btn-sm';
+      _applyBtn.style.cssText='background:rgba(31,170,90,.18);border:1px solid rgba(31,170,90,.5);color:var(--green);font-weight:700';
+    }
+    piRenderPreview();
     const msg=[];if(added)msg.push(added+' inserções');if(synced)msg.push(synced+' sincronizados');
     showToast('✓ PI '+selPi.piNumber+': '+(msg.join(' · ')||'nada a fazer')+' em '+Object.values(piDist).filter(d=>d.inserts.some(i=>!i.warn&&i.program&&i.brk)).length+' dia(s)');
   };
@@ -7535,21 +7580,42 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
 
   // Calcular status real de distribuição de uma PI
-  // Retorna: {total, distribuidas, pendentes, pct}
+  // "encaixaveis" = inserções que piBuildDist consegue colocar na grade (sem warn)
+  // "distribuidas" = inserções desta PI já presentes na grade
+  // pct = distribuidas / encaixaveis × 100 (100% = tudo que era possível está na grade)
   function _piCalcStatus(p, g){
-    if(!p||!p.lines||!p.piNumber) return {total:p?.totalInsertions||0,distribuidas:0,pendentes:p?.totalInsertions||0,pct:0};
+    if(!p||!p.lines||!p.piNumber) return {total:p?.totalInsertions||0,distribuidas:0,pendentes:0,pct:0};
     const piNum = String(p.piNumber).trim();
+    const _g = g||grade;
+
+    // 1) Contar inserções desta PI presentes na grade
     let distribuidas = 0;
-    // Contar inserções desta PI em todos os breaks da grade
-    Object.values(g||grade).forEach(progs=>(progs||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>{
+    Object.values(_g).forEach(progs=>(progs||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>{
       (brk.items||[]).forEach(it=>{
         if(String(it.piNumber||'').trim()===piNum) distribuidas++;
       });
     })));
-    const total = p.totalInsertions||0;
+
+    // 2) Calcular quantas inserções são encaixáveis via piBuildDist
+    let encaixaveis = 0;
+    try{
+      const {monthNum:pm, yearNum:py} = parsePeriod(p.period||'');
+      const dist = piBuildDist(p, _g, pm, py);
+      Object.values(dist).forEach(day=>{
+        day.inserts.forEach(ins=>{
+          if(!ins.warn) encaixaveis += ins.count;
+        });
+      });
+    }catch(e){ encaixaveis = 0; }
+
+    // 3) Se appliedCount disponível (gravado ao aplicar), usar como referência
+    const total = p.appliedCount > 0 ? p.appliedCount :
+                  encaixaveis > 0    ? encaixaveis    :
+                  (p.totalInsertions||0);
+
     const pendentes = Math.max(0, total - distribuidas);
-    const pct = total>0 ? Math.round(distribuidas/total*100) : 0;
-    return {total, distribuidas, pendentes, pct};
+    const pct = total > 0 ? Math.min(100, Math.round(distribuidas / total * 100)) : 0;
+    return {total, distribuidas, pendentes, pct, encaixaveis};
   }
 
   // Badge de status real
@@ -7559,23 +7625,17 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
   function _piStatusBadge(p){
     const s = _piCalcStatus(p);
 
-    // Aplicada — sempre mostrar verde (já foi distribuída)
-    if(p.applied){
-      if(s.pct>=100){
-        return `<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(31,170,90,.15);color:var(--green);border:1px solid rgba(31,170,90,.3);font-weight:600">✓ DISTRIBUÍDO</span>`;
-      }
-      // Aplicada mas grade atual tem menos inserções que o total do PDF
-      // Isso é normal — a grade mostra só a semana corrente
-      // Mostrar como distribuído se foi aplicada
-      return `<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(31,170,90,.15);color:var(--green);border:1px solid rgba(31,170,90,.3);font-weight:600">✓ DISTRIBUÍDO</span>`;
+    // Aplicada OU 100% distribuído → verde com "100% na grade"
+    if(p.applied || s.pct>=100){
+      return `<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(31,170,90,.15);color:var(--green);border:1px solid rgba(31,170,90,.3);font-weight:600">✓ 100% na grade</span>`;
     }
 
-    // Não aplicada com inserções já na grade — parcial
-    if(s.pct>0 && !p.applied){
+    // Parcialmente na grade → dourado com %
+    if(s.pct>0){
       return `<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(240,192,64,.1);color:var(--gold);border:1px solid rgba(240,192,64,.25);font-weight:600">${s.pct}% na grade</span>`;
     }
 
-    // Não aplicada — mostrar status do PDF
+    // Não aplicada → status do PDF
     return `<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(212,160,23,.1);color:var(--gold);border:1px solid rgba(212,160,23,.3);font-weight:600">${p.status||'APROVADO'}</span>`;
   }
 
@@ -7627,7 +7687,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       const _piColor = isPast?'#c8956a':'var(--gold)';
       const _badge   = _piStatusBadge(p);
       const _st      = _piCalcStatus(p);
-      const _borderColor = isPast?'rgba(180,120,60,.5)':(_st.pct>=100&&p.applied)?'rgba(31,170,90,.4)':(p.applied&&_st.pct<100)?'rgba(192,57,43,.4)':'';
+      const _borderColor = isPast?'rgba(180,120,60,.5)':p.applied?'rgba(31,170,90,.4)':_st.pct>0?'rgba(240,192,64,.35)':'';
       return `
       <div class="pi-card-inner${selPi?.id===p.id?' pi-active':''}"
         style="${_borderColor?'border-left:2px solid '+_borderColor:''}"
@@ -7662,8 +7722,19 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     const ab=document.getElementById('pi-action-bar');ab.style.display='flex';
     document.getElementById('pi-btn-dist').style.display='inline-flex';
     document.getElementById('pi-btn-apply').style.display='none';
-    document.getElementById('pi-btn-apply').textContent='✓ Aplicar';
-    document.getElementById('pi-btn-apply').className='btn btn-green btn-sm';
+    // Estado do botão conforme histórico
+    const _btnA = document.getElementById('pi-btn-apply');
+    if(_btnA){
+      if(selPi.applied){
+        _btnA.textContent='✓ Distribuído';
+        _btnA.className='btn btn-sm';
+        _btnA.style.cssText='background:rgba(31,170,90,.18);border:1px solid rgba(31,170,90,.5);color:var(--green);font-weight:700';
+      } else {
+        _btnA.textContent='✓ Aplicar';
+        _btnA.className='btn btn-green btn-sm';
+        _btnA.style.cssText='';
+      }
+    }
     document.getElementById('pi-action-info').textContent=`PI ${selPi.piNumber} — ${selPi.client}`;
   };
 
