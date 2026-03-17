@@ -1101,6 +1101,8 @@ function _fbConnect(){
     }
     _fbReady=true; _fbDot('green');
     if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
+    // Carregar piList do Firebase após conectar
+    if(typeof _fbLoadPiList==='function') _fbLoadPiList();
   }).catch(()=>{ _fbReady=true; _fbDot('red'); });
   if(_unsubscribe) _unsubscribe();
   _unsubscribe=onValue(_gradeRef, snap=>{
@@ -2360,7 +2362,7 @@ function _segConflictResp(ok){
       </div>
     </div>
     <!-- Confirm modal -->
-    <div id="pi-modal-confirm" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.85);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(6px)" onclick="if(event.target===this)this.style.display='none'">
+    <div id="pi-modal-confirm" role="dialog" aria-modal="true" aria-label="Confirmar distribuição" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.85);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(6px)" onclick="if(event.target===this)this.style.display='none'">
       <div style="background:var(--s1);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:28px;width:460px;max-width:95%;box-shadow:0 32px 80px rgba(0,0,0,.8)">
         <div style="font-family:var(--font-d);font-size:16px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text);margin-bottom:4px">✓ Confirmar Aplicação</div>
         <div id="pi-modal-sub" style="font-size:11px;color:var(--text2);margin-bottom:16px;line-height:1.6"></div>
@@ -2569,7 +2571,7 @@ function _masterAbrirLink(){
   var url=v.indexOf('http')===0?v:('file:///'+v.split('\\').join('/'));
   window.open(url,'_blank');
 }
-function setView(v){document.querySelectorAll('.view').forEach(e=>e.classList.remove('active'));document.getElementById(v).classList.add('active');}
+function setView(v){document.querySelectorAll('.view').forEach(e=>e.classList.remove('active'));const _ve=document.getElementById(v);if(_ve)_ve.classList.add('active');if(v!=='opc-view'&&window._opcClockInt){clearInterval(window._opcClockInt);window._opcClockInt=null;}}
 
 // ═══ CLOCK ═══
 function updateClocks(){
@@ -4285,7 +4287,15 @@ function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2
 function pad(n){return String(n).padStart(2,'0');}
 function mkKey(d,pi,bi,ii){return `${d}-${pi}-${bi}-${ii}`;}
 function fmtSec(s){s=parseInt(s)||0;return `${pad(Math.floor(s/60))}:${pad(s%60)}`;}
-function showToast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+function showToast(msg,dur){
+  dur=dur||3500;
+  const t=$('toast');if(!t)return;
+  t.innerHTML=`<span style="flex:1">${msg}</span><span onclick="this.parentElement.classList.remove('show')" style="cursor:pointer;opacity:.5;padding-left:12px;font-size:14px" title="Fechar">✕</span>`;
+  t.style.display='flex';t.style.alignItems='center';
+  t.classList.add('show');
+  clearTimeout(window._toastT);
+  window._toastT=setTimeout(()=>t.classList.remove('show'),dur);
+}
 
 // ══════════════════════════════════════════════
 // MELHORIAS — FASE 2 + 3 + 4
@@ -6356,8 +6366,50 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 // ══════════════════════════════════════════════════════════════════
 (function(){
 
-  // Carregar piList salva do localStorage
+  // Carregar piList — Firebase tem prioridade, localStorage como fallback
   let piList=[], selPi=null, piDist=null;
+  // Função para aplicar piList carregada (de qualquer fonte)
+  function _applyPiList(data, source){
+    try{
+      var loaded = typeof data==='string' ? JSON.parse(data) : data;
+      if(!Array.isArray(loaded)) return false;
+      loaded = loaded.filter(function(p){ return p && p.id && p.piNumber; });
+      if(loaded.length === 0 && piList.length > 0) return false; // não substituir por lista vazia
+      piList = loaded;
+      window._piList = piList;
+      if(source==='firebase') localStorage.setItem('roteiro_pilist', JSON.stringify(loaded));
+      piRenderList();
+      return true;
+    }catch(e){ return false; }
+  }
+  // Carregar do Firebase ao conectar
+  function _fbLoadPiList(){
+    try{
+      if(typeof db==='undefined'||!db||!window._stationCode) return;
+      get(ref(db,'estacoes/'+window._stationCode+'/pilist')).then(function(snap){
+        if(snap.exists()){
+          var d = snap.val();
+          var fbTs = d._ts||0;
+          var localTs = parseInt(localStorage.getItem('roteiro_pilist_ts')||'0');
+          if(fbTs >= localTs){
+            _applyPiList(d.data||'[]', 'firebase');
+            localStorage.setItem('roteiro_pilist_ts', String(fbTs));
+          }
+        }
+      }).catch(function(){});
+      // Escutar mudanças em tempo real (outro navegador aplica PI)
+      onValue(ref(db,'estacoes/'+window._stationCode+'/pilist'), function(snap){
+        if(!snap.exists()) return;
+        var d = snap.val();
+        var fbTs = d._ts||0;
+        var localTs = parseInt(localStorage.getItem('roteiro_pilist_ts')||'0');
+        if(fbTs > localTs){
+          _applyPiList(d.data||'[]', 'firebase');
+          localStorage.setItem('roteiro_pilist_ts', String(fbTs));
+        }
+      });
+    }catch(e){}
+  }
   try{
     const _saved = localStorage.getItem('roteiro_pilist');
     if(_saved){
@@ -6393,6 +6445,34 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     }
   }catch(e){ piList=[]; }
   window._piList=piList;
+  function _fbLoadPiList(){
+    try{
+      if(typeof db==='undefined'||!db||!window._stationCode) return;
+      const _ts0=parseInt(localStorage.getItem('roteiro_pilist_ts')||'0');
+      get(ref(db,'estacoes/'+window._stationCode+'/pilist')).then(snap=>{
+        if(!snap.exists()) return;
+        const d=snap.val(),fbTs=d._ts||0;
+        if(fbTs>_ts0) _applyFbPiList(d.data,fbTs);
+      }).catch(()=>{});
+      onValue(ref(db,'estacoes/'+window._stationCode+'/pilist'),snap=>{
+        if(!snap.exists()) return;
+        const d=snap.val(),fbTs=d._ts||0;
+        const localTs=parseInt(localStorage.getItem('roteiro_pilist_ts')||'0');
+        if(fbTs>localTs) _applyFbPiList(d.data,fbTs);
+      });
+    }catch(e){}
+  }
+  function _applyFbPiList(data,ts){
+    try{
+      const loaded=JSON.parse(data||'[]');
+      if(!Array.isArray(loaded)||loaded.length===0) return;
+      piList=loaded.filter(p=>p&&p.id&&p.piNumber);
+      window._piList=piList;
+      localStorage.setItem('roteiro_pilist',JSON.stringify(piList));
+      localStorage.setItem('roteiro_pilist_ts',String(ts));
+      piRenderList();
+    }catch(e){}
+  }
 
   // Boot: renderizar lista assim que o DOM estiver pronto
   function _piBootRender(){
@@ -6421,7 +6501,6 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
   function _savePiList(){
     try{
-      //Salvar lista sem piDist (grande demais) — só metadados
       const toSave = piList.map(p=>({
         id:p.id, piNumber:p.piNumber, status:p.status, client:p.client,
         campaign:p.campaign, title:p.title, period:p.period, duration:p.duration,
@@ -6429,8 +6508,17 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         materialSeq:p.materialSeq, lines:p.lines, applied:p.applied||false,
         appliedCount:p.appliedCount||0
       }));
+      // Salvar no localStorage (cache local)
       localStorage.setItem('roteiro_pilist', JSON.stringify(toSave));
-    }catch(e){ console.warn('[PI] Erro ao salvar lista:', e); }
+      // Salvar no Firebase (fonte de verdade compartilhada)
+      try{
+        if(typeof db!=='undefined' && db && window._stationCode){
+          var _ts = Date.now();
+          localStorage.setItem('roteiro_pilist_ts', String(_ts));
+          set(ref(db,'estacoes/'+window._stationCode+'/pilist'), {data: JSON.stringify(toSave), _ts: _ts});
+        }
+      }catch(e){}
+    }catch(e){}
   }
 
   const MESES={janeiro:0,fevereiro:1,marco:2,março:2,abril:3,maio:4,junho:5,
@@ -7458,11 +7546,11 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     piRenderPreview();
 
     // Botão Aplicar → ✓ APROVADO verde
-    var _applyBtn2 = document.getElementById('pi-btn-apply');
-    if(_applyBtn2){
-      _applyBtn2.textContent = '✓ ' + (selPi.status||'APROVADO');
-      _applyBtn2.className = 'btn btn-sm';
-      _applyBtn2.style.cssText = 'background:rgba(31,170,90,.22);border:1px solid rgba(31,170,90,.6);color:#2ddf80;font-weight:700;letter-spacing:.8px;display:inline-flex';
+    const _applyBtnX=document.getElementById('pi-btn-apply');
+    if(_applyBtnX){
+      _applyBtnX.textContent='✓ '+(selPi.status||'APROVADO');
+      _applyBtnX.className='btn btn-sm';
+      _applyBtnX.style.cssText='background:rgba(31,170,90,.22);border:1px solid rgba(31,170,90,.6);color:#2ddf80;font-weight:700;letter-spacing:.8px;display:inline-flex';
     }
     const msg=[];if(added)msg.push(added+' inserções');if(synced)msg.push(synced+' sincronizados');
     showToast('✓ PI '+selPi.piNumber+': '+(msg.join(' · ')||'nada a fazer')+' em '+Object.values(piDist).filter(d=>d.inserts.some(i=>!i.warn&&i.program&&i.brk)).length+' dia(s)');
@@ -7686,28 +7774,33 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
   // Verde    = 100% distribuída no roteiro
   // Vermelho = aplicada mas com inserções faltando
   function _piStatusBadge(p){
-    // Conta inserções diretamente da grade — sem depender de p.applied
-    var _piNum = String(p.piNumber||'').trim();
-    var _dist = 0;
-    Object.values(grade||{}).forEach(function(progs){
-      (progs||[]).forEach(function(prog){
-        (prog.breaks||[]).forEach(function(brk){
-          (brk.items||[]).forEach(function(it){
-            if(String(it.piNumber||'').trim()===_piNum) _dist++;
-          });
-        });
-      });
+    var _piNum=String(p.piNumber||'').trim();
+    if(!_piNum) return `<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(212,160,23,.1);color:var(--gold);border:1px solid rgba(212,160,23,.3);font-weight:600">${p.status||'APROVADO'}</span>`;
+    var _gradePerDow={};
+    Object.keys(grade||{}).forEach(function(dow){
+      var _c=0;
+      (grade[dow]||[]).forEach(function(prog){(prog.breaks||[]).forEach(function(brk){(brk.items||[]).forEach(function(it){if(String(it.piNumber||'').trim()===_piNum)_c++;});});});
+      if(_c>0) _gradePerDow[parseInt(dow)]=_c;
     });
-    var _total = (p.appliedCount > 0) ? p.appliedCount : (p.totalInsertions||0);
-    var _pct   = _total > 0 ? Math.min(100, Math.round(_dist/_total*100)) : 0;
-
-    if(_pct >= 100){
-      var _lbl = p.status||'APROVADO';
-      return `<span style="font-size:8px;padding:2px 7px;border-radius:3px;background:rgba(31,170,90,.22);color:#2ddf80;border:1px solid rgba(31,170,90,.5);font-weight:700;letter-spacing:.8px;text-transform:uppercase">✓ ${_lbl}</span>`;
+    if(p.applied&&Object.keys(_gradePerDow).length>0){
+      var _l=p.status||'APROVADO';
+      return `<span style="font-size:8px;padding:2px 7px;border-radius:3px;background:rgba(31,170,90,.22);color:#2ddf80;border:1px solid rgba(31,170,90,.5);font-weight:700;letter-spacing:.8px;text-transform:uppercase">✓ ${_l}</span>`;
     }
-    if(_pct > 0){
-      return `<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(240,192,64,.1);color:var(--gold);border:1px solid rgba(240,192,64,.25);font-weight:600">${_pct}% na grade</span>`;
-    }
+    if(Object.keys(_gradePerDow).length===0)
+      return `<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(212,160,23,.1);color:var(--gold);border:1px solid rgba(212,160,23,.3);font-weight:600">${p.status||'APROVADO'}</span>`;
+    var _mn=0,_yn=new Date().getFullYear();
+    try{var _p=(p.period||'').split('/');if(_p.length===2){var _mm={janeiro:0,fevereiro:1,'março':2,marco:2,abril:3,maio:4,junho:5,julho:6,agosto:7,setembro:8,outubro:9,novembro:10,dezembro:11};_mn=_mm[_p[0].toLowerCase().trim()]??0;_yn=parseInt(_p[1])||_yn;}}catch(e){}
+    var _cov=0,_tot=p.totalInsertions||0;
+    if(p.lines&&p.lines.length){
+      p.lines.forEach(function(ln){(ln.days||[]).forEach(function(d){
+        try{var _i=(ln.insertionsPerDayMap&&ln.insertionsPerDayMap[d]!=null)?ln.insertionsPerDayMap[d]:(ln.insertionsPerDay||1);
+        var _dw=new Date(_yn,_mn,d).getDay();
+        if(_gradePerDow[_dw]>0)_cov+=_i;}catch(e){}
+      });});
+    } else { _cov=_tot; }
+    var _pct=_tot>0?Math.min(100,Math.round(_cov/_tot*100)):0;
+    if(_pct>=100){var _l2=p.status||'APROVADO';return `<span style="font-size:8px;padding:2px 7px;border-radius:3px;background:rgba(31,170,90,.22);color:#2ddf80;border:1px solid rgba(31,170,90,.5);font-weight:700;letter-spacing:.8px;text-transform:uppercase">✓ ${_l2}</span>`;}
+    if(_pct>0) return `<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(240,192,64,.1);color:var(--gold);border:1px solid rgba(240,192,64,.25);font-weight:600">${_pct}% na grade</span>`;
     return `<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(212,160,23,.1);color:var(--gold);border:1px solid rgba(212,160,23,.3);font-weight:600">${p.status||'APROVADO'}</span>`;
   }
 
@@ -7759,7 +7852,8 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       const _piColor = isPast?'#c8956a':'var(--gold)';
       const _st      = _piCalcStatus(p);
       const _badge   = _piStatusBadge(p);
-      const _borderColor = isPast?'rgba(180,120,60,.5)':_st.pct>=100?'rgba(45,223,128,.6)':_st.pct>0?'rgba(240,192,64,.35)':'';
+      const _isGreen = (_badge||'').includes('#2ddf80');
+      const _borderColor = isPast?'rgba(180,120,60,.5)':_isGreen?'rgba(45,223,128,.6)':(_badge||'').includes('% na grade')?'rgba(240,192,64,.35)':'';
       return `
       <div class="pi-card-inner${selPi?.id===p.id?' pi-active':''}"
         style="${_borderColor?'border-left:2px solid '+_borderColor:''}"
@@ -7800,7 +7894,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       if(selPi.applied){
         const _stSel = _piCalcStatus(selPi);
         const _fitSel = _stSel.pendentes===0;
-        _btnA.textContent = _fitSel ? '✓ CONFIRMADO' : '✓ Distribuído';
+        _btnA.textContent = _fitSel ? '✓ CONFIRMADO' : '✓ '+(selPi.status||'APROVADO');
         _btnA.className='btn btn-sm';
         _btnA.style.cssText = _fitSel
           ? 'background:rgba(31,170,90,.22);border:1px solid rgba(31,170,90,.6);color:#2ddf80;font-weight:700;letter-spacing:.8px'
@@ -8793,7 +8887,8 @@ function _initColDrag(){
     var handle=col.querySelector('.col-drag-handle');
     if(!handle) return;
 
-    handle.addEventListener('mousedown',function(e){
+    handle.addEventListener('mousedown',_startResize);handle.addEventListener('touchstart',function(e){e.preventDefault();_startResize({clientX:e.touches[0].clientX,preventDefault:()=>{}});},{ passive:false });
+function _startResize(e){
       e.preventDefault();
       _draggingCol=col;
       _startX=e.clientX;
@@ -8932,5 +9027,60 @@ function _initColDrag(){
     <button class="rmd-btn-cancel" onclick="_closeRemoveDrawer()">Cancelar</button>
   </div>
 </div>
+<!-- ── Modal de confirmação customizado (substitui confirm() nativo) ── -->
+<div id="_confirm-modal" onclick="if(event.target===this)_confirmResolve(false)"
+  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99999;
+         align-items:center;justify-content:center;backdrop-filter:blur(5px)"
+  role="dialog" aria-modal="true" aria-labelledby="_confirm-msg">
+  <div style="background:#0e1218;border:1px solid rgba(255,255,255,.12);border-radius:16px;
+              padding:26px 24px;width:400px;max-width:94%;box-shadow:0 24px 64px rgba(0,0,0,.8)">
+    <div id="_confirm-icon" style="font-size:30px;margin-bottom:10px;text-align:center"></div>
+    <div id="_confirm-msg" style="font-size:13px;color:#d8e0ea;line-height:1.75;margin-bottom:22px;text-align:center"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="_confirmResolve(false)"
+        style="flex:1;padding:11px;background:transparent;border:1px solid #2a3545;border-radius:8px;
+               color:#7a8fa8;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;
+               letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;transition:background .15s"
+        onmouseover="this.style.background='rgba(255,255,255,.06)'"
+        onmouseout="this.style.background='transparent'">Cancelar</button>
+      <button id="_confirm-ok" onclick="_confirmResolve(true)"
+        style="flex:1.6;padding:11px;border:none;border-radius:8px;color:#fff;
+               font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;
+               letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;
+               transition:filter .15s"
+        onmouseover="this.style.filter='brightness(1.12)'"
+        onmouseout="this.style.filter='none'">Confirmar</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var _res=null;
+  function _ck(e){if(e.key==='Enter')_confirmResolve(true);if(e.key==='Escape')_confirmResolve(false);}
+  window._confirmResolve=function(v){
+    var m=document.getElementById('_confirm-modal');
+    if(m)m.style.display='none';
+    document.removeEventListener('keydown',_ck);
+    if(_res){var r=_res;_res=null;r(v);}
+  };
+  window.opec_confirm=function(msg,opts){
+    opts=opts||{};
+    return new Promise(function(resolve){
+      _res=resolve;
+      var m=document.getElementById('_confirm-modal');
+      if(!m){resolve(window.confirm(msg.replace(/<[^>]+>/g,'')));return;}
+      document.getElementById('_confirm-msg').innerHTML=msg;
+      document.getElementById('_confirm-icon').textContent=opts.icon||(opts.danger?'⚠️':'❓');
+      var ok=document.getElementById('_confirm-ok');
+      ok.textContent=opts.okLabel||'Confirmar';
+      ok.style.background=opts.danger?'#c0392b':'#1e6fb5';
+      m.style.display='flex';
+      document.addEventListener('keydown',_ck);
+    });
+  };
+  // Substituir confirm() global para ações simples
+  // (ações complexas com lógica pós-confirm devem usar opec_confirm diretamente)
+})();
+</script>
 </body>
 </html>

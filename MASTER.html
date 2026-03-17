@@ -985,7 +985,7 @@ function _mlErr(msg){
 
 // ── Logout ──
 window._masterLogout = async function(){
-  if(!confirm('Sair do MASTER?')) return;
+  opec_confirm('Sair do MASTER?',{icon:'🚪'}).then(ok=>{if(!ok)return; _doMasterLogout(); }); return;
   await signOut(_auth);
 };
 
@@ -1472,7 +1472,7 @@ function _masterConectar(){
 }
 
 function _masterDesconectar(){
-  if(!confirm('Desconectar estação?')) return;
+  opec_confirm('Desconectar estação?',{danger:true,icon:'📡',okLabel:'Desconectar'}).then(ok=>{if(!ok)return;
   document.getElementById('master-estacao-modal').style.display='none';
   if(typeof window._masterDisconnect==='function') window._masterDisconnect();
 }
@@ -1492,6 +1492,35 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 </div><!-- /master-content -->
 </div><!-- /master-app-root -->
+<!-- ── Modal de confirmação customizado ── -->
+<div id="_confirm-modal" onclick="if(event.target===this)_confirmResolve(false)"
+  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99999;
+         align-items:center;justify-content:center;backdrop-filter:blur(5px)"
+  role="dialog" aria-modal="true">
+  <div style="background:#0e1218;border:1px solid rgba(255,255,255,.12);border-radius:16px;
+              padding:26px 24px;width:380px;max-width:94%;box-shadow:0 24px 64px rgba(0,0,0,.8)">
+    <div id="_confirm-icon" style="font-size:28px;margin-bottom:10px;text-align:center"></div>
+    <div id="_confirm-msg" style="font-size:13px;color:#d8e0ea;line-height:1.7;margin-bottom:20px;text-align:center"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="_confirmResolve(false)"
+        style="flex:1;padding:10px;background:transparent;border:1px solid #2a3545;border-radius:8px;
+               color:#7a8fa8;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;
+               letter-spacing:1.5px;text-transform:uppercase;cursor:pointer">Cancelar</button>
+      <button id="_confirm-ok" onclick="_confirmResolve(true)"
+        style="flex:1.5;padding:10px;background:#1e6fb5;border:none;border-radius:8px;color:#fff;
+               font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;
+               letter-spacing:1.5px;text-transform:uppercase;cursor:pointer">Confirmar</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var _r=null;
+  function _k(e){if(e.key==='Enter')_confirmResolve(true);if(e.key==='Escape')_confirmResolve(false);}
+  window._confirmResolve=function(v){var m=document.getElementById('_confirm-modal');if(m)m.style.display='none';document.removeEventListener('keydown',_k);if(_r){var r=_r;_r=null;r(v);}};
+  window.opec_confirm=function(msg,opts){opts=opts||{};return new Promise(function(resolve){_r=resolve;var m=document.getElementById('_confirm-modal');if(!m){resolve(window.confirm(msg.replace(/<[^>]+>/g,'')));return;}document.getElementById('_confirm-msg').innerHTML=msg;document.getElementById('_confirm-icon').textContent=opts.icon||(opts.danger?'⚠️':'❓');var ok=document.getElementById('_confirm-ok');ok.textContent=opts.okLabel||'Confirmar';ok.style.background=opts.danger?'#c0392b':'#1e6fb5';m.style.display='flex';document.addEventListener('keydown',_k);});};
+})();
+</script>
 </body>
 </html>
   </div>
