@@ -1085,6 +1085,11 @@ window._opecAlterarAcesso = async function(nome, access){
 };
 
 // ──Conectar ao canal da estação ──
+let _unsubAirLogs = null;
+let _unsubOpecLog = null;
+let _lastAirLogsTs = 0;
+let _lastOpecLogTs = 0;
+
 function _fbConnect(){
   if(!db||!_stationCode) return;
   _gradeRef = ref(db,`estacoes/${_stationCode}/grade`);
@@ -1116,6 +1121,58 @@ function _fbConnect(){
     if(ts<=_fbLastTs) return;
     _applyGrade(d);
   });
+
+  // ── Escutar air_logs dedicado (persistido pelo MASTER) ──
+  if(_unsubAirLogs){ _unsubAirLogs(); _unsubAirLogs=null; }
+  const rAir = ref(db,`estacoes/${_stationCode}/air_logs`);
+  get(rAir).then(snap=>{ if(snap.exists()) _applyAirLogsDedicated(snap.val()); }).catch(()=>{});
+  _unsubAirLogs = onValue(rAir, snap=>{ if(snap.exists()) _applyAirLogsDedicated(snap.val()); });
+
+  // ── Escutar opec_log do Firebase ──
+  if(_unsubOpecLog){ _unsubOpecLog(); _unsubOpecLog=null; }
+  const rOpec = ref(db,`estacoes/${_stationCode}/opec_log`);
+  get(rOpec).then(snap=>{ if(snap.exists()) _applyOpecLogFb(snap.val()); }).catch(()=>{});
+  _unsubOpecLog = onValue(rOpec, snap=>{ if(snap.exists()) _applyOpecLogFb(snap.val()); });
+
+  // ── Restaurar cur (estado em andamento) do Firebase ──
+  const rCur = ref(db,`estacoes/${_stationCode}/cur`);
+  get(rCur).then(snap=>{
+    if(!snap.exists()) return;
+    const d = snap.val();
+    const localTs = parseInt(lsGet('roteiro_cur_ts')||'0');
+    const fbTs = d._ts||0;
+    if(fbTs > localTs){
+      const c = {...d}; delete c._ts;
+      cur = {...cur, ...c};
+      if(!Array.isArray(cur.doneKeys)) cur.doneKeys=[];
+      lsSet('roteiro_cur', JSON.stringify(cur));
+      lsSet('roteiro_cur_ts', String(fbTs));
+      if(typeof renderRoteiro==='function') renderRoteiro();
+      if(typeof renderCtrl==='function') renderCtrl();
+    }
+  }).catch(()=>{});
+}
+
+function _applyAirLogsDedicated(data){
+  const ts = data._ts||0;
+  if(ts && ts <= _lastAirLogsTs) return;
+  const localAirTs = parseInt(localStorage.getItem('roteiro_air_ts')||'0');
+  if(ts <= localAirTs) return;
+  _lastAirLogsTs = ts;
+  const logs = {...data}; delete logs._ts;
+  localStorage.setItem('roteiro_air_logs', JSON.stringify(logs));
+  localStorage.setItem('roteiro_air_ts', String(ts));
+  if(typeof renderRoteiro==='function') renderRoteiro();
+}
+
+function _applyOpecLogFb(data){
+  const ts = data._ts||0;
+  if(ts && ts <= _lastOpecLogTs) return;
+  _lastOpecLogTs = ts||Date.now();
+  const entries = data.entries||[];
+  localStorage.setItem('roteiro_opec_log', JSON.stringify(entries));
+  // renderizar confirmações OPEC se a função existir
+  if(typeof _renderOpecConfirmacoes==='function') _renderOpecConfirmacoes();
 }
 
 function _applyGrade(d){
@@ -3143,6 +3200,18 @@ function broadcastState(){
     // Store IP-tagged state for cross-network polling
     const payload=JSON.stringify({grade,cur,ts:Date.now()});
     lsSet('roteiro_ip_state',payload);
+  }
+  // ── Persistir cur e doneKeys no Firebase para sobreviver a reloads ──
+  if(typeof db !== 'undefined' && db && _stationCode){
+    try{
+      const ts = Date.now();
+      const curPayload = {
+        ...cur,
+        doneKeys: cur.doneKeys||[],
+        _ts: ts
+      };
+      ref(db,`estacoes/${_stationCode}/cur`).set(curPayload).catch(()=>{});
+    }catch(e){}
   }
 }
 

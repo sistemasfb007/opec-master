@@ -1013,6 +1013,11 @@ function _apply(d){
 }
 
 // ── Conectar ao canal ──
+let _unsubAirLogs = null;
+let _unsubOpecLog = null;
+let _lastAirLogsTs = 0;
+let _lastOpecLogTs = 0;
+
 function _connect(code){
   if(!_db||!code) return;
   const r = ref(_db,'estacoes/'+code+'/grade');
@@ -1020,6 +1025,56 @@ function _connect(code){
   get(r).then(snap=>{ if(snap.exists()) _apply(snap.val()); _dot('ok'); })
         .catch(()=>_dot('err'));
   _unsub = onValue(r, snap=>{ if(snap.exists()) _apply(snap.val()); });
+
+  // ── Escutar air_logs do Firebase ──
+  if(_unsubAirLogs){ _unsubAirLogs(); _unsubAirLogs=null; }
+  const rAir = ref(_db,'estacoes/'+code+'/air_logs');
+  get(rAir).then(snap=>{ if(snap.exists()) _applyAirLogs(snap.val()); }).catch(()=>{});
+  _unsubAirLogs = onValue(rAir, snap=>{ if(snap.exists()) _applyAirLogs(snap.val()); });
+
+  // ── Escutar opec_log do Firebase ──
+  if(_unsubOpecLog){ _unsubOpecLog(); _unsubOpecLog=null; }
+  const rOpec = ref(_db,'estacoes/'+code+'/opec_log');
+  get(rOpec).then(snap=>{ if(snap.exists()) _applyOpecLog(snap.val()); }).catch(()=>{});
+  _unsubOpecLog = onValue(rOpec, snap=>{ if(snap.exists()) _applyOpecLog(snap.val()); });
+
+  // ── Restaurar cur (estado em andamento) do Firebase ──
+  const rCur = ref(_db,'estacoes/'+code+'/cur');
+  get(rCur).then(snap=>{
+    if(!snap.exists()) return;
+    const d = snap.val();
+    const localTs = parseInt(lsGet('roteiro_cur_ts')||'0');
+    const fbTs = d._ts||0;
+    if(fbTs > localTs){
+      const c = {...d}; delete c._ts;
+      cur = {...cur, ...c};
+      if(!Array.isArray(cur.doneKeys)) cur.doneKeys=[];
+      lsSet('roteiro_cur', JSON.stringify(cur));
+      lsSet('roteiro_cur_ts', String(fbTs));
+      if(typeof buildRoteiro==='function') buildRoteiro();
+      if(typeof renderSidebar==='function') renderSidebar();
+    }
+  }).catch(()=>{});
+}
+
+function _applyAirLogs(data){
+  const ts = data._ts||0;
+  if(ts && ts <= _lastAirLogsTs) return;
+  _lastAirLogsTs = ts||Date.now();
+  const logs = {...data}; delete logs._ts;
+  lsSet('roteiro_air_logs', JSON.stringify(logs));
+  lsSet('roteiro_air_ts', String(_lastAirLogsTs));
+  if(typeof buildRoteiro==='function') buildRoteiro();
+  if(typeof renderOpec==='function' && opecState.open) renderOpec();
+}
+
+function _applyOpecLog(data){
+  const ts = data._ts||0;
+  if(ts && ts <= _lastOpecLogTs) return;
+  _lastOpecLogTs = ts||Date.now();
+  const logs = data.entries||[];
+  lsSet('roteiro_opec_log', JSON.stringify(logs));
+  if(typeof renderOpec==='function' && opecState.open) renderOpec();
 }
 
 // ── Indicador visual ──
@@ -1039,6 +1094,8 @@ window._masterSetCode = function(code){
 };
 window._masterDisconnect = function(){
   if(_unsub){ _unsub(); _unsub=null; }
+  if(_unsubAirLogs){ _unsubAirLogs(); _unsubAirLogs=null; }
+  if(_unsubOpecLog){ _unsubOpecLog(); _unsubOpecLog=null; }
   localStorage.removeItem('master_station_code');
   _code=''; _dot('err'); _renderBtn('');
 };
@@ -2194,7 +2251,18 @@ let opecState = {
 const OPEC_LOG_KEY = 'roteiro_opec_log';
 
 function getOpecLog(){ try{ return JSON.parse(lsGet(OPEC_LOG_KEY)||'[]'); }catch(e){ return []; } }
-function saveOpecLog(arr){ lsSet(OPEC_LOG_KEY, JSON.stringify(arr.slice(-200))); }
+function saveOpecLog(arr){
+  const sliced = arr.slice(-200);
+  lsSet(OPEC_LOG_KEY, JSON.stringify(sliced));
+  // ── Persistir no Firebase para não perder ao fechar ──
+  if(_db && _code){
+    try{
+      const ts = Date.now();
+      _lastOpecLogTs = ts;
+      ref(_db, 'estacoes/'+_code+'/opec_log').set({entries: sliced, _ts: ts});
+    }catch(e){}
+  }
+}
 
 // ── BREAK AIR TIME (Master → compartilha com OPEC via roteiro_air_logs) ──
 function getMasterAirLogs(){ try{ return JSON.parse(lsGet('roteiro_air_logs')||'{}'); }catch(e){ return {}; } }
@@ -2204,7 +2272,11 @@ function saveMasterAirLogs(logs){
   // Publicar dentro do nó grade (já tem permissão) para o OPEC receber
   if(_db && _code){
     try{
-      ref(_db, 'estacoes/'+_code+'/grade/__air_logs').set({...logs, _ts: Date.now()});
+      const ts = Date.now();
+      _lastAirLogsTs = ts;
+      ref(_db, 'estacoes/'+_code+'/grade/__air_logs').set({...logs, _ts: ts});
+      // ── Persistir em nó dedicado para sobreviver ao reload ──
+      ref(_db, 'estacoes/'+_code+'/air_logs').set({...logs, _ts: ts});
     }catch(e){}
   }
 }
