@@ -2362,7 +2362,7 @@ function _segConflictResp(ok){
       </div>
     </div>
     <!-- Confirm modal -->
-    <div id="pi-modal-confirm" role="dialog" aria-modal="true" aria-label="Confirmar distribuição" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.85);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(6px)" onclick="if(event.target===this)this.style.display='none'">
+    <div id="pi-modal-confirm" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.85);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(6px)" onclick="if(event.target===this)this.style.display='none'">
       <div style="background:var(--s1);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:28px;width:460px;max-width:95%;box-shadow:0 32px 80px rgba(0,0,0,.8)">
         <div style="font-family:var(--font-d);font-size:16px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text);margin-bottom:4px">✓ Confirmar Aplicação</div>
         <div id="pi-modal-sub" style="font-size:11px;color:var(--text2);margin-bottom:16px;line-height:1.6"></div>
@@ -2546,32 +2546,10 @@ function goHome(){setView('landing');stopTimer();}
 function startEmissor(){setView('emissor');loadMediaLib();renderWeekNav();renderRoteiro();renderMidList();renderCtrl();initPanels();renderContractList();loadProdLog();renderProdLog();_initProdTime();setTimeout(function(){if(typeof _im==='function')_im();},50);}
 function _initProdTime(){const now=new Date();const hh=String(now.getHours()).padStart(2,'0');const mm=String(now.getMinutes()).padStart(2,'0');const el=$('prod-time');if(el)el.value=`${hh}:${mm}`;}
 function startExibidorExt(){
-  var code=localStorage.getItem('opec_station_code')||'--';
-  var el=document.getElementById('master-modal-code');
-  if(el) el.textContent=code;
-  // Preencher links salvos
-  var savedUrl=localStorage.getItem('master_saved_url')||'';
-  var ghUrl=localStorage.getItem('master_gh_url')||'';
-  var li=document.getElementById('master-link-inp');
-  var gi=document.getElementById('master-gh-inp');
-  var gh=document.getElementById('master-gh-saved-hint');
-  if(li&&savedUrl) li.value=savedUrl;
-  if(gi&&ghUrl){ gi.value=ghUrl; if(gh) gh.textContent='Link salvo'; }
-  document.getElementById('master-open-modal').style.display='flex';
-}
-function _masterAbrirPasta(){
-  document.getElementById('master-open-modal').style.display='none';
+  // Abrir MASTER.html diretamente na mesma pasta
   window.open('MASTER.html','_blank');
 }
-function _masterAbrirLink(){
-  var inp=document.getElementById('master-link-inp');
-  var v=(inp?inp.value:'').trim();
-  if(!v){if(inp)inp.style.borderColor='#e07070';return;}
-  document.getElementById('master-open-modal').style.display='none';
-  var url=v.indexOf('http')===0?v:('file:///'+v.split('\\').join('/'));
-  window.open(url,'_blank');
-}
-function setView(v){document.querySelectorAll('.view').forEach(e=>e.classList.remove('active'));const _ve=document.getElementById(v);if(_ve)_ve.classList.add('active');if(v!=='opc-view'&&window._opcClockInt){clearInterval(window._opcClockInt);window._opcClockInt=null;}}
+function setView(v){document.querySelectorAll('.view').forEach(e=>e.classList.remove('active'));document.getElementById(v).classList.add('active');}
 
 // ═══ CLOCK ═══
 function updateClocks(){
@@ -4287,15 +4265,7 @@ function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2
 function pad(n){return String(n).padStart(2,'0');}
 function mkKey(d,pi,bi,ii){return `${d}-${pi}-${bi}-${ii}`;}
 function fmtSec(s){s=parseInt(s)||0;return `${pad(Math.floor(s/60))}:${pad(s%60)}`;}
-function showToast(msg,dur){
-  dur=dur||3500;
-  const t=$('toast');if(!t)return;
-  t.innerHTML=`<span style="flex:1">${msg}</span><span onclick="this.parentElement.classList.remove('show')" style="cursor:pointer;opacity:.5;padding-left:12px;font-size:14px" title="Fechar">✕</span>`;
-  t.style.display='flex';t.style.alignItems='center';
-  t.classList.add('show');
-  clearTimeout(window._toastT);
-  window._toastT=setTimeout(()=>t.classList.remove('show'),dur);
-}
+function showToast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
 // ══════════════════════════════════════════════
 // MELHORIAS — FASE 2 + 3 + 4
@@ -6445,34 +6415,6 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     }
   }catch(e){ piList=[]; }
   window._piList=piList;
-  function _fbLoadPiList(){
-    try{
-      if(typeof db==='undefined'||!db||!window._stationCode) return;
-      const _ts0=parseInt(localStorage.getItem('roteiro_pilist_ts')||'0');
-      get(ref(db,'estacoes/'+window._stationCode+'/pilist')).then(snap=>{
-        if(!snap.exists()) return;
-        const d=snap.val(),fbTs=d._ts||0;
-        if(fbTs>_ts0) _applyFbPiList(d.data,fbTs);
-      }).catch(()=>{});
-      onValue(ref(db,'estacoes/'+window._stationCode+'/pilist'),snap=>{
-        if(!snap.exists()) return;
-        const d=snap.val(),fbTs=d._ts||0;
-        const localTs=parseInt(localStorage.getItem('roteiro_pilist_ts')||'0');
-        if(fbTs>localTs) _applyFbPiList(d.data,fbTs);
-      });
-    }catch(e){}
-  }
-  function _applyFbPiList(data,ts){
-    try{
-      const loaded=JSON.parse(data||'[]');
-      if(!Array.isArray(loaded)||loaded.length===0) return;
-      piList=loaded.filter(p=>p&&p.id&&p.piNumber);
-      window._piList=piList;
-      localStorage.setItem('roteiro_pilist',JSON.stringify(piList));
-      localStorage.setItem('roteiro_pilist_ts',String(ts));
-      piRenderList();
-    }catch(e){}
-  }
 
   // Boot: renderizar lista assim que o DOM estiver pronto
   function _piBootRender(){
@@ -7546,11 +7488,11 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     piRenderPreview();
 
     // Botão Aplicar → ✓ APROVADO verde
-    const _applyBtnX=document.getElementById('pi-btn-apply');
-    if(_applyBtnX){
-      _applyBtnX.textContent='✓ '+(selPi.status||'APROVADO');
-      _applyBtnX.className='btn btn-sm';
-      _applyBtnX.style.cssText='background:rgba(31,170,90,.22);border:1px solid rgba(31,170,90,.6);color:#2ddf80;font-weight:700;letter-spacing:.8px;display:inline-flex';
+    var _applyBtn2 = document.getElementById('pi-btn-apply');
+    if(_applyBtn2){
+      _applyBtn2.textContent = '✓ ' + (selPi.status||'APROVADO');
+      _applyBtn2.className = 'btn btn-sm';
+      _applyBtn2.style.cssText = 'background:rgba(31,170,90,.22);border:1px solid rgba(31,170,90,.6);color:#2ddf80;font-weight:700;letter-spacing:.8px;display:inline-flex';
     }
     const msg=[];if(added)msg.push(added+' inserções');if(synced)msg.push(synced+' sincronizados');
     showToast('✓ PI '+selPi.piNumber+': '+(msg.join(' · ')||'nada a fazer')+' em '+Object.values(piDist).filter(d=>d.inserts.some(i=>!i.warn&&i.program&&i.brk)).length+' dia(s)');
@@ -7774,33 +7716,75 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
   // Verde    = 100% distribuída no roteiro
   // Vermelho = aplicada mas com inserções faltando
   function _piStatusBadge(p){
-    var _piNum=String(p.piNumber||'').trim();
+    var _piNum = String(p.piNumber||'').trim();
     if(!_piNum) return `<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(212,160,23,.1);color:var(--gold);border:1px solid rgba(212,160,23,.3);font-weight:600">${p.status||'APROVADO'}</span>`;
-    var _gradePerDow={};
+
+    // Parsear período da PI (ex: "MARÇO/2026")
+    var _mn = 0, _yn = new Date().getFullYear();
+    try{
+      var _parts = (p.period||'').split('/');
+      if(_parts.length===2){
+        var _mnames={janeiro:0,fevereiro:1,março:2,marco:2,abril:3,maio:4,junho:5,julho:6,agosto:7,setembro:8,outubro:9,novembro:10,dezembro:11};
+        _mn = (_mnames[_parts[0].toLowerCase().trim()]!==undefined) ? _mnames[_parts[0].toLowerCase().trim()] : 0;
+        _yn = parseInt(_parts[1])||_yn;
+      }
+    }catch(e){}
+
+    // Contar quantos itens desta PI existem na grade por DOW
+    // grade[dow] = template semanal; cada item cobre todas as ocorrências daquele DOW no mês
+    var _gradePerDow = {};
     Object.keys(grade||{}).forEach(function(dow){
-      var _c=0;
-      (grade[dow]||[]).forEach(function(prog){(prog.breaks||[]).forEach(function(brk){(brk.items||[]).forEach(function(it){if(String(it.piNumber||'').trim()===_piNum)_c++;});});});
-      if(_c>0) _gradePerDow[parseInt(dow)]=_c;
+      var _cnt = 0;
+      (grade[dow]||[]).forEach(function(prog){
+        (prog.breaks||[]).forEach(function(brk){
+          (brk.items||[]).forEach(function(it){
+            if(String(it.piNumber||'').trim()===_piNum) _cnt++;
+          });
+        });
+      });
+      if(_cnt > 0) _gradePerDow[parseInt(dow)] = _cnt;
     });
-    if(p.applied&&Object.keys(_gradePerDow).length>0){
-      var _l=p.status||'APROVADO';
-      return `<span style="font-size:8px;padding:2px 7px;border-radius:3px;background:rgba(31,170,90,.22);color:#2ddf80;border:1px solid rgba(31,170,90,.5);font-weight:700;letter-spacing:.8px;text-transform:uppercase">✓ ${_l}</span>`;
-    }
-    if(Object.keys(_gradePerDow).length===0)
+
+    if(Object.keys(_gradePerDow).length === 0){
+      // Nenhum item na grade
       return `<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(212,160,23,.1);color:var(--gold);border:1px solid rgba(212,160,23,.3);font-weight:600">${p.status||'APROVADO'}</span>`;
-    var _mn=0,_yn=new Date().getFullYear();
-    try{var _p=(p.period||'').split('/');if(_p.length===2){var _mm={janeiro:0,fevereiro:1,'março':2,marco:2,abril:3,maio:4,junho:5,julho:6,agosto:7,setembro:8,outubro:9,novembro:10,dezembro:11};_mn=_mm[_p[0].toLowerCase().trim()]??0;_yn=parseInt(_p[1])||_yn;}}catch(e){}
-    var _cov=0,_tot=p.totalInsertions||0;
-    if(p.lines&&p.lines.length){
-      p.lines.forEach(function(ln){(ln.days||[]).forEach(function(d){
-        try{var _i=(ln.insertionsPerDayMap&&ln.insertionsPerDayMap[d]!=null)?ln.insertionsPerDayMap[d]:(ln.insertionsPerDay||1);
-        var _dw=new Date(_yn,_mn,d).getDay();
-        if(_gradePerDow[_dw]>0)_cov+=_i;}catch(e){}
-      });});
-    } else { _cov=_tot; }
-    var _pct=_tot>0?Math.min(100,Math.round(_cov/_tot*100)):0;
-    if(_pct>=100){var _l2=p.status||'APROVADO';return `<span style="font-size:8px;padding:2px 7px;border-radius:3px;background:rgba(31,170,90,.22);color:#2ddf80;border:1px solid rgba(31,170,90,.5);font-weight:700;letter-spacing:.8px;text-transform:uppercase">✓ ${_l2}</span>`;}
-    if(_pct>0) return `<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(240,192,64,.1);color:var(--gold);border:1px solid rgba(240,192,64,.25);font-weight:600">${_pct}% na grade</span>`;
+    }
+
+    // Calcular cobertura mensal:
+    // Para cada dia da PI, verificar se o DOW tem itens desta PI na grade.
+    // Se sim, esse dia está coberto com suas inserções completas.
+    var _coveredMonthly = 0;
+    var _totalMonthly   = p.totalInsertions || 0;
+
+    if(p.lines && p.lines.length){
+      p.lines.forEach(function(line){
+        (line.days||[]).forEach(function(dayNum){
+          try{
+            var _insThisDay = (line.insertionsPerDayMap && line.insertionsPerDayMap[dayNum] != null)
+              ? line.insertionsPerDayMap[dayNum]
+              : (line.insertionsPerDay || 1);
+            var _dow = new Date(_yn, _mn, dayNum).getDay();
+            // Se este DOW tem itens desta PI na grade → dia coberto
+            if(_gradePerDow[_dow] > 0){
+              _coveredMonthly += _insThisDay;
+            }
+          }catch(e){}
+        });
+      });
+    } else {
+      var _inGradeTotal = Object.values(_gradePerDow).reduce(function(s,v){return s+v;},0);
+      _coveredMonthly = _inGradeTotal > 0 ? (_totalMonthly || 1) : 0;
+    }
+
+    var _pct = _totalMonthly > 0 ? Math.min(100, Math.round(_coveredMonthly/_totalMonthly*100)) : 0;
+
+    if(_pct >= 100){
+      var _lbl = p.status||'APROVADO';
+      return `<span style="font-size:8px;padding:2px 7px;border-radius:3px;background:rgba(31,170,90,.22);color:#2ddf80;border:1px solid rgba(31,170,90,.5);font-weight:700;letter-spacing:.8px;text-transform:uppercase">✓ ${_lbl}</span>`;
+    }
+    if(_pct > 0){
+      return `<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(240,192,64,.1);color:var(--gold);border:1px solid rgba(240,192,64,.25);font-weight:600">${_pct}% na grade</span>`;
+    }
     return `<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(212,160,23,.1);color:var(--gold);border:1px solid rgba(212,160,23,.3);font-weight:600">${p.status||'APROVADO'}</span>`;
   }
 
@@ -7894,7 +7878,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       if(selPi.applied){
         const _stSel = _piCalcStatus(selPi);
         const _fitSel = _stSel.pendentes===0;
-        _btnA.textContent = _fitSel ? '✓ CONFIRMADO' : '✓ '+(selPi.status||'APROVADO');
+        _btnA.textContent = _fitSel ? '✓ CONFIRMADO' : '✓ Distribuído';
         _btnA.className='btn btn-sm';
         _btnA.style.cssText = _fitSel
           ? 'background:rgba(31,170,90,.22);border:1px solid rgba(31,170,90,.6);color:#2ddf80;font-weight:700;letter-spacing:.8px'
@@ -8358,21 +8342,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 
-function _masterSalvarURL(){
-  var v=(document.getElementById('master-save-url-inp').value||'').trim();
-  if(!v) return;
-  localStorage.setItem('master_saved_url', v);
-  document.getElementById('master-link-inp').value = v;
-  document.getElementById('master-save-url-inp').value = '';
-  showToast('✓ Link salvo!');
 }
-function _masterAbrirGH(){
-  var v=(document.getElementById('master-gh-inp').value||'').trim();
-  if(v){ localStorage.setItem('master_gh_url', v); window.open(v,'_blank'); }
-}
-function _masterCopiarGH(){
-  var v=(document.getElementById('master-gh-inp').value||'').trim();
-  if(!v){ showToast('Cole o link primeiro'); return; }
   navigator.clipboard.writeText(v).then(function(){
     showToast('✓ Link copiado! Cole no celular ou outro PC');
     localStorage.setItem('master_gh_url', v);
@@ -8459,89 +8429,6 @@ document.addEventListener('DOMContentLoaded',()=>{
         style="background:none;border:none;color:#444;font-size:10px;cursor:pointer;text-decoration:underline"> Desconectar estação</button>
     </div>
   </div>
-</div>
-
-<div id="master-open-modal" onclick="if(event.target===this)this.style.display='none'" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.88);z-index:99999;align-items:center;justify-content:center">
-<div style="background:#14141f;border:1px solid #333;border-radius:14px;width:460px;padding:28px;max-height:90vh;overflow-y:auto">
-
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-    <b style="font-size:17px;color:#f0c040;letter-spacing:1px">ROTEIRO MASTER</b>
-    <button onclick="document.getElementById('master-open-modal').style.display='none'"
-      style="background:none;border:none;color:#555;font-size:22px;cursor:pointer">&#10005;</button>
-  </div>
-
-  <!-- Opção 1: mesma pasta -->
-  <div onclick="_masterAbrirPasta()"
-    style="display:flex;align-items:center;gap:12px;background:#0a0a15;border:2px solid #222;border-radius:10px;padding:14px;margin-bottom:10px;cursor:pointer"
-    onmouseover="this.style.borderColor='#f0c040'" onmouseout="this.style.borderColor='#222'">
-    <span style="font-size:26px">&#128193;</span>
-    <div>
-      <b style="color:#fff">Abrir da mesma pasta</b>
-      <div style="font-size:11px;color:#666;margin-top:2px">Abre MASTER.html que esta na mesma pasta — mesmo PC ou rede local</div>
-    </div>
-  </div>
-
-  <!-- Opção 2: link salvo -->
-  <div style="background:#0a0a15;border:1px solid #222;border-radius:10px;padding:14px;margin-bottom:10px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-      <span style="font-size:26px">&#128279;</span>
-      <div>
-        <b style="color:#fff">Abrir por URL salvo</b>
-        <div style="font-size:11px;color:#666;margin-top:2px">Se ja hospedou o MASTER online, cole o link aqui</div>
-      </div>
-    </div>
-    <div style="display:flex;gap:6px;margin-bottom:8px">
-      <input id="master-link-inp" placeholder="https://seu-site.com/MASTER.html"
-        style="flex:1;background:#111;border:1px solid #333;border-radius:5px;padding:7px 10px;color:#fff;font-size:11px;outline:none;box-sizing:border-box"
-        onkeydown="if(event.key=='Enter')_masterAbrirLink()">
-      <button onclick="_masterAbrirLink()"
-        style="padding:7px 14px;background:#5aaaf0;border:none;border-radius:5px;color:#000;font-weight:700;cursor:pointer;white-space:nowrap">Abrir</button>
-    </div>
-    <div style="display:flex;gap:6px">
-      <input id="master-save-url-inp" placeholder="Cole e salve o link para usar sempre"
-        style="flex:1;background:#111;border:1px solid #222;border-radius:5px;padding:6px 10px;color:#aaa;font-size:10px;outline:none;box-sizing:border-box">
-      <button onclick="_masterSalvarURL()"
-        style="padding:6px 10px;background:#333;border:none;border-radius:5px;color:#aaa;font-size:10px;cursor:pointer;white-space:nowrap">Salvar link</button>
-    </div>
-  </div>
-
-  <!-- Opção 3: GitHub Pages (link de qualquer lugar) -->
-  <div style="background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.25);border-radius:10px;padding:14px;margin-bottom:12px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-      <span style="font-size:26px">&#127760;</span>
-      <div>
-        <b style="color:#5aaaf0">Acessar de qualquer lugar (celular, outro PC)</b>
-        <div style="font-size:11px;color:#666;margin-top:2px">Hospede o MASTER.html no GitHub Pages — gratis e permanente</div>
-      </div>
-    </div>
-    <div style="font-size:11px;color:#aaa;line-height:1.9;margin-bottom:10px">
-      <b style="color:#fff">Como fazer (1 vez):</b><br>
-      1.Acesse <a href="https://github.com" target="_blank" style="color:#5aaaf0">github.com</a> — crie conta gratuita<br>
-      2. Crie um repositorio com o nome <b style="color:#fff">master-tv</b><br>
-      3. Envie o arquivo <b style="color:#f0c040">MASTER.html</b> para o repositorio<br>
-      4. Va em <b style="color:#fff">Settings → Pages → Branch: main</b> → Save<br>
-      5. O link gerado sera:<br>
-      <code style="background:#111;padding:3px 8px;border-radius:4px;color:#4acc7a;display:block;margin-top:4px">https://SEU-USUARIO.github.io/master-tv/MASTER.html</code>
-    </div>
-    <div style="display:flex;gap:6px">
-      <input id="master-gh-inp" placeholder="https://SEU-USUARIO.github.io/master-tv/MASTER.html"
-        style="flex:1;background:#111;border:1px solid #333;border-radius:5px;padding:7px 10px;color:#fff;font-size:11px;outline:none;box-sizing:border-box"
-        onkeydown="if(event.key=='Enter')_masterAbrirGH()">
-      <button onclick="_masterAbrirGH()"
-        style="padding:7px 12px;background:#4acc7a;border:none;border-radius:5px;color:#000;font-weight:700;cursor:pointer;white-space:nowrap">Abrir</button>
-      <button onclick="_masterCopiarGH()"
-        style="padding:7px 12px;background:#333;border:none;border-radius:5px;color:#fff;font-size:11px;cursor:pointer;white-space:nowrap">&#128203;Copiar</button>
-    </div>
-    <div id="master-gh-saved-hint" style="font-size:10px;color:#555;margin-top:6px"></div>
-  </div>
-
-  <!-- Info Firebase -->
-  <div style="background:rgba(74,204,122,.07);border:1px solid rgba(74,204,122,.2);border-radius:8px;padding:10px;font-size:11px;color:#4acc7a;line-height:1.7">
-    &#9729; Qualquer link acima sincroniza automaticamente via nuvem com o codigo:
-    <b id="master-modal-code" style="font-family:monospace;color:#f0c040;letter-spacing:1px">--</b>
-  </div>
-
-</div>
 </div>
 
 </div><!-- /opec-app-root -->
@@ -8887,8 +8774,7 @@ function _initColDrag(){
     var handle=col.querySelector('.col-drag-handle');
     if(!handle) return;
 
-    handle.addEventListener('mousedown',_startResize);handle.addEventListener('touchstart',function(e){e.preventDefault();_startResize({clientX:e.touches[0].clientX,preventDefault:()=>{}});},{ passive:false });
-function _startResize(e){
+    handle.addEventListener('mousedown',function(e){
       e.preventDefault();
       _draggingCol=col;
       _startX=e.clientX;
@@ -9027,60 +8913,5 @@ function _startResize(e){
     <button class="rmd-btn-cancel" onclick="_closeRemoveDrawer()">Cancelar</button>
   </div>
 </div>
-<!-- ── Modal de confirmação customizado (substitui confirm() nativo) ── -->
-<div id="_confirm-modal" onclick="if(event.target===this)_confirmResolve(false)"
-  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99999;
-         align-items:center;justify-content:center;backdrop-filter:blur(5px)"
-  role="dialog" aria-modal="true" aria-labelledby="_confirm-msg">
-  <div style="background:#0e1218;border:1px solid rgba(255,255,255,.12);border-radius:16px;
-              padding:26px 24px;width:400px;max-width:94%;box-shadow:0 24px 64px rgba(0,0,0,.8)">
-    <div id="_confirm-icon" style="font-size:30px;margin-bottom:10px;text-align:center"></div>
-    <div id="_confirm-msg" style="font-size:13px;color:#d8e0ea;line-height:1.75;margin-bottom:22px;text-align:center"></div>
-    <div style="display:flex;gap:10px">
-      <button onclick="_confirmResolve(false)"
-        style="flex:1;padding:11px;background:transparent;border:1px solid #2a3545;border-radius:8px;
-               color:#7a8fa8;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;
-               letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;transition:background .15s"
-        onmouseover="this.style.background='rgba(255,255,255,.06)'"
-        onmouseout="this.style.background='transparent'">Cancelar</button>
-      <button id="_confirm-ok" onclick="_confirmResolve(true)"
-        style="flex:1.6;padding:11px;border:none;border-radius:8px;color:#fff;
-               font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;
-               letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;
-               transition:filter .15s"
-        onmouseover="this.style.filter='brightness(1.12)'"
-        onmouseout="this.style.filter='none'">Confirmar</button>
-    </div>
-  </div>
-</div>
-<script>
-(function(){
-  var _res=null;
-  function _ck(e){if(e.key==='Enter')_confirmResolve(true);if(e.key==='Escape')_confirmResolve(false);}
-  window._confirmResolve=function(v){
-    var m=document.getElementById('_confirm-modal');
-    if(m)m.style.display='none';
-    document.removeEventListener('keydown',_ck);
-    if(_res){var r=_res;_res=null;r(v);}
-  };
-  window.opec_confirm=function(msg,opts){
-    opts=opts||{};
-    return new Promise(function(resolve){
-      _res=resolve;
-      var m=document.getElementById('_confirm-modal');
-      if(!m){resolve(window.confirm(msg.replace(/<[^>]+>/g,'')));return;}
-      document.getElementById('_confirm-msg').innerHTML=msg;
-      document.getElementById('_confirm-icon').textContent=opts.icon||(opts.danger?'⚠️':'❓');
-      var ok=document.getElementById('_confirm-ok');
-      ok.textContent=opts.okLabel||'Confirmar';
-      ok.style.background=opts.danger?'#c0392b':'#1e6fb5';
-      m.style.display='flex';
-      document.addEventListener('keydown',_ck);
-    });
-  };
-  // Substituir confirm() global para ações simples
-  // (ações complexas com lógica pós-confirm devem usar opec_confirm diretamente)
-})();
-</script>
 </body>
 </html>
