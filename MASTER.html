@@ -935,9 +935,16 @@ try{
           if(prefs.collapsed){
             window._masterCollapsedCache = prefs.collapsed;
           }
+          // Carregar IP do Firebase (migrado do localStorage)
+          if(prefs.ip){
+            ipConfig={...ipConfig,...prefs.ip};
+            setIpStatus();
+            if(ipConfig.ip) startIpPoll();
+          }
         }
       }catch(e){ /* preferencias nao criticas */ }
-      if(_code) _connect(_code);
+      if(_code) _renderBtn(_code);
+      if(_code && !_masterPaused) _connect(_code);
     } else {
       loginScreen.style.display = 'flex';
     }
@@ -1025,11 +1032,37 @@ function _masterSavePrefs(patch){
     }).catch(function(){});
   }catch(e){}
 }
+// ── Watchdog Firebase: alerta sonoro se não receber sinal por 30s ──
+let _wdTimer = null;
+const _WD_TIMEOUT = 30000;
+function _wdReset(){
+  clearTimeout(_wdTimer);
+  _wdTimer = setTimeout(_wdFire, _WD_TIMEOUT);
+}
+function _wdFire(){
+  _dot('err');
+  showToast('⚠ Firebase sem sinal há 30s — verifique a conexão!', 'warn');
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    [440,480,440].forEach((freq,i)=>{
+      const osc=ctx.createOscillator(),gain=ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value=freq; osc.type='sine';
+      gain.gain.setValueAtTime(0.3,ctx.currentTime+i*0.3);
+      gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+i*0.3+0.25);
+      osc.start(ctx.currentTime+i*0.3);
+      osc.stop(ctx.currentTime+i*0.3+0.25);
+    });
+  }catch(e){}
+  _wdTimer = setTimeout(_wdFire, _WD_TIMEOUT);
+}
+
 // ── Aplicar grade recebida ──
 function _apply(d){
   const ts=d._ts||0;
   if(ts<=_lastTs) return;
   _lastTs=ts;
+  _wdReset(); // Watchdog: sinal recebido — reiniciar contador
   const g={...d}; delete g._ts; delete g.__air_logs;
   grade=g; // Dado vem do Firebase — sem localStorage
   if(typeof recalcBrkTotals==='function') recalcBrkTotals();
@@ -1046,6 +1079,7 @@ let _lastOpecLogTs = 0;
 
 function _connect(code){
   if(!_db||!code) return;
+  _wdReset(); // Iniciar watchdog ao conectar
   const r = ref(_db,'estacoes/'+code+'/grade');
   if(_unsub) _unsub();
   get(r).then(snap=>{ if(snap.exists()) _apply(snap.val()); _dot('ok'); })
@@ -1107,36 +1141,76 @@ function _dot(s){
 }
 
 // ── API pública ──
+let _masterPaused = sessionStorage.getItem('_master_disc') === '1';
+
 window._masterSetCode = function(code){
   code=(code||'').trim().toUpperCase().replace(/[^A-Z0-9\-_]/g,'');
   if(!code) return;
   _code=code;
-  _renderBtn(code);
-  // Salvar no Firebase vinculado ao usuario logado
   _masterSavePrefs({station_code: code});
-  _connect(code);
+  _renderBtn(code);
+  if(!_masterPaused) _connect(code);
 };
 window._masterDisconnect = function(){
   if(_unsub){ _unsub(); _unsub=null; }
   if(_unsubAirLogs){ _unsubAirLogs(); _unsubAirLogs=null; }
   if(_unsubOpecLog){ _unsubOpecLog(); _unsubOpecLog=null; }
   _code=''; _dot('err'); _renderBtn('');
-  // Limpar station_code do Firebase
   _masterSavePrefs({station_code: ''});
+};
+window._masterPauseStation = function(){
+  if(!confirm('Desconectar a estação?\n\nO MASTER não receberá mais atualizações do Firebase até você reconectar.')) return;
+  _masterPaused = true;
+  sessionStorage.setItem('_master_disc','1');
+  if(_unsub){ _unsub(); _unsub=null; }
+  if(_unsubAirLogs){ _unsubAirLogs(); _unsubAirLogs=null; }
+  if(_unsubOpecLog){ _unsubOpecLog(); _unsubOpecLog=null; }
+  _dot('err');
+  _renderBtn(_code);
+  showToast('⏹ Estação desconectada','warn');
+};
+window._masterResumeStation = function(){
+  _masterPaused = false;
+  sessionStorage.removeItem('_master_disc');
+  _renderBtn(_code);
+  if(_code) _connect(_code);
+  showToast('✓ Estação conectada','ok');
 };
 
 function _renderBtn(code){
   const el=document.getElementById('fb-master-panel'); if(!el) return;
-  if(code){
-    el.innerHTML='<button onclick="window._masterAbrirModal()" '
-      +'style="font-size:11px;font-weight:800;padding:4px 12px;background:rgba(74,204,122,.12);'
-      +'border:1px solid rgba(74,204,122,.4);border-radius:5px;color:#4acc7a;cursor:pointer;letter-spacing:1px">'
-      +'☁ '+code+' <span id="fb-master-dot" style="font-size:9px;transition:color .3s">●</span></button>';
+  const b='font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;border:none;cursor:pointer;padding:4px 9px;transition:all .15s;line-height:1;white-space:nowrap;';
+  if(!code){
+    el.innerHTML=`<button onclick="window._masterAbrirModal()"
+      style="${b}background:rgba(212,160,23,.12);border:1px solid rgba(212,160,23,.3);
+             color:var(--gold);border-radius:5px;padding:4px 10px;animation:pulse-conflict 2s infinite">
+      ☁ Estação
+    </button>`;
+  } else if(_masterPaused){
+    el.innerHTML=`
+      <div style="display:inline-flex;align-items:center;border:1px solid rgba(224,80,80,.3);border-radius:5px;overflow:hidden;background:var(--s2)">
+        <span onclick="window._masterAbrirModal()"
+          style="padding:3px 9px;font-family:var(--font-m);font-size:9px;font-weight:700;
+                 letter-spacing:2px;color:var(--red2);text-transform:uppercase;cursor:pointer;opacity:.8">⏹ ${code}</span>
+        <button onclick="window._masterResumeStation()"
+          style="${b}background:rgba(31,170,90,.15);color:var(--green);border-left:1px solid rgba(31,170,90,.25)"
+          onmouseover="this.style.background='rgba(31,170,90,.28)'"
+          onmouseout="this.style.background='rgba(31,170,90,.15)'">Conectar</button>
+      </div>`;
   } else {
-    el.innerHTML='<button onclick="window._masterAbrirModal()" '
-      +'style="font-size:11px;font-weight:700;padding:4px 12px;background:rgba(240,192,64,.15);'
-      +'border:1px solid rgba(240,192,64,.5);border-radius:5px;color:#f0c040;cursor:pointer;'
-      +'animation:pulse-conflict 2s infinite;letter-spacing:1px">☁ ESTAÇÃO</button>';
+    el.innerHTML=`
+      <div style="display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:5px;overflow:hidden;background:var(--s2)">
+        <button onclick="window._masterAbrirModal()"
+          style="${b}background:transparent;color:var(--gold);border:none;font-family:var(--font-m);letter-spacing:2px">
+          ${code}
+        </button>
+        <span id="fb-master-dot" style="width:5px;height:5px;border-radius:50%;background:var(--green);margin:0 3px;flex-shrink:0;transition:background .3s"></span>
+        <button onclick="window._masterPauseStation()"
+          style="${b}background:transparent;color:var(--text3);border-left:1px solid var(--border)"
+          onmouseover="this.style.color='var(--red2)';this.style.background='rgba(224,80,80,.07)'"
+          onmouseout="this.style.color='var(--text3)';this.style.background='transparent'"
+          title="Desconectar">Desconectar</button>
+      </div>`;
   }
 }
 
@@ -1534,7 +1608,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     <div class="fg"><div class="fg-lbl">IP do Emissor</div><input class="inp" type="text" id="inp-ip" placeholder="Ex: 192.168.1.100"></div>
     <div class="fg"><div class="fg-lbl">Porta</div><input class="inp" type="number" id="inp-port" value="8765"></div>
     <div style="font-size:11px;color:var(--text3);padding:9px 11px;background:var(--s3);border-radius:6px;line-height:1.7;margin-top:4px">
-      💡 Sem IP: sincroniza via localStorage (mesma máquina).
+      💡 Sem IP configurado: o MASTER recebe a grade exclusivamente via Firebase.
     </div>
     <div class="m-actions">
       <button class="btn btn-ghost btn-sm" onclick="closeIpModal()">Cancelar</button>
@@ -1649,49 +1723,24 @@ function importFromFile(input){
   reader.onload = function(e){
     try{
       const html = e.target.result;
-      // Extrai o JSON da grade do código JS do emissor
-      const match = html.match(/lsSet\('roteiro_grade'[^)]+\)|localStorage\.setItem\('roteiro_grade'[^)]+\)/);
-
-      // Tenta extrair via execução sandboxed da grade
+      // Extrai o JSON da grade diretamente do código JS do arquivo HTML
       const gradeMatch = html.match(/let grade\s*=\s*(\{[0-9,":\[\]{}a-zA-Z_\-\. ]*?\});/s) ||
                          html.match(/grade=(\{0:\[\],1:\[\],2:\[\],3:\[\],4:\[\],5:\[\],6:\[\]\})/);
-
-      // Método mais robusto: cria iframe oculto, deixa o emissor rodar e captura o localStorage
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.sandbox = 'allow-scripts'; // [SEC #4] sem allow-same-origin
-      document.body.appendChild(iframe);
-
-      const blob = new Blob([html], {type:'text/html'});
-      const url  = URL.createObjectURL(blob);
-      iframe.src = url;
-
-      iframe.onload = function(){
+      if(gradeMatch && gradeMatch[1]){
         try{
-          // Aguarda o emissor rodar o boot e salvar no localStorage
-          setTimeout(()=>{
-            const g = null; // importFromFile usa parse direto do HTML — sem localStorage
-            if(g){
-              grade = JSON.parse(g);
-              // grade em memoria — sem localStorage
-              snap.grade = g;
-              buildRoteiro();
-              restoreCollapsed();
-              renderSidebar();
-              renderDateNav();
-              updateAll();
-              showToast('✓ Grade importada do Emissor!');
-            } else {
-              showToast('⚠ Nenhuma grade encontrada no arquivo.');
-            }
-            document.body.removeChild(iframe);
-            URL.revokeObjectURL(url);
-          }, 1500);
-        }catch(err){
-          showToast('⚠ Erro ao ler o arquivo: ' + err.message);
-          document.body.removeChild(iframe);
+          grade = JSON.parse(gradeMatch[1]);
+          buildRoteiro();
+          restoreCollapsed();
+          renderSidebar();
+          renderDateNav();
+          updateAll();
+          showToast('✓ Grade importada do arquivo!');
+        }catch(parseErr){
+          showToast('⚠ Não foi possível ler a grade do arquivo.');
         }
-      };
+      } else {
+        showToast('⚠ Nenhuma grade encontrada no arquivo.');
+      }
     }catch(err){
       showToast('⚠ Erro ao importar: ' + err.message);
     }
@@ -1708,11 +1757,8 @@ function setSidebarHeight(){
 }
 window.addEventListener('resize', setSidebarHeight);
 
-// ── SYNC — coração do sistema ──
-function syncFromStorage(){
-  // Firebase onValue callbacks (em _apply/_applyAirLogs etc.) cuidam da sincronizacao
-  // Esta funcao mantida para compatibilidade mas nao faz mais leitura do localStorage
-}
+// ── SYNC — Firebase onValue callbacks cuidam da sincronização em tempo real ──
+function syncFromStorage(){ /* grade vem do Firebase via _apply() */ }
 
 // ── AUTO SCROLL — só chamado quando item muda ──
 function doAutoScroll(){
@@ -1731,8 +1777,7 @@ function doAutoScroll(){
 
 // ── STORAGE ──
 function loadStorage(){
-  // grade e cur vem do Firebase — sem localStorage
-  // Garantir que doneKeys seja sempre um array válido
+  // grade e cur chegam do Firebase via _apply() — nada a ler localmente
   if(!Array.isArray(cur.doneKeys)) cur.doneKeys=[];
 }
 
@@ -2089,12 +2134,12 @@ function toggleAutoScroll(){
 }
 
 // ── IP ──
-function loadIpConfig(){ try{ const c=lsGet('xibidor_ip'); if(c){ ipConfig=JSON.parse(c); setIpStatus(); if(ipConfig.ip) startIpPoll(); }}catch(e){} }
-function saveIpLocal(){ lsSet('xibidor_ip',JSON.stringify(ipConfig)); }
+function loadIpConfig(){ /* IP carregado do Firebase via prefs no login */ }
+function saveIpLocal(){ _masterSavePrefs({ip:ipConfig}); }
 function openIpModal(){ document.getElementById('inp-ip').value=ipConfig.ip||''; document.getElementById('inp-port').value=ipConfig.port||8765; document.getElementById('ip-overlay').classList.add('open'); }
 function closeIpModal(){ document.getElementById('ip-overlay').classList.remove('open'); }
 function clearIp(){ ipConfig={ip:'',port:8765}; saveIpLocal(); setIpStatus(); closeIpModal(); stopIpPoll(); }
-function saveIp(){ ipConfig.ip=document.getElementById('inp-ip').value.trim(); ipConfig.port=parseInt(document.getElementById('inp-port').value)||8765; saveIpLocal(); setIpStatus(); closeIpModal(); if(ipConfig.ip) startIpPoll(); else stopIpPoll(); }
+function saveIp(){ ipConfig.ip=document.getElementById('inp-ip').value.trim(); ipConfig.port=parseInt(document.getElementById('inp-port').value)||8765; saveIpLocal(); setIpStatus(); closeIpModal(); if(ipConfig.ip){ startIpPoll(); _startMasterWs(); } else stopIpPoll(); }
 // [NET #5] retry progressivo: 1s→2s→4s→8s→8s…
 let _ipRetryDelay=1000, _ipRetryTimer=null;
 function startIpPoll(){
@@ -2104,7 +2149,6 @@ function startIpPoll(){
 }
 function _doIpFetch(){
   if(!ipConfig.ip) return;
-  const _t0=performance.now();
   fetch(`http://${ipConfig.ip}:${ipConfig.port}/state`,{signal:AbortSignal.timeout(2000)})
     .then(r=>r.json())
     .then(d=>{
@@ -2114,7 +2158,6 @@ function _doIpFetch(){
         if(newTs>=(_fbLastTs||0)){
           grade=d.grade;
           cur=d.cur||cur;
-          // Dados em memoria — sem localStorage
           if(typeof recalcBrkTotals==='function') recalcBrkTotals();
           buildRoteiro();
           renderSidebar();
@@ -2124,10 +2167,9 @@ function _doIpFetch(){
       _ipRetryTimer=setTimeout(_doIpFetch,1000);
     })
     .catch(()=>{
-      const s=lsGet('roteiro_ip_state');
-      if(s){try{const _d=JSON.parse(s);if(_d.grade){grade=_d.grade||grade;cur=_d.cur||cur;if(typeof recalcBrkTotals==='function')recalcBrkTotals();buildRoteiro();renderSidebar();setIpStatus('connected');_ipRetryDelay=1000;_ipRetryTimer=setTimeout(_doIpFetch,1000);return;}}catch(e){}}
+      // Sem fallback local — Firebase é a fonte de verdade
       setIpStatus('polling');
-      _ipRetryDelay=Math.min(_ipRetryDelay*2,8000); // backoff até 8s
+      _ipRetryDelay=Math.min(_ipRetryDelay*2,8000);
       _ipRetryTimer=setTimeout(_doIpFetch,_ipRetryDelay);
     });
 }
@@ -2143,20 +2185,12 @@ function setIpStatus(s){
   lbl.textContent=st==='connected'?ipConfig.ip:(st==='polling'?'Conectando...':'IP');
 }
 
-// ── UTILS ──
-const _MASTER_DATA_KEYS = new Set([
-  'roteiro_grade','roteiro_ts','roteiro_cur','roteiro_cur_ts',
-  'roteiro_air_logs','roteiro_air_ts','roteiro_opec_log',
-  'roteiro_medialib','roteiro_contracts','roteiro_prod_log'
-]);
-function lsGet(k){
-  if(_MASTER_DATA_KEYS.has(k)){ return null; } // dados vem do Firebase
-  try{return localStorage.getItem(k);}catch(e){return null;}
-}
-function lsSet(k,v){
-  if(_MASTER_DATA_KEYS.has(k)){ return; } // dados vao para Firebase
-  try{localStorage.setItem(k,v);}catch(e){}
-}
+// ── Cache de Emergência — lê apenas se Firebase E WS falharem ──
+// Stubs silenciosos — sem localStorage, sem warn no console.
+// Para ativar um cache real de emergência, implemente o corpo destas funções.
+function lsGet(k){ return null; }
+function lsSet(k,v){ /* descartado */ }
+function lsRemove(k){ /* descartado */ }
 function pad(n){ return String(n).padStart(2,'0'); }
 // Rastreia o último elemento clicado para ancorar o toast
 let _lastClickedEl = null;
@@ -2685,7 +2719,10 @@ updateHighlight = function(){
 };
 
 
-// ── WebSocket para receber estado em tempo real do servidor ──
+// ── WebSocket — canal secundário para exibidor local (somente leitura) ──
+// Melhoria 2: Firebase é a fonte de verdade. O WS só aplica dados do servidor local
+// se o timestamp for estritamente maior que o último recebido do Firebase.
+// Nunca escreve de volta no Firebase a partir do WS para evitar conflitos de estado.
 let _masterWs = null;
 let _masterWsTimer = null;
 
@@ -2696,7 +2733,7 @@ function _startMasterWs(){
     _masterWs = new WebSocket(`ws://${ipConfig.ip}:${ipConfig.port}`);
 
     _masterWs.onopen = ()=>{
-      console.log('[MASTER] WS conectado');
+      console.log('[MASTER] WS conectado (somente leitura — Firebase tem prioridade)');
       setIpStatus('connected');
     };
 
@@ -2706,10 +2743,11 @@ function _startMasterWs(){
         if(d.type==='pong') return;
         if(d.type==='state' && d.grade){
           const newTs = d.ts||0;
-          if(newTs >= (_fbLastTs||0)){
+          // Melhoria 2: só aplica se WS tiver dado mais novo que o Firebase
+          // Nunca sobrescreve uma versão mais recente que já veio do Firebase
+          if(newTs > (_fbLastTs||0)){
             grade = d.grade;
             cur   = d.cur||cur;
-            // Dados em memoria — sem localStorage
             if(typeof recalcBrkTotals==='function') recalcBrkTotals();
             buildRoteiro();
             renderSidebar();
@@ -2732,14 +2770,8 @@ function _startMasterWs(){
   }
 }
 
-// Iniciar WS quando IP for configurado
-const _origSaveIp = saveIp;
-saveIp = function(){
-  _origSaveIp();
-  if(ipConfig.ip){ _startMasterWs(); }
-};
-
-// Iniciar no boot se já tiver IP
+// Iniciar WS quando IP for configurado — já tratado dentro de saveIp() diretamente
+// Iniciar no boot se já tiver IP (carregado do Firebase)
 window.addEventListener('DOMContentLoaded', ()=>{
   setTimeout(()=>{ if(ipConfig.ip) _startMasterWs(); }, 1200);
 });

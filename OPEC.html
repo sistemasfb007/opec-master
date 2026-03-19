@@ -907,8 +907,36 @@ const DOMINIO = '@sistemasfb.com';
 
 let app, db, auth;
 let _gradeRef, _fbReady=false, _fbLastTs=0, _fbIgnore=false, _unsubscribe=null;
-let _stationCode = ''; // station_code vem do Firebase via onAuthStateChanged
+let _stationCode = '';
 let _currentUser = null;
+
+// ── Desconexão de estação ─────────────────────────────────────────
+// Persiste no sessionStorage para sobreviver a reloads na mesma aba.
+// Quando desconectado: _fbSaveGrade não envia nada e o listener é cancelado.
+let _fbPaused = sessionStorage.getItem('_opec_disc') === '1';
+
+window._fbDisconnectStation = function(){
+  if(!confirm('Desconectar a estação?\n\nEnquanto desconectado, nenhuma edição local subirá ao Firebase.\nIdeal para editar o código localmente sem afetar a produção.')) return;
+  _fbPaused = true;
+  sessionStorage.setItem('_opec_disc','1');
+  if(_unsubscribe){ _unsubscribe(); _unsubscribe=null; }
+  if(_unsubAirLogs){ try{_unsubAirLogs();}catch(e){} _unsubAirLogs=null; }
+  if(_unsubOpecLog){ try{_unsubOpecLog();}catch(e){} _unsubOpecLog=null; }
+  _fbReady = false;
+  _gradeRef = null;
+  _fbDot('red');
+  _renderStationUI();
+  showToast('⏹ Estação desconectada — edições ficam locais','warn');
+};
+
+window._fbConnectStation = function(){
+  _fbPaused = false;
+  sessionStorage.removeItem('_opec_disc');
+  _fbReady = false;
+  _renderStationUI();
+  _fbConnect();
+  showToast('✓ Estação conectada','ok');
+};
 
 // ── Inicializar (mesmo padrão do MASTER) ──
 try{
@@ -949,6 +977,26 @@ try{
           if(prefs.pin){
             currentPin = prefs.pin;
             window._pinCache = prefs.pin;
+          }
+          // Expor cache de prefs para módulos de layout (panel order, col order, etc.)
+          window._opecPrefsCache = prefs;
+          if(prefs.layout){
+            layout={...layout,...prefs.layout};
+            applyLayout();
+          }
+          if(prefs.ip){
+            ipConfig={...ipConfig,...prefs.ip};
+            const si=$('server-ip'); if(si) si.value=ipConfig.ip||'';
+            const sp=$('server-port'); if(sp) sp.value=ipConfig.port||8765;
+            updateServerStatus();
+          }
+          if(prefs.report_logo_b64){
+            window._reportLogoB64=prefs.report_logo_b64;
+            _reportLogoPreview(prefs.report_logo_b64);
+          }
+          if(prefs.master_gh_url){
+            const hint=document.getElementById('master-gh-saved-hint');
+            if(hint) hint.textContent='Link salvo: '+prefs.master_gh_url;
           }
         }
       }catch(e){ /* prefs nao criticas */ }
@@ -1237,9 +1285,15 @@ function _applyGrade(d){
       window._airLogsCache = logs;
     }
   }
-  const g={...d}; delete g._ts; delete g.__air_logs;
+  const raw={...d}; delete raw._ts; delete raw.__air_logs;
+  // Firebase retorna chaves como strings ("0","1",...) — converter para inteiros
+  // e garantir que todos os 7 dias existam como arrays
+  const g={};
+  for(let i=0;i<7;i++){
+    const v = raw[i] ?? raw[String(i)];
+    g[i] = Array.isArray(v) ? v : [];
+  }
   grade=g;
-  // Dados ficam exclusivamente no Firebase — sem localStorage
   if(typeof recalcBrkTotals==='function') recalcBrkTotals();
   if(typeof renderWeekNav==='function')   renderWeekNav();
   if(typeof renderRoteiro==='function')   renderRoteiro();
@@ -1250,15 +1304,64 @@ function _applyGrade(d){
 
 window._fbSaveGrade = function(g){
   if(!_fbReady||!_gradeRef) return;
-  const ts=Date.now(); _fbLastTs=ts; _fbIgnore=true;
-  // Preservar __air_logs publicado pelo MASTER
+  // Estação desconectada — não envia nada ao Firebase
+  if(_fbPaused) return;
+  const ts=Date.now(); _fbLastTs=ts;
+  _fbIgnore=true;
+  // Garantia: limpa o ignore após 3s caso o listener não consuma
+  setTimeout(()=>{ _fbIgnore=false; }, 3000);
   get(_gradeRef).then(snap=>{
-    const existing = snap.exists() ? snap.val() : {};
-    const airLogs = existing.__air_logs || null;
-    const payload = {...g, _ts:ts};
-    if(airLogs) payload.__air_logs = airLogs;
-    set(_gradeRef, payload).then(()=>_fbDot('green')).catch(()=>_fbDot('red'));
+    const existing=snap.exists()?snap.val():{};
+    const remoteTs=existing._ts||0;
+    if(remoteTs>ts){
+      // Conflito: outro operador salvou versão mais recente — avisar o operador com toast
+      console.warn('[OPEC] Conflito de grade: remoto ('+remoteTs+') > local ('+ts+'). Escrita abortada.');
+      _fbDot('red');
+      // Toast persistente com botão de recarregar
+      let toast=document.getElementById('_conflict-toast');
+      if(!toast){
+        toast=document.createElement('div');
+        toast.id='_conflict-toast';
+        toast.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1c1220;border:1px solid rgba(224,80,80,.5);border-left:4px solid #e05050;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:14px;z-index:99999;box-shadow:0 8px 32px rgba(0,0,0,.7);max-width:90vw;font-family:var(--font-b,sans-serif)';
+        document.body.appendChild(toast);
+      }
+      toast.innerHTML=`
+        <span style="font-size:18px">⚠</span>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:#e05050;margin-bottom:3px">Conflito de edição detectado</div>
+          <div style="font-size:11px;color:#7a8fa8;line-height:1.6">
+            Outro operador salvou uma versão mais recente.<br>
+            Sua última alteração <strong style="color:#e05050">não foi salva</strong>.
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <button id="_conflict-reload-btn"
+            style="font-family:var(--font-d,sans-serif);font-size:11px;font-weight:700;letter-spacing:1.5px;
+                   text-transform:uppercase;padding:7px 14px;border-radius:6px;border:none;cursor:pointer;
+                   background:var(--green,#1faa5a);color:#fff;white-space:nowrap">
+            ↺ Recarregar grade
+          </button>
+          <button onclick="this.closest('#_conflict-toast').remove()"
+            style="background:none;border:1px solid rgba(255,255,255,.1);border-radius:6px;
+                   color:#7a8fa8;cursor:pointer;padding:7px 10px;font-size:11px">✕</button>
+        </div>`;
+      document.getElementById('_conflict-reload-btn').onclick=function(){
+        toast.remove();
+        _applyGrade(existing);
+        if(typeof showToast==='function') showToast('✓ Grade atualizada com a versão mais recente.','ok');
+        _fbDot('green');
+      };
+      // Remove o toast automaticamente após 15s se o operador não agir
+      setTimeout(()=>{ const t=document.getElementById('_conflict-toast'); if(t)t.remove(); },15000);
+      return;
+    }
+    // Sem conflito — salvar normalmente
+    const airLogs=existing.__air_logs||null;
+    const payload={...g,_ts:ts};
+    if(airLogs) payload.__air_logs=airLogs;
+    set(_gradeRef,payload).then(()=>_fbDot('green')).catch(()=>_fbDot('red'));
   }).catch(()=>{
+    // Se não conseguir ler, salva mesmo assim (melhor que perder a alteração)
     set(_gradeRef,{...g,_ts:ts}).then(()=>_fbDot('green')).catch(()=>_fbDot('red'));
   });
 };
@@ -1267,41 +1370,89 @@ function _fbDot(s){
   const el=document.getElementById('fb-status-dot'); if(!el) return;
   el.style.background=s==='green'?'#4acc7a':s==='red'?'#e07070':'#f0c040';
   if(s==='pulse') setTimeout(()=>_fbDot('green'),400);
+  // Melhoria 4: Watchdog — reinicia o timer a cada sinal recebido do Firebase
+  if(s==='green'||s==='pulse') _wdReset();
+}
+
+// ── Watchdog Firebase (Melhoria 4) ──
+// Se o Firebase ficar 30s sem responder, emite alerta sonoro e visual
+let _wdTimer=null;
+const _WD_TIMEOUT=30000;
+function _wdReset(){
+  clearTimeout(_wdTimer);
+  _wdTimer=setTimeout(_wdAlert,_WD_TIMEOUT);
+}
+function _wdAlert(){
+  console.warn('[OPEC] Watchdog: Firebase sem resposta por 30s!');
+  _fbDot('red');
+  showToast('⚠ Firebase sem sinal há 30s — verifique a conexão!');
+  // Alerta sonoro via Web Audio API
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    [440,480,440].forEach((freq,i)=>{
+      const osc=ctx.createOscillator();
+      const gain=ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value=freq;
+      osc.type='sine';
+      gain.gain.setValueAtTime(0.3,ctx.currentTime+i*0.3);
+      gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+i*0.3+0.25);
+      osc.start(ctx.currentTime+i*0.3);
+      osc.stop(ctx.currentTime+i*0.3+0.25);
+    });
+  }catch(e){}
+  // Reagendar para continuar alertando enquanto offline
+  _wdTimer=setTimeout(_wdAlert,_WD_TIMEOUT);
 }
 
 function _renderStationUI(){
   ['fb-station-panel','fb-station-panel-land'].forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
+    const btnBase='font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;border:none;cursor:pointer;padding:3px 9px;transition:all .15s;line-height:1;white-space:nowrap;';
     if(!_stationCode){
       el.innerHTML=`
-        <span style="font-size:9px;color:var(--text3);letter-spacing:1px;margin-right:6px">CÓD. ESTAÇÃO</span>
-        <input id="fb-code-inp" placeholder="EX: TV-RO-01" maxlength="20"
-          style="font-family:var(--font-m);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
-                 width:100px;background:var(--s2);border:1px solid var(--gold);border-radius:4px;padding:2px 7px;
-                 color:var(--gold);outline:none"
-          onkeydown="if(event.key==='Enter')window._fbSetCode(this.value)">
-        <button onclick="window._fbSetCode(document.getElementById('fb-code-inp').value)"
-          style="font-size:10px;padding:2px 10px;background:var(--gold);border:none;border-radius:4px;
-                 color:#000;font-weight:700;cursor:pointer;margin-left:4px">Ativar</button>`;
+        <div style="display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border2);border-radius:5px;padding:3px 8px;background:var(--s2)">
+          <span style="font-size:9px;letter-spacing:1px;color:var(--text3)">ESTAÇÃO</span>
+          <input id="fb-code-inp" placeholder="TV-RO-01" maxlength="20"
+            style="font-family:var(--font-m);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+                   width:80px;background:transparent;border:none;border-bottom:1px solid var(--gold);
+                   color:var(--gold);outline:none;padding:1px 3px;"
+            onkeydown="if(event.key==='Enter')window._fbSetCode(this.value)">
+          <button onclick="window._fbSetCode(document.getElementById('fb-code-inp').value)"
+            style="${btnBase}background:var(--gold);color:#000;border-radius:3px;padding:3px 8px">
+            Ativar
+          </button>
+        </div>`;
+    } else if(_fbPaused){
+      el.innerHTML=`
+        <div style="display:inline-flex;align-items:center;border:1px solid rgba(224,80,80,.3);border-radius:5px;overflow:hidden;background:var(--s2)">
+          <span style="padding:3px 9px;font-family:var(--font-m);font-size:9px;font-weight:700;
+                       letter-spacing:2px;color:var(--red2);text-transform:uppercase;opacity:.8"
+                title="Desconectada — nada sobe ao Firebase">⏹ ${_stationCode}</span>
+          <button onclick="window._fbConnectStation()"
+            style="${btnBase}background:rgba(31,170,90,.15);color:var(--green);border-left:1px solid rgba(31,170,90,.25);padding:4px 10px"
+            onmouseover="this.style.background='rgba(31,170,90,.28)'"
+            onmouseout="this.style.background='rgba(31,170,90,.15)'">Conectar</button>
+        </div>`;
     } else {
       el.innerHTML=`
-        <span id="fb-code-display"
-          style="display:flex;align-items:center;width:100%;
-                 background:transparent;border:1px solid var(--border);border-radius:6px;
-                 overflow:hidden;cursor:default;color:var(--text2);">
-          <span onclick="navigator.clipboard.writeText('${_stationCode}').then(()=>{this.textContent='Copiado';setTimeout(()=>this.textContent='${_stationCode}',1200)})"
-            style="flex:1;padding:5px 11px;cursor:pointer;
-                   font-family:var(--font-m);font-size:11px;font-weight:700;
-                   letter-spacing:2px;color:var(--gold);text-transform:uppercase"
+        <div style="display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:5px;overflow:hidden;background:var(--s2)">
+          <span onclick="navigator.clipboard.writeText('${_stationCode}').then(()=>{this.textContent='✓';setTimeout(()=>this.textContent='${_stationCode}',1200)})"
+            style="padding:3px 9px;font-family:var(--font-m);font-size:9px;font-weight:700;
+                   letter-spacing:2px;color:var(--gold);text-transform:uppercase;cursor:pointer"
             title="Copiar código">${_stationCode}</span>
+          <span id="fb-status-dot" style="width:5px;height:5px;border-radius:50%;background:var(--green);margin:0 4px;flex-shrink:0"></span>
+          <button onclick="window._fbDisconnectStation()"
+            style="${btnBase}background:transparent;color:var(--text3);border-left:1px solid var(--border);padding:4px 9px"
+            onmouseover="this.style.color='var(--red2)';this.style.background='rgba(224,80,80,.07)'"
+            onmouseout="this.style.color='var(--text3)';this.style.background='transparent'"
+            title="Desconectar estação">Desconectar</button>
           <button onclick="window._fbEditCode()"
-            style="padding:5px 10px;background:transparent;border:none;border-left:1px solid var(--border);
-                   color:var(--text3);cursor:pointer;font-size:12px;font-weight:700;line-height:1;
-                   transition:all .15s"
+            style="${btnBase}background:transparent;color:var(--text3);border-left:1px solid var(--border);padding:4px 8px"
             onmouseover="this.style.color='var(--text)';this.style.background='var(--s3)'"
             onmouseout="this.style.color='var(--text3)';this.style.background='transparent'"
-            title="Editar estação">—</button>
-        </span>`;
+            title="Editar código">—</button>
+        </div>`;
     }
   });
 }
@@ -3225,12 +3376,12 @@ function renderCtrl(){
 
 // ═══ IP / BROADCAST ═══
 function loadIpConfig(){
-  try{const c=lsGet('roteiro_ip');if(c){ipConfig=JSON.parse(c);$('server-ip').value=ipConfig.ip||'';$('server-port').value=ipConfig.port||8765;updateServerStatus();}}catch(e){}
+  // IP carregado do Firebase via prefs no login
 }
 function saveIpConfig(){
   ipConfig.ip=$('server-ip').value.trim();
   ipConfig.port=parseInt($('server-port').value)||8765;
-  lsSet('roteiro_ip',JSON.stringify(ipConfig));
+  _opecSavePrefs({ip:ipConfig});
   updateServerStatus();
   showToast('IP salvo!');
 }
@@ -3238,11 +3389,6 @@ function updateServerStatus(){ /* IP display removido */ }
 function testConnection(){showToast('Teste: verifique se o Exibidor está online com o mesmo IP');}
 function broadcastState(){
   // Firebase e a fonte de verdade — sem localStorage
-  if(ipConfig.ip){
-    // Store IP-tagged state for cross-network polling
-    const payload=JSON.stringify({grade,cur,ts:Date.now()});
-    lsSet('roteiro_ip_state',payload);
-  }
   // Persistir cur no Firebase para sobreviver a reloads
   try{
     if(typeof db!=='undefined' && db && _stationCode){
@@ -3272,7 +3418,8 @@ function doAddProg(){
   // Create one program per selected day
   let created = 0;
   [...mpSelectedDays].sort((a,b)=>a-b).forEach(day => {
-    if(!HOURS[day]) return; // skip days without transmission
+    if(!HOURS[day]) return;
+    if(!Array.isArray(grade[day])) grade[day]=[];  // segurança extra
     const breaks = brkConfigs.map(b => ({ id: uid(), name: b.name, total: b.total, items: [] }));
     grade[day].push({ id: uid(), time, timeEnd, name, breaks });
     grade[day].sort((a,b) => a.time.localeCompare(b.time));
@@ -4220,11 +4367,8 @@ function resetLayout(){
   applyLayout();
   saveLayout();
 
-  // 2. Resetar ordem e visibilidade dos painéis do controle
-  const _PK='opec_panel_layout_v1';
-  localStorage.removeItem(_PK+'_order');
-  localStorage.removeItem(_PK+'_hidden');
-  localStorage.removeItem(_PK+'_col_order');
+  // 2. Resetar ordem e visibilidade dos painéis do controle via Firebase
+  _opecSavePrefs({panelOrder:null, panelHidden:[], colOrder:null});
 
   // 3. Restaurar colunas para ordem padrão
   const defColOrder=['col-roteiro','col-midias','col-controle'];
@@ -4265,11 +4409,14 @@ function recalcBrkTotals(){
 }
 function saveGrade(){
   recalcBrkTotals();
-  // Firebase e a unica fonte — sem localStorage
+  // Garantir que os 7 dias existam com chaves numéricas antes de salvar
+  const normalized={};
+  for(let i=0;i<7;i++) normalized[i]=Array.isArray(grade[i])?grade[i]:[];
+  grade=normalized;
   if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
   if(typeof broadcastState==='function') broadcastState();
 }
-function saveLayout(){lsSet('roteiro_layout',JSON.stringify(layout));}
+function saveLayout(){ _opecSavePrefs({layout:layout}); }
 function saveContracts(){
   if(typeof db==='undefined'||!db||!_stationCode){ return; }
   try{
@@ -4279,46 +4426,14 @@ function saveContracts(){
 function loadStorage(){
   // grade e cur chegam do Firebase via _fbConnect/_applyGrade
   // contracts chegam do Firebase via _fbLoadContracts
-  // layout e configuracao local do dispositivo — fica no localStorage
-  try{
-    const l=lsGet('roteiro_layout');
-    if(l) layout={...layout,...JSON.parse(l)};
-  }catch(e){}
+  // layout vem do Firebase via prefs do usuário (carregado no login)
 }
-// ── Separação localStorage vs Firebase ──
-// lsGet/lsSet: APENAS para config por dispositivo (IP, layout, código de estação)
-// Dados operacionais (grade, cur, logs, medialib) vivem EXCLUSIVAMENTE no Firebase
-const _LOCAL_ONLY_KEYS = new Set([
-  'opec_station_code','roteiro_ip','roteiro_ip_state',
-  'roteiro_layout','report_logo_b64','master_gh_url','roteiro_pin'
-]);
-const _DATA_KEYS = new Set([
-  'roteiro_grade','roteiro_ts','roteiro_cur','roteiro_cur_ts',
-  'roteiro_air_logs','roteiro_air_ts','roteiro_opec_log','roteiro_opec_ts',
-  'roteiro_medialib','roteiro_pilist','roteiro_pilist_ts',
-  'roteiro_contracts','roteiro_prod_log'
-]);
-function lsGet(k){
-  if(_DATA_KEYS.has(k)){
-    console.warn('[lsGet] BLOQUEADO: "'+k+'" e dado operacional — use Firebase.');
-    return null;
-  }
-  try{return localStorage.getItem(k);}catch(e){return null;}
-}
-function lsSet(k,v){
-  if(_DATA_KEYS.has(k)){
-    console.warn('[lsSet] BLOQUEADO: "'+k+'" e dado operacional — use Firebase.');
-    return;
-  }
-  try{localStorage.setItem(k,v);}catch(e){}
-}
-function lsRemove(k){
-  if(_DATA_KEYS.has(k)){
-    console.warn('[lsRemove] BLOQUEADO: "'+k+'" e dado operacional.');
-    return;
-  }
-  try{localStorage.removeItem(k);}catch(e){}
-}
+// ── Cache de Emergência — lê apenas se Firebase E WS falharem ──
+// Stubs silenciosos — sem localStorage, sem warn no console.
+// Para ativar um cache real de emergência, implemente o corpo destas funções.
+function lsGet(k){ return null; }
+function lsSet(k,v){ /* descartado */ }
+function lsRemove(k){ /* descartado */ }
 
 // ═══ SAMPLE DATA ═══
 function loadSampleData(){
@@ -4493,6 +4608,15 @@ function logProd(){
   const labels={on_air:'No Ar',skip:'Pulado',repeat:'Repetido',error:'Erro',note:'Obs.'};
   const e={id:uid(),ts:Date.now(),time:timeStr,seq:seq||'—',name:name||'—',type,typeLabel:labels[type]||type,dateStr:now.toLocaleDateString('pt-BR')};
   prodLog.unshift(e);saveProdLog();renderProdLog();
+  // Melhoria 4: Auditoria — salvar em coleção separada logs_exibicao para rastreabilidade gerencial
+  try{
+    if(typeof db!=='undefined'&&db&&_stationCode){
+      const operador=(typeof auth!=='undefined'&&auth&&auth.currentUser)?auth.currentUser.email:'desconhecido';
+      ref(db,'logs_exibicao/'+_stationCode+'/'+e.id).set({
+        ...e, estacao:_stationCode, operador, _ts:Date.now()
+      }).catch(()=>{});
+    }
+  }catch(err){}
   $('prod-seq').value='';$('prod-name').value='';_initProdTime();
   showToast(`✓ ${e.typeLabel}: ${e.name}`);
 }
@@ -4718,9 +4842,48 @@ function switchOpc(tab){
   }
 }
 
-// OPC Mídias table
+// OPC Mídias table — com debounce (250ms) e paginação (50 itens/página)
 let opcSortKey='seq',opcSortDir=1;
+const OPC_PAGE_SIZE=50;
+let _opcPage=0,_opcDebTimer=null;
+
+// Chamada pelo oninput — aguarda 250ms antes de re-renderizar
 function renderOpcMidias(){
+  clearTimeout(_opcDebTimer);
+  _opcDebTimer=setTimeout(_renderOpcMidiasPaged,250);
+}
+
+// Carrega próxima página sem resetar a lista (botão "Carregar mais")
+function renderOpcMidiasMore(){
+  _opcPage++;
+  _renderOpcMidiasPaged(true);
+}
+
+// Gera o HTML de uma linha da tabela
+function _opcMidiaRow(item){
+  const exp=isExpired(item.dateEnd),nd=!item.dateEnd;
+  const sc=SEG_TEXT[item.segment]||'var(--text2)',sb=SEG_BG[item.segment]||'rgba(80,80,80,.1)';
+  return `<tr class="${exp?'exp-row':''}" style="cursor:pointer">
+    <td title="Clique para editar o Nº Mídia" onclick="opcEditSeq('${item.id}','${item.seq||''}')"
+      style="cursor:pointer" onmouseover="this.style.background='rgba(212,160,23,.08)'" onmouseout="this.style.background=''">
+      <span class="td-seq" style="text-decoration:underline dotted;text-underline-offset:3px">${item.seq||'—'}</span>
+      <span style="font-size:8px;color:var(--text3);margin-left:3px">✏</span>
+    </td>
+    <td><div class="td-name">${item.name||'—'}</div>${item.title?`<div class="td-title">${item.title}</div>`:''}</td>
+    <td><span class="td-dur">${fmtSec(item.dur)}</span></td>
+    <td style="font-size:10px;color:var(--gold)">${item.piNumber?'PI '+item.piNumber:item.piClient||'—'}</td>
+    <td><span class="td-seg" style="background:${sb};color:${sc};border:1px solid ${sc}33">${SEG_LABELS[item.segment]||item.segment||'—'}</span></td>
+    <td><span class="td-status ${exp?'exp':nd?'nd':'ok'}">${exp?'Vencido':nd?'Sem data':'Ativo'}</span></td>
+    <td style="display:flex;gap:4px;align-items:center">
+      <button class="btn btn-ghost btn-xs" onclick="opcEditSeq('${item.id}','${item.seq||''}')">✏</button>
+      <button class="btn btn-red btn-xs" onclick="opcRemoveMidia('${item.id}')">✕</button>
+    </td>
+  </tr>`;
+}
+
+// Implementação real com paginação
+function _renderOpcMidiasPaged(append){
+  if(!append) _opcPage=0;
   const q=($('opc-search')?.value||'').toLowerCase().trim();
   const segF=$('opc-seg-f')?.value||'',statusF=$('opc-status-f')?.value||'';
   let items=getAllMidias().filter(item=>{
@@ -4740,29 +4903,41 @@ function renderOpcMidias(){
     return String(va).localeCompare(String(vb))*opcSortDir;
   });
   const tbody=$('opc-midias-tbody');if(!tbody)return;
-  tbody.innerHTML=items.map((item,idx)=>{
-    const exp=isExpired(item.dateEnd),nd=!item.dateEnd;
-    const sc=SEG_TEXT[item.segment]||'var(--text2)',sb=SEG_BG[item.segment]||'rgba(80,80,80,.1)';
-    return `<tr class="${exp?'exp-row':''}" style="cursor:pointer">
-      <td title="Clique para editar o Nº Mídia" onclick="opcEditSeq('${item.id}','${item.seq||''}')"
-        style="cursor:pointer" onmouseover="this.style.background='rgba(212,160,23,.08)'" onmouseout="this.style.background=''">
-        <span class="td-seq" style="text-decoration:underline dotted;text-underline-offset:3px">${item.seq||'—'}</span>
-        <span style="font-size:8px;color:var(--text3);margin-left:3px">✏</span>
-      </td>
-      <td><div class="td-name">${item.name||'—'}</div>${item.title?`<div class="td-title">${item.title}</div>`:''}</td>
-      <td><span class="td-dur">${fmtSec(item.dur)}</span></td>
-      <td style="font-size:10px;color:var(--gold)">${item.piNumber?'PI '+item.piNumber:item.piClient||'—'}</td>
-      <td><span class="td-seg" style="background:${sb};color:${sc};border:1px solid ${sc}33">${SEG_LABELS[item.segment]||item.segment||'—'}</span></td>
-      <td><span class="td-status ${exp?'exp':nd?'nd':'ok'}">${exp?'Vencido':nd?'Sem data':'Ativo'}</span></td>
-      <td style="display:flex;gap:4px;align-items:center">
-        <button class="btn btn-ghost btn-xs" onclick="opcEditSeq('${item.id}','${item.seq||''}')">✏</button>
-        <button class="btn btn-red btn-xs" onclick="opcRemoveMidia('${item.id}')">✕</button>
-      </td>
-    </tr>`;
-  }).join('')||'<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma mídia encontrada</td></tr>';
+  const total=items.length;
+  const slice=items.slice(0,(_opcPage+1)*OPC_PAGE_SIZE);
+  const hasMore=slice.length<total;
+  if(append){
+    const moreRow=document.getElementById('opc-load-more-row');
+    if(moreRow)moreRow.remove();
+    tbody.insertAdjacentHTML('beforeend',items.slice(_opcPage*OPC_PAGE_SIZE,(_opcPage+1)*OPC_PAGE_SIZE).map(_opcMidiaRow).join(''));
+  } else {
+    if(!slice.length){
+      tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma mídia encontrada</td></tr>';
+      const ce=$('opc-cnt'),ee=$('opc-exp-cnt');
+      if(ce)ce.textContent='0 mídia(s)';
+      if(ee)ee.textContent='';
+      return;
+    }
+    tbody.innerHTML=slice.map(_opcMidiaRow).join('');
+  }
+  if(hasMore){
+    const remaining=total-slice.length;
+    tbody.insertAdjacentHTML('beforeend',
+      `<tr id="opc-load-more-row"><td colspan="7" style="text-align:center;padding:12px">
+        <button onclick="renderOpcMidiasMore()"
+          style="font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:2px;
+                 text-transform:uppercase;padding:6px 20px;border-radius:6px;cursor:pointer;
+                 background:rgba(58,154,224,.1);border:1px solid rgba(58,154,224,.3);
+                 color:var(--blue2);transition:all .15s"
+          onmouseover="this.style.background='rgba(58,154,224,.2)'"
+          onmouseout="this.style.background='rgba(58,154,224,.1)'">
+          ↓ Carregar mais ${remaining} mídia(s)
+        </button>
+      </td></tr>`);
+  }
   const expCnt=items.filter(i=>isExpired(i.dateEnd)).length;
   const ce=$('opc-cnt'),ee=$('opc-exp-cnt');
-  if(ce)ce.textContent=`${items.length} mídia(s)`;
+  if(ce)ce.textContent=`${total} mídia(s) · exibindo ${slice.length}`;
   if(ee)ee.textContent=expCnt?`! ${expCnt} vencida(s)`:'';
 }
 
@@ -8449,7 +8624,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 function _copiarLinkMaster(v){
   navigator.clipboard.writeText(v).then(function(){
     showToast('✓ Link copiado! Cole no celular ou outro PC');
-    localStorage.setItem('master_gh_url', v);
+    _opecSavePrefs({master_gh_url:v});
     var el=document.getElementById('master-gh-saved-hint');
     if(el) el.textContent='Link salvo para uso futuro';
   });
@@ -8457,13 +8632,14 @@ function _copiarLinkMaster(v){
 
 
 // Logo do veículo para comprovante
-window._reportLogoB64 = localStorage.getItem('report_logo_b64')||'';
+window._reportLogoB64 = '';
+// Logo carregada do Firebase via prefs no login
 function _reportLogoChange(inp){
   const file=inp.files[0]; if(!file) return;
   const reader=new FileReader();
   reader.onload=function(e){
     window._reportLogoB64=e.target.result;
-    localStorage.setItem('report_logo_b64',e.target.result);
+    _opecSavePrefs({report_logo_b64:e.target.result});
     _reportLogoPreview(e.target.result);
   };
   reader.readAsDataURL(file);
@@ -8476,7 +8652,7 @@ function _reportLogoPreview(b64){
 }
 function _reportLogoClear(){
   window._reportLogoB64='';
-  localStorage.removeItem('report_logo_b64');
+  _opecSavePrefs({report_logo_b64:''});
   const hint=document.getElementById('rf-logo-hint');
   const img=document.getElementById('rf-logo-img');
   if(hint) hint.style.display='';
@@ -8568,8 +8744,13 @@ var _COLS={
 
 /* ──Salvar/restaurar ordem das colunas ── */
 var _CK=_K+'_col_order';
-function _getColOrder(){try{return JSON.parse(localStorage.getItem(_CK)||'null');}catch(e){return null;}}
-function _saveColOrder(order){localStorage.setItem(_CK,JSON.stringify(order));}
+function _getColOrder(){
+  try{ return (window._opecPrefsCache||{}).colOrder||null; }catch(e){return null;}
+}
+function _saveColOrder(order){
+  if(window._opecPrefsCache) window._opecPrefsCache.colOrder=order;
+  if(typeof _opecSavePrefs==='function') _opecSavePrefs({colOrder:order});
+}
 
 function _applyColOrder(order){
   /* order = ['col-roteiro','col-midias','col-controle'] em qualquer sequência */
@@ -8743,13 +8924,14 @@ function _rv(){
   });
 }
 
+function _savePanelOrder(order){
+  if(window._opecPrefsCache) window._opecPrefsCache.panelOrder=order;
+  if(typeof _opecSavePrefs==='function') _opecSavePrefs({panelOrder:order});
+}
+
 function _saveCtrlOrder(){
   var sc=document.querySelector('.ctrl-scroll');
   if(!sc) return;
-  var rows=document.querySelectorAll('#sp-panel-list .ctrl-scroll .card[data-panel-id], #sp-panel-list [data-pid]');
-  /* pega só os da seção de painéis do controle */
-  var panelRows=document.querySelectorAll('#sp-panel-list [data-pid^="no-ar"],[data-pid^="dashboard"],[data-pid^="distribuicao"],[data-pid^="avisos"],[data-pid^="calendario"],[data-pid^="dados"],[data-pid^="mapa"],[data-pid^="materiais"]');
-  /* fallback: pega todos que não são col- */
   var allRows=document.querySelectorAll('#sp-panel-list [data-pid]');
   allRows.forEach(function(row){
     var pid=row.dataset.pid;
@@ -8758,10 +8940,12 @@ function _saveCtrlOrder(){
     if(c) sc.appendChild(c);
   });
   var cards=sc.querySelectorAll('.card[data-panel-id]');
-  localStorage.setItem(_K+'_order',JSON.stringify(Array.from(cards).map(function(c){return c.dataset.panelId;})));
+  _savePanelOrder(Array.from(cards).map(function(c){return c.dataset.panelId;}));
 }
 
-function _gh(){try{return JSON.parse(localStorage.getItem(_K+'_hidden')||'[]');}catch(e){return[];}}
+function _gh(){
+  try{ return (window._opecPrefsCache||{}).panelHidden||[]; }catch(e){return[];}
+}
 
 function _tv(pid){
   var card=document.querySelector('.card[data-panel-id="'+pid+'"]');
@@ -8769,16 +8953,16 @@ function _tv(pid){
   var h=_gh(),i=h.indexOf(pid);
   if(i>-1){h.splice(i,1);card.style.display='';}
   else{h.push(pid);card.style.display='none';}
-  localStorage.setItem(_K+'_hidden',JSON.stringify(h));
+  if(window._opecPrefsCache) window._opecPrefsCache.panelHidden=h;
+  if(typeof _opecSavePrefs==='function') _opecSavePrefs({panelHidden:h});
   _rv();
 }
 
 window._resetLayout=function(){
   if(typeof resetLayout==='function'){ resetLayout(); }
   else {
-    localStorage.removeItem(_K+'_order');
-    localStorage.removeItem(_K+'_hidden');
-    localStorage.removeItem(_CK);
+    if(window._opecPrefsCache){ window._opecPrefsCache.panelOrder=null; window._opecPrefsCache.panelHidden=[]; window._opecPrefsCache.colOrder=null; }
+    if(typeof _opecSavePrefs==='function') _opecSavePrefs({panelOrder:null,panelHidden:[],colOrder:null});
     location.reload();
   }
 };
@@ -8797,7 +8981,7 @@ function _initD(){
   sc.addEventListener('dragend',function(){
     document.querySelectorAll('.card.dragging,.card.drag-over').forEach(function(c){c.classList.remove('dragging','drag-over');});
     var cards=sc.querySelectorAll('.card[data-panel-id]');
-    localStorage.setItem(_K+'_order',JSON.stringify(Array.from(cards).map(function(c){return c.dataset.panelId;})));
+    _savePanelOrder(Array.from(cards).map(function(c){return c.dataset.panelId;}));
     _rv();
   });
   sc.addEventListener('dragover',function(e){
@@ -8814,12 +8998,13 @@ function _initD(){
 
 function _restore(){
   try{
+    var prefs=window._opecPrefsCache||{};
     /* restaura ordem colunas */
-    var co=_getColOrder();
+    var co=prefs.colOrder||null;
     if(co) _applyColOrder(co);
     /* restaura ordem painéis controle */
-    var order=JSON.parse(localStorage.getItem(_K+'_order')||'null');
-    var h=_gh();
+    var order=prefs.panelOrder||null;
+    var h=prefs.panelHidden||[];
     var sc=document.querySelector('.ctrl-scroll');
     if(order&&sc) order.forEach(function(pid){
       var c=sc.querySelector('.card[data-panel-id="'+pid+'"]');
@@ -8913,7 +9098,7 @@ function _initColDrag(){
   });
 
   function _getColOrder(){
-    try{return JSON.parse(localStorage.getItem(_K+'_col_order')||'null');}catch(e){return null;}
+    try{ return (window._opecPrefsCache||{}).colOrder||null; }catch(e){return null;}
   }
 
   var _moveThrottle=null;
@@ -8991,7 +9176,7 @@ function _initColDrag(){
       if(side==='before') newOrder.splice(ti,0,fromId);
       else newOrder.splice(ti+1,0,fromId);
 
-      localStorage.setItem(_K+'_col_order',JSON.stringify(newOrder));
+      _saveColOrder(newOrder);
 
       /* aplica com micro-delay para o browser ter tempo de limpar estados visuais */
       setTimeout(function(){
