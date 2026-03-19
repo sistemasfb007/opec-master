@@ -922,6 +922,8 @@ window._fbDisconnectStation = function(){
   if(_unsubscribe){ _unsubscribe(); _unsubscribe=null; }
   if(_unsubAirLogs){ try{_unsubAirLogs();}catch(e){} _unsubAirLogs=null; }
   if(_unsubOpecLog){ try{_unsubOpecLog();}catch(e){} _unsubOpecLog=null; }
+  if(typeof _unsubMedialib!=='undefined'&&_unsubMedialib){ try{_unsubMedialib();}catch(e){} _unsubMedialib=null; }
+  if(typeof _unsubContracts!=='undefined'&&_unsubContracts){ try{_unsubContracts();}catch(e){} _unsubContracts=null; }
   _fbReady = false;
   _gradeRef = null;
   _fbDot('red');
@@ -6631,27 +6633,27 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     }catch(e){ return false; }
   }
   // Carregar do Firebase ao conectar
+  let _unsubPiList = null;
   function _fbLoadPiList(){
     try{
       if(typeof db==='undefined'||!db||!window._stationCode) return;
+      // Cancelar listener anterior antes de criar um novo
+      if(_unsubPiList){ try{ _unsubPiList(); }catch(e){} _unsubPiList=null; }
       get(ref(db,'estacoes/'+window._stationCode+'/pilist')).then(function(snap){
         if(snap.exists()){
           var d = snap.val();
           var fbTs = d._ts||0;
           if(fbTs >= (window._piListFbTs||0)){
             _applyPiList(d.data||'[]', 'firebase');
-            // pilist_ts — Firebase gerencia o timestamp
           }
         }
       }).catch(function(){});
-      // Escutar mudanças em tempo real (outro navegador aplica PI)
-      onValue(ref(db,'estacoes/'+window._stationCode+'/pilist'), function(snap){
+      _unsubPiList = onValue(ref(db,'estacoes/'+window._stationCode+'/pilist'), function(snap){
         if(!snap.exists()) return;
         var d = snap.val();
         var fbTs = d._ts||0;
         if(fbTs > (window._piListFbTs||0)){
           _applyPiList(d.data||'[]', 'firebase');
-          // pilist_ts — Firebase gerencia o timestamp
         }
       });
     }catch(e){}
@@ -6660,8 +6662,11 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
   window._piList=piList;
 
 // Carrega biblioteca de midias do Firebase com listener em tempo real
+let _unsubMedialib = null;
 function _fbLoadMedialib(){
   if(typeof db==='undefined'||!db||!_stationCode) return;
+  // Cancelar listener anterior antes de criar um novo
+  if(_unsubMedialib){ try{ _unsubMedialib(); }catch(e){} _unsubMedialib=null; }
   const r=ref(db,'estacoes/'+_stationCode+'/medialib');
   get(r).then(function(snap){
     if(snap.exists()){
@@ -6672,7 +6677,7 @@ function _fbLoadMedialib(){
     if(typeof renderMidList==='function') renderMidList();
     if(typeof renderOpcMidias==='function') renderOpcMidias();
   }).catch(function(){});
-  onValue(r,function(snap){
+  _unsubMedialib = onValue(r,function(snap){
     if(!snap.exists()) return;
     const d=snap.val(), ts=d._ts||0;
     if(ts && ts<=(window._mediaLibFbTs||0)) return;
@@ -6683,9 +6688,12 @@ function _fbLoadMedialib(){
   });
 }
 
+let _unsubContracts = null;
 // Carrega contratos do Firebase com listener em tempo real
 function _fbLoadContracts(){
   if(typeof db==='undefined'||!db||!_stationCode) return;
+  // Cancelar listener anterior antes de criar um novo
+  if(_unsubContracts){ try{ _unsubContracts(); }catch(e){} _unsubContracts=null; }
   const r=ref(db,'estacoes/'+_stationCode+'/contracts');
   get(r).then(function(snap){
     if(snap.exists()){
@@ -6694,7 +6702,7 @@ function _fbLoadContracts(){
     }
     if(typeof renderContractList==='function') renderContractList();
   }).catch(function(){});
-  onValue(r,function(snap){
+  _unsubContracts = onValue(r,function(snap){
     if(!snap.exists()) return;
     const d=snap.val();
     contracts=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);

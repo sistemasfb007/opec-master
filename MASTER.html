@@ -944,7 +944,7 @@ try{
         }
       }catch(e){ /* preferencias nao criticas */ }
       if(_code) _renderBtn(_code);
-      if(_code && !_masterPaused) _connect(_code);
+      if(_code) _connect(_code);
     } else {
       loginScreen.style.display = 'flex';
     }
@@ -1062,9 +1062,15 @@ function _apply(d){
   const ts=d._ts||0;
   if(ts<=_lastTs) return;
   _lastTs=ts;
-  _wdReset(); // Watchdog: sinal recebido — reiniciar contador
+  _wdReset();
   const g={...d}; delete g._ts; delete g.__air_logs;
-  grade=g; // Dado vem do Firebase — sem localStorage
+  // Normalizar chaves — Firebase pode retornar strings; garantir 0-6 como inteiros
+  const normalized={};
+  for(let i=0;i<7;i++){
+    const v=g[i]??g[String(i)];
+    normalized[i]=Array.isArray(v)?v:[];
+  }
+  grade=normalized;
   if(typeof recalcBrkTotals==='function') recalcBrkTotals();
   if(typeof buildRoteiro   ==='function') buildRoteiro();
   if(typeof renderSidebar  ==='function') renderSidebar();
@@ -1141,7 +1147,7 @@ function _dot(s){
 }
 
 // ── API pública ──
-let _masterPaused = sessionStorage.getItem('_master_disc') === '1';
+let _masterPaused = false; // MASTER é somente leitura — sempre conectado ao Firebase
 
 window._masterSetCode = function(code){
   code=(code||'').trim().toUpperCase().replace(/[^A-Z0-9\-_]/g,'');
@@ -1149,7 +1155,7 @@ window._masterSetCode = function(code){
   _code=code;
   _masterSavePrefs({station_code: code});
   _renderBtn(code);
-  if(!_masterPaused) _connect(code);
+  _connect(code);
 };
 window._masterDisconnect = function(){
   if(_unsub){ _unsub(); _unsub=null; }
@@ -1157,24 +1163,6 @@ window._masterDisconnect = function(){
   if(_unsubOpecLog){ _unsubOpecLog(); _unsubOpecLog=null; }
   _code=''; _dot('err'); _renderBtn('');
   _masterSavePrefs({station_code: ''});
-};
-window._masterPauseStation = function(){
-  if(!confirm('Desconectar a estação?\n\nO MASTER não receberá mais atualizações do Firebase até você reconectar.')) return;
-  _masterPaused = true;
-  sessionStorage.setItem('_master_disc','1');
-  if(_unsub){ _unsub(); _unsub=null; }
-  if(_unsubAirLogs){ _unsubAirLogs(); _unsubAirLogs=null; }
-  if(_unsubOpecLog){ _unsubOpecLog(); _unsubOpecLog=null; }
-  _dot('err');
-  _renderBtn(_code);
-  showToast('⏹ Estação desconectada','warn');
-};
-window._masterResumeStation = function(){
-  _masterPaused = false;
-  sessionStorage.removeItem('_master_disc');
-  _renderBtn(_code);
-  if(_code) _connect(_code);
-  showToast('✓ Estação conectada','ok');
 };
 
 function _renderBtn(code){
@@ -1186,30 +1174,13 @@ function _renderBtn(code){
              color:var(--gold);border-radius:5px;padding:4px 10px;animation:pulse-conflict 2s infinite">
       ☁ Estação
     </button>`;
-  } else if(_masterPaused){
-    el.innerHTML=`
-      <div style="display:inline-flex;align-items:center;border:1px solid rgba(224,80,80,.3);border-radius:5px;overflow:hidden;background:var(--s2)">
-        <span onclick="window._masterAbrirModal()"
-          style="padding:3px 9px;font-family:var(--font-m);font-size:9px;font-weight:700;
-                 letter-spacing:2px;color:var(--red2);text-transform:uppercase;cursor:pointer;opacity:.8">⏹ ${code}</span>
-        <button onclick="window._masterResumeStation()"
-          style="${b}background:rgba(31,170,90,.15);color:var(--green);border-left:1px solid rgba(31,170,90,.25)"
-          onmouseover="this.style.background='rgba(31,170,90,.28)'"
-          onmouseout="this.style.background='rgba(31,170,90,.15)'">Conectar</button>
-      </div>`;
   } else {
     el.innerHTML=`
       <div style="display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:5px;overflow:hidden;background:var(--s2)">
         <button onclick="window._masterAbrirModal()"
-          style="${b}background:transparent;color:var(--gold);border:none;font-family:var(--font-m);letter-spacing:2px">
-          ${code}
-        </button>
-        <span id="fb-master-dot" style="width:5px;height:5px;border-radius:50%;background:var(--green);margin:0 3px;flex-shrink:0;transition:background .3s"></span>
-        <button onclick="window._masterPauseStation()"
-          style="${b}background:transparent;color:var(--text3);border-left:1px solid var(--border)"
-          onmouseover="this.style.color='var(--red2)';this.style.background='rgba(224,80,80,.07)'"
-          onmouseout="this.style.color='var(--text3)';this.style.background='transparent'"
-          title="Desconectar">Desconectar</button>
+          style="${b}background:transparent;color:var(--gold);border:none;font-family:var(--font-m);letter-spacing:2px"
+          title="Trocar estação">${code}</button>
+        <span id="fb-master-dot" style="width:5px;height:5px;border-radius:50%;background:var(--green);margin:0 4px;flex-shrink:0;transition:background .3s"></span>
       </div>`;
   }
 }
