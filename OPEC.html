@@ -907,7 +907,7 @@ const DOMINIO = '@sistemasfb.com';
 
 let app, db, auth;
 let _gradeRef, _fbReady=false, _fbLastTs=0, _fbIgnore=false, _unsubscribe=null;
-let _stationCode = localStorage.getItem('opec_station_code')||'';
+let _stationCode = ''; // station_code vem do Firebase via onAuthStateChanged
 let _currentUser = null;
 
 // ── Inicializar (mesmo padrão do MASTER) ──
@@ -938,6 +938,20 @@ try{
       }catch(e){ console.warn('Permissão não verificada:', e.message); }
       loginScreen.style.display = 'none';
       _renderUserTopbar(nome);
+      // Carregar station_code e pin do Firebase
+      try{
+        const prefSnap = await db.ref('_usuarios/'+nome+'/prefs').once('value');
+        if(prefSnap.exists()){
+          const prefs = prefSnap.val();
+          if(prefs.station_code && !_stationCode){
+            _stationCode = prefs.station_code;
+          }
+          if(prefs.pin){
+            currentPin = prefs.pin;
+            window._pinCache = prefs.pin;
+          }
+        }
+      }catch(e){ /* prefs nao criticas */ }
       _renderStationUI();
       if(_stationCode) _fbConnect();
     } else {
@@ -1096,13 +1110,24 @@ function _fbConnect(){
   get(_gradeRef).then(snap=>{
     if(snap.exists()){
       const d=snap.val(), ts=d?._ts||0;
-      const localTs=parseInt(localStorage.getItem('roteiro_ts')||'0');
-      if(ts>localTs){ _applyGrade(d); }
+      if(ts>_fbLastTs){
+        _applyGrade(d); // Firebase mais recente — aplicar
+      } else if(ts===0 && Object.values(grade).some(v=>Array.isArray(v)&&v.length>0)){
+        // Firebase vazio — publicar grade em memoria (primeiro uso)
+        if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
+      }
+      // FIX: _fbSaveGrade imediato REMOVIDO — publicar grade local ao conectar
+      // sobrescrevia o Firebase com dados de teste do localStorage
     }
     _fbReady=true; _fbDot('green');
-    if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
     // Carregar piList do Firebase após conectar
     if(typeof _fbLoadPiList==='function') _fbLoadPiList();
+    // Carregar medialib do Firebase
+    _fbLoadMedialib();
+    // Carregar contracts do Firebase
+    _fbLoadContracts();
+    // Carregar prod_log do Firebase
+    loadProdLog();
   }).catch(()=>{ _fbReady=true; _fbDot('red'); });
   if(_unsubscribe) _unsubscribe();
   _unsubscribe=onValue(_gradeRef, snap=>{
@@ -1111,11 +1136,10 @@ function _fbConnect(){
     // Sempre processar __air_logs, mesmo quando ignorando atualização de grade
     if(d.__air_logs){
       const airTs = d.__air_logs._ts||0;
-      const localAirTs = parseInt(localStorage.getItem('roteiro_air_ts')||'0');
-      if(airTs > localAirTs){
+      if(airTs > _lastAirLogsTs){
         const logs = {...d.__air_logs}; delete logs._ts;
-        localStorage.setItem('roteiro_air_logs', JSON.stringify(logs));
-        localStorage.setItem('roteiro_air_ts', String(airTs));
+        _lastAirLogsTs = airTs;
+        window._airLogsCache = logs;
         if(typeof renderRoteiro==='function') renderRoteiro();
       }
     }
@@ -1141,13 +1165,11 @@ function _fbConnect(){
     get(rCur).then(snap=>{
       if(!snap.exists()) return;
       const d = snap.val(), fbTs = d._ts||0;
-      const localTs = parseInt(localStorage.getItem('roteiro_cur_ts')||'0');
-      if(fbTs > localTs){
+      if(fbTs > _lastCurTs){
         const c = {...d}; delete c._ts;
         cur = {...cur, ...c};
         if(!Array.isArray(cur.doneKeys)) cur.doneKeys=[];
-        localStorage.setItem('roteiro_cur', JSON.stringify(cur));
-        localStorage.setItem('roteiro_cur_ts', String(fbTs));
+        _lastCurTs = fbTs;
         if(typeof renderRoteiro==='function') renderRoteiro();
         if(typeof renderCtrl==='function') renderCtrl();
       }
@@ -1158,12 +1180,10 @@ function _fbConnect(){
 function _applyAirLogsDedicated(data){
   try{
     const ts = data._ts||0;
-    const localTs = parseInt(localStorage.getItem('roteiro_air_ts')||'0');
-    if(ts && ts <= Math.max(_lastAirLogsTs, localTs)) return;
+    if(ts && ts <= _lastAirLogsTs) return;
     _lastAirLogsTs = ts||Date.now();
     const logs = {...data}; delete logs._ts;
-    localStorage.setItem('roteiro_air_logs', JSON.stringify(logs));
-    localStorage.setItem('roteiro_air_ts', String(_lastAirLogsTs));
+    window._airLogsCache = logs;
     if(typeof renderRoteiro==='function') renderRoteiro();
   }catch(e){}
 }
@@ -1174,26 +1194,52 @@ function _applyOpecLogFb(data){
     if(ts && ts <= _lastOpecLogTs) return;
     _lastOpecLogTs = ts||Date.now();
     const entries = data.entries||[];
-    localStorage.setItem('roteiro_opec_log', JSON.stringify(entries));
+    window._opecLogCache = entries;
+  }catch(e){}
+}
+
+// Detecta grade de teste (DETRAN CARNAVAL etc.)
+function _isSampleGrade(g){
+  try{
+    const s=(typeof g==='string'?g:JSON.stringify(g)).toLowerCase();
+    return s.includes('detran carnaval')&&s.includes('assembleia clina');
+  }catch(_){return false;}
+}
+
+// Salva preferencias do usuario no Firebase
+function _opecSavePrefs(patch){
+  try{
+    if(!auth || !auth.currentUser) return;
+    const nome = auth.currentUser.email.replace(DOMINIO,'');
+    if(!nome) return;
+    db.ref('_usuarios/'+nome+'/prefs').once('value').then(function(snap){
+      const existing = snap.exists()?(snap.val()||{}):{};
+      const merged = Object.assign({}, existing, patch);
+      db.ref('_usuarios/'+nome+'/prefs').set(merged);
+    }).catch(function(){});
   }catch(e){}
 }
 
 function _applyGrade(d){
   const ts=d?._ts||0; _fbLastTs=ts;
+  const g2={...d}; delete g2._ts; delete g2.__air_logs;
+  if(_isSampleGrade(g2)){
+    console.warn('[OPEC] Grade de teste detectada no Firebase — ignorada.');
+    if(typeof showToast==='function') showToast('! Grade de teste no servidor. Va em Config > Manutencao para limpar.');
+    return;
+  }
   // Extrair air_logs publicados pelo MASTER antes de limpar
   if(d.__air_logs){
     const airTs = d.__air_logs._ts||0;
-    const localAirTs = parseInt(localStorage.getItem('roteiro_air_ts')||'0');
-    if(airTs > localAirTs){
+    if(airTs > _lastAirLogsTs){
       const logs = {...d.__air_logs}; delete logs._ts;
-      localStorage.setItem('roteiro_air_logs', JSON.stringify(logs));
-      localStorage.setItem('roteiro_air_ts', String(airTs));
+      _lastAirLogsTs = airTs;
+      window._airLogsCache = logs;
     }
   }
   const g={...d}; delete g._ts; delete g.__air_logs;
   grade=g;
-  localStorage.setItem('roteiro_grade',JSON.stringify(g));
-  localStorage.setItem('roteiro_ts',String(ts));
+  // Dados ficam exclusivamente no Firebase — sem localStorage
   if(typeof recalcBrkTotals==='function') recalcBrkTotals();
   if(typeof renderWeekNav==='function')   renderWeekNav();
   if(typeof renderRoteiro==='function')   renderRoteiro();
@@ -1264,7 +1310,7 @@ window._renderStationUI = _renderStationUI;
 window._fbSetCode = function(raw){
   const code=(raw||'').trim().toUpperCase().replace(/[^A-Z0-9\-_]/g,'');
   if(!code){ alert('Digite um código (letras e números)'); return; }
-  _stationCode=code; localStorage.setItem('opec_station_code',code);
+  _stationCode=code; _stationCode=code; _opecSavePrefs({station_code:code});
   _renderStationUI(); _fbConnect();
 };
 window._fbEditCode = function(){
@@ -1290,7 +1336,7 @@ window._fbConfirmEdit = function(raw){
   if(!confirm(`Trocar o código de "${_stationCode}" para "${code}"?`)) return;
   if(_unsubscribe){ _unsubscribe(); _unsubscribe=null; }
   _fbReady=false; _stationCode=code;
-  localStorage.setItem('opec_station_code',code);
+  _stationCode=code; _opecSavePrefs({station_code:code});
   _renderStationUI(); _fbConnect();
 };
 
@@ -1975,6 +2021,13 @@ function _segConflictResp(ok){
       <button class="btn btn-ghost btn-sm" style="width:100%" onclick="showLinkModal();toggleSettings()">Conectar Exibidor</button>
     </div>
 
+    <!-- MANUTENCAO -->
+    <div class="sp-section">
+      <div class="sp-sec-title" style="color:var(--red2)">Manutencao</div>
+      <button onclick="clearSampleDataFromFirebase()" style="width:100%;padding:8px 14px;margin-bottom:6px;background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.25);border-radius:7px;cursor:pointer;font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--red2)" onmouseover="this.style.background='rgba(192,57,43,.18)'" onmouseout="this.style.background='rgba(192,57,43,.08)'" title="Remove dados de teste do Firebase e publica a grade atual">
+        Limpar Grade de Teste do Servidor
+      </button>
+    </div>
     <!-- RESET -->
     <div class="sp-section" style="padding-bottom:18px">
       <button onclick="resetLayout()" style="
@@ -2524,7 +2577,7 @@ let selectedContractId=null;
 window.addEventListener('DOMContentLoaded',()=>{
   loadStorage();
   loadMediaLib();
-  if(!hasData()) loadSampleData();
+  // loadSampleData() REMOVIDA DO BOOT -- nunca publicar dados de teste no Firebase
   applyLayout();
   buildSwatches();
   updateClocks();
@@ -3184,8 +3237,7 @@ function saveIpConfig(){
 function updateServerStatus(){ /* IP display removido */ }
 function testConnection(){showToast('Teste: verifique se o Exibidor está online com o mesmo IP');}
 function broadcastState(){
-  // Write to localStorage (for same-machine) + emit IP info for cross-network
-  lsSet('roteiro_ts',Date.now());
+  // Firebase e a fonte de verdade — sem localStorage
   if(ipConfig.ip){
     // Store IP-tagged state for cross-network polling
     const payload=JSON.stringify({grade,cur,ts:Date.now()});
@@ -4198,9 +4250,9 @@ function resetLayout(){
 
 // ═══ STORAGE ═══
 function save(){
-  lsSet('roteiro_grade', JSON.stringify(grade));
-  lsSet('roteiro_cur',   JSON.stringify({...cur}));
-  lsSet('roteiro_cur_ts', Date.now());  // muda a cada segundo (timer/play)
+  // Dados operacionais vao exclusivamente para o Firebase via broadcastState/_fbSaveGrade
+  // localStorage nao e mais usado para grade/cur
+  if(typeof broadcastState==='function') broadcastState();
 }
 function recalcBrkTotals(){
   Object.values(grade).forEach(progs => {
@@ -4213,25 +4265,60 @@ function recalcBrkTotals(){
 }
 function saveGrade(){
   recalcBrkTotals();
-  lsSet('roteiro_grade', JSON.stringify(grade));
-  lsSet('roteiro_cur',   JSON.stringify({...cur}));
-  lsSet('roteiro_ts',    Date.now());
-  lsSet('roteiro_cur_ts', Date.now());
-  // Publicar na nuvem
+  // Firebase e a unica fonte — sem localStorage
   if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
+  if(typeof broadcastState==='function') broadcastState();
 }
 function saveLayout(){lsSet('roteiro_layout',JSON.stringify(layout));}
-function saveContracts(){lsSet('roteiro_contracts',JSON.stringify(contracts));}
-function loadStorage(){
+function saveContracts(){
+  if(typeof db==='undefined'||!db||!_stationCode){ return; }
   try{
-    const g=lsGet('roteiro_grade'),c=lsGet('roteiro_cur'),l=lsGet('roteiro_layout'),ct=lsGet('roteiro_contracts');
-    if(g)grade=JSON.parse(g);if(c){const p=JSON.parse(c);cur={...cur,...p};}
-    if(l)layout={...layout,...JSON.parse(l)};
-    if(ct)contracts=JSON.parse(ct)||[];
+    ref(db,'estacoes/'+_stationCode+'/contracts').set({items:contracts,_ts:Date.now()}).catch(function(){});
   }catch(e){}
 }
-function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
-function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+function loadStorage(){
+  // grade e cur chegam do Firebase via _fbConnect/_applyGrade
+  // contracts chegam do Firebase via _fbLoadContracts
+  // layout e configuracao local do dispositivo — fica no localStorage
+  try{
+    const l=lsGet('roteiro_layout');
+    if(l) layout={...layout,...JSON.parse(l)};
+  }catch(e){}
+}
+// ── Separação localStorage vs Firebase ──
+// lsGet/lsSet: APENAS para config por dispositivo (IP, layout, código de estação)
+// Dados operacionais (grade, cur, logs, medialib) vivem EXCLUSIVAMENTE no Firebase
+const _LOCAL_ONLY_KEYS = new Set([
+  'opec_station_code','roteiro_ip','roteiro_ip_state',
+  'roteiro_layout','report_logo_b64','master_gh_url','roteiro_pin'
+]);
+const _DATA_KEYS = new Set([
+  'roteiro_grade','roteiro_ts','roteiro_cur','roteiro_cur_ts',
+  'roteiro_air_logs','roteiro_air_ts','roteiro_opec_log','roteiro_opec_ts',
+  'roteiro_medialib','roteiro_pilist','roteiro_pilist_ts',
+  'roteiro_contracts','roteiro_prod_log'
+]);
+function lsGet(k){
+  if(_DATA_KEYS.has(k)){
+    console.warn('[lsGet] BLOQUEADO: "'+k+'" e dado operacional — use Firebase.');
+    return null;
+  }
+  try{return localStorage.getItem(k);}catch(e){return null;}
+}
+function lsSet(k,v){
+  if(_DATA_KEYS.has(k)){
+    console.warn('[lsSet] BLOQUEADO: "'+k+'" e dado operacional — use Firebase.');
+    return;
+  }
+  try{localStorage.setItem(k,v);}catch(e){}
+}
+function lsRemove(k){
+  if(_DATA_KEYS.has(k)){
+    console.warn('[lsRemove] BLOQUEADO: "'+k+'" e dado operacional.');
+    return;
+  }
+  try{localStorage.removeItem(k);}catch(e){}
+}
 
 // ═══ SAMPLE DATA ═══
 function loadSampleData(){
@@ -4359,15 +4446,23 @@ function jumpProg(pi){
 // buildJumpBtns is called directly inside renderRoteiro (see original function above — already integrated)
 
 // ── BREAK AIR TIME ──
-function getAirLogs(){try{return JSON.parse(lsGet('roteiro_air_logs')||'{}');}catch(e){return {};}}
-function saveAirLogs(logs){lsSet('roteiro_air_logs',JSON.stringify(logs));}
+function getAirLogs(){ return window._airLogsCache||{}; }
+function saveAirLogs(logs){
+  // Air logs vao para Firebase via _fbSaveGrade (campo __air_logs)
+  // Sem localStorage
+  if(typeof db==='undefined'||!db||!_stationCode) return;
+  try{
+    const ts=Date.now();
+    ref(db,'estacoes/'+_stationCode+'/air_logs').set({...logs,_ts:ts}).catch(function(){});
+  }catch(e){}
+}
 function getBrkAirLog(day,pi,bi){return getAirLogs()[`${day}-${pi}-${bi}`]||null;}
 function logBrkAir(pi,bi){
   const now=new Date(),timeStr=now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   const prog=(grade[selectedDay]||[])[pi],brk=(prog?.breaks||[])[bi];
   const logs=getAirLogs();
   logs[`${selectedDay}-${pi}-${bi}`]={time:timeStr,progName:prog?.name||'—',brkName:brk?.name||'—',day:selectedDay,pi,bi,ts:Date.now()};
-  saveAirLogs(logs);lsSet('roteiro_ts',Date.now());
+  saveAirLogs(logs);
   renderRoteiro();showToast(`${brk?.name||'Break'} — ${timeStr}`);
 }
 function clearBrkAir(pi,bi){
@@ -4376,8 +4471,21 @@ function clearBrkAir(pi,bi){
 
 // ── PRODUCTION LOG ──
 let prodLog=[];
-function loadProdLog(){try{prodLog=JSON.parse(lsGet('roteiro_prod_log')||'[]');}catch(e){prodLog=[];}}
-function saveProdLog(){lsSet('roteiro_prod_log',JSON.stringify(prodLog.slice(-500)));}
+function loadProdLog(){
+  // Prod log carregado do Firebase — nao usa localStorage
+  if(typeof db==='undefined'||!db||!_stationCode){ prodLog=[]; return; }
+  get(ref(db,'estacoes/'+_stationCode+'/prod_log')).then(function(snap){
+    if(snap.exists()) prodLog=(snap.val().entries)||[];
+    else prodLog=[];
+    if(typeof renderProdLog==='function') renderProdLog();
+  }).catch(function(){ prodLog=[]; });
+}
+function saveProdLog(){
+  if(typeof db==='undefined'||!db||!_stationCode){ return; }
+  try{
+    ref(db,'estacoes/'+_stationCode+'/prod_log').set({entries:prodLog.slice(-500),_ts:Date.now()}).catch(function(){});
+  }catch(e){}
+}
 function logProd(){
   const seq=$('prod-seq').value.trim(),name=$('prod-name').value.trim(),type=$('prod-type').value,timeVal=$('prod-time').value;
   if(!name&&!seq){showToast('Informe o material ou observação');return;}
@@ -4415,10 +4523,9 @@ function toggleMediaPanel(){
 let mediaLib = [];
 
 function loadMediaLib(){
-  try{
-    const s=lsGet('roteiro_medialib');
-    if(s) mediaLib=JSON.parse(s)||[];
-  }catch(e){ mediaLib=[]; }
+  // Dados carregados do Firebase via _fbConnect — nao usa localStorage
+  // O listener onValue do Firebase mantem mediaLib sempre atualizado
+  // Esta funcao so executa o fallback de importacao da grade se mediaLib estiver vazio
 
   // Se biblioteca vazia, importar itens únicos da grade automaticamente
   if(mediaLib.length===0 && grade){
@@ -4454,7 +4561,10 @@ function loadMediaLib(){
   if(changed) saveMediaLib();
 }
 function saveMediaLib(){
-  lsSet('roteiro_medialib', JSON.stringify(mediaLib));
+  if(typeof db==='undefined'||!db||!_stationCode){ return; }
+  try{
+    ref(db,'estacoes/'+_stationCode+'/medialib').set({items:mediaLib,_ts:Date.now()}).catch(function(){});
+  }catch(e){}
 }
 
 function getAllMidias(){
@@ -4859,15 +4969,15 @@ function deleteCtr(){
 let currentPin=null;
 function generatePin(){
   currentPin=String(Math.floor(100000+Math.random()*900000));
-  lsSet('roteiro_pin',currentPin);renderPinModal();showToast(' PIN: '+currentPin);
+  _opecSavePrefs({pin:currentPin});renderPinModal();showToast(' PIN: '+currentPin);
 }
-function revokePin(){currentPin=null;lsSet('roteiro_pin','');showToast('PIN revogado');}
+function revokePin(){currentPin=null;_opecSavePrefs({pin:''});showToast('PIN revogado');}
 function copyPin(){
-  const pin=currentPin||lsGet('roteiro_pin');
+  const pin=currentPin||currentPin||'';
   if(!pin){generatePin();return;}
   navigator.clipboard.writeText(pin).then(()=>showToast('PIN copiado: '+pin)).catch(()=>{});
 }
-function loadPin(){const p=lsGet('roteiro_pin');if(p)currentPin=p;}
+function loadPin(){ /* pin carregado do Firebase no login via _opecSavePrefs */ }
 function updatePinDisplay(){
   const d=$('pin-display'),l=$('pin-lbl'),u=$('pin-url');
   if(d)d.textContent=currentPin||'——————';
@@ -4895,7 +5005,7 @@ function renderReport(){
   const from=$('rf-from')?.value||'',to=$('rf-to')?.value||'';
   const client=($('rf-client')?.value||'').toLowerCase().trim();
   const typeF=$('rf-type')?.value||'';
-  const airVals=(()=>{try{return Object.values(JSON.parse(lsGet('roteiro_air_logs')||'{}'));}catch(e){return [];}})();
+  const airVals=Object.values(window._airLogsCache||{});
   let entries=[];
   airVals.forEach(log=>{
     const iso=new Date(log.ts).toISOString().slice(0,10);
@@ -5022,7 +5132,7 @@ function printReport(){
   });
 
   /* ─── 3. Coletar breaks no ar (air logs) ────────────────────────── */
-  const airVals = (()=>{try{return Object.values(JSON.parse(lsGet('roteiro_air_logs')||'{}'));}catch(ex){return [];}})();
+  const airVals = Object.values(window._airLogsCache||{});
   airVals.forEach(l=>{
     const iso = isoDate(l.ts);
     if(from&&iso<from) return;
@@ -5599,7 +5709,7 @@ function printReport(){
 
 function exportReportCSV(){
   loadProdLog();
-  const airVals=(()=>{try{return Object.values(JSON.parse(lsGet('roteiro_air_logs')||'{}'));}catch(e){return [];}})();
+  const airVals=Object.values(window._airLogsCache||{});
   const rows=[['Data','Hora','Tipo','Nº Mídia','Material']];
   airVals.forEach(l=>rows.push([new Date(l.ts).toLocaleDateString('pt-BR'),l.time,'Break no ar','—',`${l.progName} — ${l.brkName}`]));
   prodLog.forEach(e=>rows.push([e.dateStr||'—',e.time,e.typeLabel,e.seq||'—',e.name||'—']));
@@ -5614,12 +5724,10 @@ function exportReportCSV(){
 const OPEC_LOG_KEY = 'roteiro_opec_log';
 let lastOpecTs = 0;
 
-function getOpecLog(){ try{ return JSON.parse(lsGet(OPEC_LOG_KEY)||'[]'); }catch(e){ return []; } }
+function getOpecLog(){ return window._opecLogCache||[]; }
 
 function syncOpecLog(){
-  const ts = parseInt(lsGet('roteiro_opec_ts')||'0');
-  if(ts === lastOpecTs) return;
-  lastOpecTs = ts;
+  // opec_log agora vem do Firebase via _opecLogCache — sem localStorage
   renderOpecLog();
 }
 
@@ -5654,17 +5762,15 @@ setInterval(syncOpecLog, 1000);
 // ── Sync de horários de break (.AR do Master) em tempo real ──
 let _lastAirTs = 0;
 setInterval(()=>{
-  const ts = parseInt(lsGet('roteiro_air_ts')||'0');
-  if(ts !== _lastAirTs){
-    _lastAirTs = ts;
-    if(typeof renderRoteiro === 'function') renderRoteiro();
+  // Firebase listener ja atualiza renderRoteiro quando air_logs mudam
+  if(false){
   }
 }, 500);
 setInterval(()=>{if(typeof renderCtrl==='function')renderCtrl();},30000);
 
 // Ao iniciar, carrega log
 window.addEventListener('DOMContentLoaded', ()=>{
-  setTimeout(()=>{ renderOpecLog(); lastOpecTs = parseInt(lsGet('roteiro_opec_ts')||'0'); }, 500);
+  setTimeout(()=>{ renderOpecLog(); }, 500);
 });
 
 
@@ -5932,12 +6038,10 @@ function startWebSocket(){
         if(d.type==='ping'){ ws.send(JSON.stringify({type:'pong'})); return; }
         // Estado recebido de outro PC — atualizar grade se for mais recente
         if(d.type==='state' && d.ts && d.grade){
-          const localTs = parseInt(lsGet('roteiro_ts')||'0');
-          if(d.ts > localTs){
+          if(d.ts > _fbLastTs){
             grade = d.grade;
-            lsSet('roteiro_grade', JSON.stringify(d.grade));
-            lsSet('roteiro_ts', String(d.ts));
-            lsSet('roteiro_cur_ts', String(d.ts));
+            // Via WS: Firebase sera atualizado via _fbSaveGrade chamado abaixo
+            if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(d.grade);
             recalcBrkTotals();
             renderWeekNav();
             renderRoteiro();
@@ -5962,7 +6066,6 @@ function wsBroadcast(){
   broadcastState();
   if(ws && ws.readyState===WebSocket.OPEN){
     const ts = Date.now();
-    lsSet('roteiro_ts', String(ts));
     try{ ws.send(JSON.stringify({type:'state', grade, cur, ts})); }catch(e){}
   }
 }
@@ -6347,7 +6450,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       if(loaded.length === 0 && piList.length > 0) return false; // não substituir por lista vazia
       piList = loaded;
       window._piList = piList;
-      if(source==='firebase') localStorage.setItem('roteiro_pilist', JSON.stringify(loaded));
+      // pilist agora vive exclusivamente no Firebase
       piRenderList();
       return true;
     }catch(e){ return false; }
@@ -6360,10 +6463,9 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         if(snap.exists()){
           var d = snap.val();
           var fbTs = d._ts||0;
-          var localTs = parseInt(localStorage.getItem('roteiro_pilist_ts')||'0');
-          if(fbTs >= localTs){
+          if(fbTs >= (window._piListFbTs||0)){
             _applyPiList(d.data||'[]', 'firebase');
-            localStorage.setItem('roteiro_pilist_ts', String(fbTs));
+            // pilist_ts — Firebase gerencia o timestamp
           }
         }
       }).catch(function(){});
@@ -6372,49 +6474,58 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         if(!snap.exists()) return;
         var d = snap.val();
         var fbTs = d._ts||0;
-        var localTs = parseInt(localStorage.getItem('roteiro_pilist_ts')||'0');
-        if(fbTs > localTs){
+        if(fbTs > (window._piListFbTs||0)){
           _applyPiList(d.data||'[]', 'firebase');
-          localStorage.setItem('roteiro_pilist_ts', String(fbTs));
+          // pilist_ts — Firebase gerencia o timestamp
         }
       });
     }catch(e){}
   }
-  try{
-    const _saved = localStorage.getItem('roteiro_pilist');
-    if(_saved){
-      piList = JSON.parse(_saved);
-      // Sanitizar: garantir que campos essenciais existem
-      piList = piList.filter(p=>p && p.id && p.piNumber);
-      // Migração: detectar PIs que estão na grade mas applied=false (versão antiga)
-      try{
-        const _gradeRaw = localStorage.getItem('roteiro_grade');
-        const _grade = _gradeRaw ? JSON.parse(_gradeRaw) : {};
-        let _migrated = false;
-        piList.forEach(p=>{
-          if(!p.applied){
-            // Contar inserções desta PI na grade
-            let _cnt=0;
-            Object.values(_grade).forEach(progs=>(progs||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>{
-              (brk.items||[]).forEach(it=>{ if(String(it.piNumber||'').trim()===String(p.piNumber).trim()) _cnt++; });
-            })));
-            if(_cnt>0){
-              p.applied=true;
-              p.appliedCount=_cnt;
-              _migrated=true;
-            }
-          }
-        });
-        if(_migrated) localStorage.setItem('roteiro_pilist', JSON.stringify(piList.map(p=>({
-          id:p.id,piNumber:p.piNumber,status:p.status,client:p.client,
-          campaign:p.campaign,title:p.title,period:p.period,duration:p.duration,
-          totalInsertions:p.totalInsertions,dateStart:p.dateStart,dateEnd:p.dateEnd,
-          materialSeq:p.materialSeq,lines:p.lines,applied:p.applied||false,appliedCount:p.appliedCount||0
-        }))));
-      }catch(e){}
-    }
-  }catch(e){ piList=[]; }
+  // piList carregado do Firebase via _fbLoadPiList — sem localStorage
   window._piList=piList;
+
+// Carrega biblioteca de midias do Firebase com listener em tempo real
+function _fbLoadMedialib(){
+  if(typeof db==='undefined'||!db||!_stationCode) return;
+  const r=ref(db,'estacoes/'+_stationCode+'/medialib');
+  get(r).then(function(snap){
+    if(snap.exists()){
+      const d=snap.val();
+      window._mediaLibFbTs = d._ts||0;
+      mediaLib=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);
+    }
+    if(typeof renderMidList==='function') renderMidList();
+    if(typeof renderOpcMidias==='function') renderOpcMidias();
+  }).catch(function(){});
+  onValue(r,function(snap){
+    if(!snap.exists()) return;
+    const d=snap.val(), ts=d._ts||0;
+    if(ts && ts<=(window._mediaLibFbTs||0)) return;
+    window._mediaLibFbTs=ts;
+    mediaLib=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);
+    if(typeof renderMidList==='function') renderMidList();
+    if(typeof renderOpcMidias==='function') renderOpcMidias();
+  });
+}
+
+// Carrega contratos do Firebase com listener em tempo real
+function _fbLoadContracts(){
+  if(typeof db==='undefined'||!db||!_stationCode) return;
+  const r=ref(db,'estacoes/'+_stationCode+'/contracts');
+  get(r).then(function(snap){
+    if(snap.exists()){
+      const d=snap.val();
+      contracts=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);
+    }
+    if(typeof renderContractList==='function') renderContractList();
+  }).catch(function(){});
+  onValue(r,function(snap){
+    if(!snap.exists()) return;
+    const d=snap.val();
+    contracts=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);
+    if(typeof renderContractList==='function') renderContractList();
+  });
+}
 
   // Boot: renderizar lista assim que o DOM estiver pronto
   function _piBootRender(){
@@ -6450,16 +6561,11 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         materialSeq:p.materialSeq, lines:p.lines, applied:p.applied||false,
         appliedCount:p.appliedCount||0
       }));
-      // Salvar no localStorage (cache local)
-      localStorage.setItem('roteiro_pilist', JSON.stringify(toSave));
-      // Salvar no Firebase (fonte de verdade compartilhada)
-      try{
-        if(typeof db!=='undefined' && db && window._stationCode){
-          var _ts = Date.now();
-          localStorage.setItem('roteiro_pilist_ts', String(_ts));
-          set(ref(db,'estacoes/'+window._stationCode+'/pilist'), {data: JSON.stringify(toSave), _ts: _ts});
-        }
-      }catch(e){}
+      // Salvar APENAS no Firebase — sem localStorage
+      if(typeof db!=='undefined' && db && window._stationCode){
+        var _ts = Date.now();
+        set(ref(db,'estacoes/'+window._stationCode+'/pilist'), {data: JSON.stringify(toSave), _ts: _ts});
+      }
     }catch(e){}
   }
 
@@ -6959,7 +7065,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
   function piRenderPreview(){
     const pi=selPi;
     window._piCurrentSelPiNum = selPi ? String(selPi.piNumber||'') : '';
-    const g=JSON.parse(lsGet('roteiro_grade')||'{}');
+    const g=grade;
     const {monthNum,yearNum}=parsePeriod(pi.period);
     const totalIns=(pi.lines||[]).reduce((s,l)=>s+l.totalInsertions,0);
     const DSH=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -7250,7 +7356,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
   window.piComputeDist=function(){
     if(!selPi)return;
-    const g=JSON.parse(lsGet('roteiro_grade')||'{}');
+    const g=grade;
     const {monthNum,yearNum}=parsePeriod(selPi.period);
     piDist=piBuildDist(selPi,g,monthNum,yearNum);
     piRenderDist(piDist,monthNum,yearNum);
@@ -7263,7 +7369,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     // Se piDist não foi calculado ainda (ex: PI já aplicada e usuário clicou direto),
     // calcular automaticamente antes de abrir o modal
     if(!piDist){
-      const g=JSON.parse(lsGet('roteiro_grade')||'{}');
+      const g=grade;
       const {monthNum,yearNum}=parsePeriod(selPi.period);
       piDist=piBuildDist(selPi,g,monthNum,yearNum);
     }
@@ -7384,14 +7490,14 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     if(!selPi) return;
     // Garantir que piDist existe antes de aplicar
     if(!piDist){
-      const _g=JSON.parse(lsGet('roteiro_grade')||'{}');
+      const _g=grade;
       const {monthNum:_mn,yearNum:_yn}=parsePeriod(selPi.period);
       piDist=piBuildDist(selPi,_g,_mn,_yn);
     }
     if(!piDist) return;
-    const g=JSON.parse(lsGet('roteiro_grade')||'{}');
+    const g=grade; // Firebase em memoria
     let added=0,synced=0;
-    // Sincronizar materiais já vinculados
+    // Sincronizar materiais ja vinculados
     Object.values(g).forEach(progs=>(progs||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>{
       (brk.items||[]).forEach(it=>{
         const byNum=selPi.piNumber&&String(it.piNumber||'').trim()===String(selPi.piNumber).trim();
@@ -7471,8 +7577,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         });
       });
     });
-    lsSet('roteiro_grade',JSON.stringify(g));lsSet('roteiro_ts',String(Date.now()));lsSet('roteiro_cur_ts',String(Date.now()));
-    grade=g;
+    grade=g; // Firebase atualizado via _fbSaveGrade abaixo
     recalcBrkTotals();
     // Sincronizar via Firebase e broadcast
     if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(g);
@@ -7578,7 +7683,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
     //Remover inserções da grade sempre que a PI tiver número (independente do flag applied)
     if(p.piNumber){
-      const g = JSON.parse(lsGet('roteiro_grade')||'{}');
+      const g = grade;
       const _piNum = String(p.piNumber).trim();
       let removed = 0;
       Object.values(g).forEach(progs=>(progs||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>{
@@ -7587,10 +7692,9 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         removed += before - brk.items.length;
       })));
       if(removed > 0){
-        lsSet('roteiro_grade', JSON.stringify(g));
-        lsSet('roteiro_ts', String(Date.now()));
         grade = g;
         recalcBrkTotals();
+        if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(g);
         renderRoteiro();
         broadcastState();
         if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
@@ -8213,7 +8317,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 <script>
 // ── Lógica do modal de estação (script normal, não módulo) ──
 function _estacaoAtualizarStatus(){
-  const code = localStorage.getItem('opec_station_code')||'';
+  const code = _stationCode||'';
   const dot  = document.getElementById('estacao-status-dot');
   const txt  = document.getElementById('estacao-status-txt');
   const inp  = document.getElementById('estacao-inp');
@@ -8233,7 +8337,7 @@ function _estacaoSalvar(){
   const inp = document.getElementById('estacao-inp');
   const code = (inp?.value||'').trim().toUpperCase().replace(/[^A-Z0-9\-_]/g,'');
   if(!code){ inp.style.borderColor='#e07070'; setTimeout(()=>inp.style.borderColor='#f0c040',1000); return; }
-  localStorage.setItem('opec_station_code', code);
+  _stationCode=code; _opecSavePrefs({station_code:code});
   _estacaoAtualizarStatus();
   // Chamar a função do módulo Firebase se já tiver carregado
   if(typeof window._fbSetCode === 'function') window._fbSetCode(code);
@@ -8246,7 +8350,7 @@ function _estacaoSalvar(){
 
 function _estacaoLimpar(){
   if(!confirm('Desconectar estação atual?')) return;
-  localStorage.removeItem('opec_station_code');
+  _stationCode=''; _opecSavePrefs({station_code:''});
   _estacaoAtualizarStatus();
   _estacaoAtualizarBotoes('');
   document.getElementById('estacao-modal').style.display='none';
@@ -8273,7 +8377,7 @@ function _estacaoAtualizarBotoes(code){
 
 // Boot — atualizar ao carregar
 document.addEventListener('DOMContentLoaded',()=>{
-  const code = localStorage.getItem('opec_station_code')||'';
+  const code = _stationCode||'';
   _estacaoAtualizarBotoes(code);
   // Abrir modal ao clicar no botão do setup overlay
   const over = document.getElementById('estacao-modal');
@@ -8284,7 +8388,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 // ═══ ESTAÇÃO — modal de configuração ═══
 function _estacaoAbrirModal(){
-  const code = localStorage.getItem('opec_station_code')||'';
+  const code = _stationCode||'';
   const inp  = document.getElementById('estacao-inp');
   const dot  = document.getElementById('estacao-dot');
   const txt  = document.getElementById('estacao-txt');
@@ -8304,7 +8408,7 @@ function _estacaoSalvar(){
     if(inp){ inp.style.borderColor='#e07070'; setTimeout(()=>inp.style.borderColor='#f0c040',1200); }
     return;
   }
-  localStorage.setItem('opec_station_code', code);
+  _stationCode=code; _opecSavePrefs({station_code:code});
   document.getElementById('estacao-modal').style.display='none';
   _estacaoAtualizarBotoes(code);
   // Chamar módulo Firebase se já carregou
@@ -8314,7 +8418,7 @@ function _estacaoSalvar(){
 
 function _estacaoLimpar(){
   if(!confirm('Desconectar estação atual?')) return;
-  localStorage.removeItem('opec_station_code');
+  _stationCode=''; _opecSavePrefs({station_code:''});
   document.getElementById('estacao-modal').style.display='none';
   _estacaoAtualizarBotoes('');
   showToast('Estação desconectada');
@@ -8336,13 +8440,13 @@ function _estacaoAtualizarBotoes(code){
 // Inicializar botões ao carregar
 document.addEventListener('DOMContentLoaded',()=>{
   setTimeout(()=>{
-    const code = localStorage.getItem('opec_station_code')||'';
+    const code = _stationCode||'';
     _estacaoAtualizarBotoes(code);
   }, 100);
 });
 
 
-}
+function _copiarLinkMaster(v){
   navigator.clipboard.writeText(v).then(function(){
     showToast('✓ Link copiado! Cole no celular ou outro PC');
     localStorage.setItem('master_gh_url', v);
@@ -8898,6 +9002,21 @@ function _initColDrag(){
   }
 }
 })();
+
+// Limpa grade de teste do Firebase e publica a grade real
+function clearSampleDataFromFirebase(){
+  if(!_fbReady||!_gradeRef){ showToast('Conecte-se a uma estacao primeiro'); return; }
+  get(_gradeRef).then(function(snap){
+    if(!snap.exists()){ showToast('Servidor sem grade — nada para limpar'); return; }
+    if(!_isSampleGrade(snap.val())){ showToast('Servidor nao tem dados de teste'); return; }
+    if(_isSampleGrade(grade)){ showToast('! Grade local tambem e de teste. Construa a grade real primeiro.'); return; }
+    if(!confirm('Remover dados de teste do servidor e publicar a grade atual?')) return;
+    if(typeof window._fbSaveGrade==='function'){
+      window._fbSaveGrade(grade);
+      showToast('Dados de teste removidos — grade atual publicada no servidor');
+    }
+  }).catch(function(e){ showToast('Erro: '+e.message); });
+}
 </script>
 <div id="remove-media-drawer-backdrop" onclick="_closeRemoveDrawer()"></div>
 <div id="remove-media-drawer">

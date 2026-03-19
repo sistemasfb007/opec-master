@@ -891,7 +891,7 @@ const FB = { apiKey:"AIzaSyDZ_A6YI3a6p9eGb3khWF5dJRf43q0kR5A", authDomain:"siste
 const DOMINIO = '@sistemasfb.com'; // domínio fictício — usuário digita só o nome
 
 let _db, _auth, _unsub, _lastTs=0;
-let _code = localStorage.getItem('master_station_code')||'';
+let _code = ''; // station_code vem do Firebase via onAuthStateChanged/_masterSetCode
 
 // ── Inicializar ──
 try{
@@ -924,6 +924,19 @@ try{
       // Acesso liberado
       loginScreen.style.display = 'none';
       _renderUserBtn(nome);
+      // Carregar preferencias do usuario (station_code, collapsed) do Firebase
+      try{
+        const prefSnap = await _db.ref('_usuarios/'+nome+'/prefs').once('value');
+        if(prefSnap.exists()){
+          const prefs = prefSnap.val();
+          if(prefs.station_code && !_code){
+            _code = prefs.station_code;
+          }
+          if(prefs.collapsed){
+            window._masterCollapsedCache = prefs.collapsed;
+          }
+        }
+      }catch(e){ /* preferencias nao criticas */ }
       if(_code) _connect(_code);
     } else {
       loginScreen.style.display = 'flex';
@@ -997,15 +1010,28 @@ function _renderUserBtn(nome){
     letter-spacing:1px" title="Sair">👤 ${nome.toUpperCase()} ✕</button>`;
 }
 
+
+// Salva preferencias do usuario logado no Firebase
+function _masterSavePrefs(patch){
+  try{
+    if(!_auth || !_auth.currentUser) return;
+    const nome = _auth.currentUser.email.replace(DOMINIO,'');
+    if(!nome) return;
+    // merge com prefs existentes
+    _db.ref('_usuarios/'+nome+'/prefs').once('value').then(function(snap){
+      const existing = snap.exists() ? (snap.val()||{}) : {};
+      const merged = Object.assign({}, existing, patch);
+      _db.ref('_usuarios/'+nome+'/prefs').set(merged);
+    }).catch(function(){});
+  }catch(e){}
+}
 // ── Aplicar grade recebida ──
 function _apply(d){
   const ts=d._ts||0;
   if(ts<=_lastTs) return;
   _lastTs=ts;
   const g={...d}; delete g._ts; delete g.__air_logs;
-  grade=g;
-  localStorage.setItem('roteiro_grade',JSON.stringify(g));
-  localStorage.setItem('roteiro_ts',String(ts));
+  grade=g; // Dado vem do Firebase — sem localStorage
   if(typeof recalcBrkTotals==='function') recalcBrkTotals();
   if(typeof buildRoteiro   ==='function') buildRoteiro();
   if(typeof renderSidebar  ==='function') renderSidebar();
@@ -1043,14 +1069,12 @@ function _connect(code){
   get(rCur).then(snap=>{
     if(!snap.exists()) return;
     const d = snap.val();
-    const localTs = parseInt(lsGet('roteiro_cur_ts')||'0');
     const fbTs = d._ts||0;
-    if(fbTs > localTs){
+    if(fbTs > _lastCurTs){
       const c = {...d}; delete c._ts;
       cur = {...cur, ...c};
       if(!Array.isArray(cur.doneKeys)) cur.doneKeys=[];
-      lsSet('roteiro_cur', JSON.stringify(cur));
-      lsSet('roteiro_cur_ts', String(fbTs));
+      // cur em memoria — Firebase e a fonte
       if(typeof buildRoteiro==='function') buildRoteiro();
       if(typeof renderSidebar==='function') renderSidebar();
     }
@@ -1062,8 +1086,7 @@ function _applyAirLogs(data){
   if(ts && ts <= _lastAirLogsTs) return;
   _lastAirLogsTs = ts||Date.now();
   const logs = {...data}; delete logs._ts;
-  lsSet('roteiro_air_logs', JSON.stringify(logs));
-  lsSet('roteiro_air_ts', String(_lastAirLogsTs));
+  window._airLogsCache = logs; // em memoria — sem localStorage
   if(typeof buildRoteiro==='function') buildRoteiro();
   if(typeof renderOpec==='function' && opecState.open) renderOpec();
 }
@@ -1073,7 +1096,7 @@ function _applyOpecLog(data){
   if(ts && ts <= _lastOpecLogTs) return;
   _lastOpecLogTs = ts||Date.now();
   const logs = data.entries||[];
-  lsSet('roteiro_opec_log', JSON.stringify(logs));
+  window._opecLogCache = logs; // em memoria — sem localStorage
   if(typeof renderOpec==='function' && opecState.open) renderOpec();
 }
 
@@ -1087,17 +1110,19 @@ function _dot(s){
 window._masterSetCode = function(code){
   code=(code||'').trim().toUpperCase().replace(/[^A-Z0-9\-_]/g,'');
   if(!code) return;
-  localStorage.setItem('master_station_code',code);
   _code=code;
   _renderBtn(code);
+  // Salvar no Firebase vinculado ao usuario logado
+  _masterSavePrefs({station_code: code});
   _connect(code);
 };
 window._masterDisconnect = function(){
   if(_unsub){ _unsub(); _unsub=null; }
   if(_unsubAirLogs){ _unsubAirLogs(); _unsubAirLogs=null; }
   if(_unsubOpecLog){ _unsubOpecLog(); _unsubOpecLog=null; }
-  localStorage.removeItem('master_station_code');
   _code=''; _dot('err'); _renderBtn('');
+  // Limpar station_code do Firebase
+  _masterSavePrefs({station_code: ''});
 };
 
 function _renderBtn(code){
@@ -1427,7 +1452,7 @@ console.log('[MASTER Firebase] módulo carregado — banco: sistemas-fb');
 
 <script>
 function _masterAbrirModal(){
-  const code = localStorage.getItem('master_station_code')||'';
+  const code = _code||'';
   const fbOk = code && typeof window._masterSetCode==='function';
 
   const inp = document.getElementById('m-estacao-inp');
@@ -1469,7 +1494,6 @@ function _masterConectar(){
   }
   document.getElementById('master-estacao-modal').style.display='none';
   if(typeof window._masterSetCode==='function') window._masterSetCode(code);
-  else { localStorage.setItem('master_station_code',code); location.reload(); }
 }
 
 function _masterDesconectar(){
@@ -1480,8 +1504,9 @@ function _masterDesconectar(){
 
 // Boot
 document.addEventListener('DOMContentLoaded',()=>{
-  const code = localStorage.getItem('master_station_code')||'';
-  if(code){
+  // station_code agora vem do Firebase via onAuthStateChanged
+  // Sem leitura de localStorage
+  {
     const el=document.getElementById('fb-master-panel');
     if(el) el.innerHTML='<button onclick="window._masterAbrirModal()" '
       +'style="font-size:11px;font-weight:800;padding:4px 12px;background:rgba(74,204,122,.12);'
@@ -1645,12 +1670,10 @@ function importFromFile(input){
         try{
           // Aguarda o emissor rodar o boot e salvar no localStorage
           setTimeout(()=>{
-            const g = iframe.contentWindow.localStorage.getItem('roteiro_grade') ||
-                      localStorage.getItem('roteiro_grade');
+            const g = null; // importFromFile usa parse direto do HTML — sem localStorage
             if(g){
               grade = JSON.parse(g);
-              lsSet('roteiro_grade', g);
-              lsSet('roteiro_ts', String(Date.now()));
+              // grade em memoria — sem localStorage
               snap.grade = g;
               buildRoteiro();
               restoreCollapsed();
@@ -1687,51 +1710,8 @@ window.addEventListener('resize', setSidebarHeight);
 
 // ── SYNC — coração do sistema ──
 function syncFromStorage(){
-  const gradeTs = parseInt(lsGet('roteiro_ts')    ||'0');
-  const curTs   = parseInt(lsGet('roteiro_cur_ts')||'0');
-
-  const gradeNew = gradeTs !== lastGradeTs;
-  const curNew   = curTs   !== lastCurTs;
-  if(!gradeNew && !curNew) return;
-
-  loadStorage();
-
-  if(gradeNew){
-    lastGradeTs = gradeTs;
-    lastCurTs   = curTs;
-    snap.grade   = JSON.stringify(grade);
-    snap.prog    = cur.progIdx;
-    snap.brk     = cur.brkIdx;
-    snap.item    = cur.itemIdx;
-    snap.doneLen = (cur.doneKeys||[]).length;
-    // Debounce: aguarda 400ms sem nova mudança antes de reconstruir DOM
-    clearTimeout(rebuildTimer);
-    rebuildTimer = setTimeout(()=>{
-      const scrollPos = document.getElementById('main-scroll').scrollTop;
-      buildRoteiro();
-      renderSidebar();
-      renderDateNav();
-      document.getElementById('main-scroll').scrollTop = scrollPos;
-      updateAll();
-    }, 400);
-  } else if(curNew){
-    lastCurTs = curTs;
-    const prevProg = snap.prog, prevBrk = snap.brk, prevItem = snap.item, prevDone = snap.doneLen;
-    snap.prog    = cur.progIdx;
-    snap.brk     = cur.brkIdx;
-    snap.item    = cur.itemIdx;
-    snap.doneLen = (cur.doneKeys||[]).length;
-    const activeChanged = cur.progIdx!==prevProg||cur.brkIdx!==prevBrk||cur.itemIdx!==prevItem||(cur.doneKeys||[]).length!==prevDone;
-    if(activeChanged){
-      updateHighlight();
-      updateBanner();
-      if(autoScroll && viewDow===cur.day && cur.progIdx>=0){
-        if(cur.progIdx!==prevProg||cur.brkIdx!==prevBrk||cur.itemIdx!==prevItem) doAutoScroll();
-      }
-    } else {
-      updateBanner(); // só timer mudou
-    }
-  }
+  // Firebase onValue callbacks (em _apply/_applyAirLogs etc.) cuidam da sincronizacao
+  // Esta funcao mantida para compatibilidade mas nao faz mais leitura do localStorage
 }
 
 // ── AUTO SCROLL — só chamado quando item muda ──
@@ -1751,18 +1731,9 @@ function doAutoScroll(){
 
 // ── STORAGE ──
 function loadStorage(){
-  try{
-    const g=lsGet('roteiro_grade'), c=lsGet('roteiro_cur');
-    if(g) grade=JSON.parse(g);
-    if(c){ const p=JSON.parse(c); cur={...cur,...p}; }
-  }catch(e){}
+  // grade e cur vem do Firebase — sem localStorage
   // Garantir que doneKeys seja sempre um array válido
   if(!Array.isArray(cur.doneKeys)) cur.doneKeys=[];
-  // [FIX #12] resetar índices se emissor reiniciou com grade menor
-  const _ps = gradeForKey(viewDateKey||todayKey());
-  if(cur.progIdx >= _ps.length) cur.progIdx = -1;
-  const _prog = _ps[cur.progIdx];
-  if(_prog && cur.brkIdx >= (_prog.breaks||[]).length) cur.brkIdx = -1;
 }
 
 // ── SEGMENTOS ──
@@ -2056,8 +2027,8 @@ function selectDate(key){
   snap.brk     = cur.brkIdx;
   snap.item    = cur.itemIdx;
   snap.doneLen = (cur.doneKeys||[]).length;
-  lastGradeTs  = parseInt(lsGet('roteiro_ts')    ||'0');
-  lastCurTs    = parseInt(lsGet('roteiro_cur_ts')||'0');
+  lastGradeTs  = _fbLastTs || 0; // Firebase timestamp em memoria
+  lastCurTs    = _lastCurTs || 0;
   renderDateNav();
   buildRoteiro();
   restoreCollapsed();
@@ -2088,13 +2059,15 @@ function toggleAllBrks(){
 // [UX #8] persistência de colapso de programas
 function saveCollapsed(){
   const ids=[...document.querySelectorAll('.prog-card.collapsed')].map(e=>e.id.replace('pc-',''));
-  lsSet('master_collapsed',JSON.stringify(ids));
+  window._masterCollapsedCache = ids;
+  _masterSavePrefs({collapsed: ids});
 }
 function restoreCollapsed(){
-  try{JSON.parse(lsGet('master_collapsed')||'[]').forEach(pi=>{
+  const ids = window._masterCollapsedCache || [];
+  ids.forEach(pi=>{
     const e=document.getElementById(`pc-${pi}`);
     if(e) e.classList.add('collapsed');
-  });}catch(e){}
+  });
 }
 
 
@@ -2138,12 +2111,10 @@ function _doIpFetch(){
       _ipRetryDelay=1000;
       if(d&&d.grade){
         const newTs=d.ts||0;
-        const localTs=parseInt(lsGet('roteiro_ts')||'0');
-        if(newTs>=localTs){
+        if(newTs>=(_fbLastTs||0)){
           grade=d.grade;
           cur=d.cur||cur;
-          lsSet('roteiro_grade',JSON.stringify(d.grade));
-          lsSet('roteiro_ts',String(newTs||Date.now()));
+          // Dados em memoria — sem localStorage
           if(typeof recalcBrkTotals==='function') recalcBrkTotals();
           buildRoteiro();
           renderSidebar();
@@ -2154,7 +2125,7 @@ function _doIpFetch(){
     })
     .catch(()=>{
       const s=lsGet('roteiro_ip_state');
-      if(s){try{const _d=JSON.parse(s);if(_d.grade){grade=_d.grade||grade;cur=_d.cur||cur;lsSet('roteiro_grade',JSON.stringify(_d.grade));lsSet('roteiro_ts',String(_d.ts||Date.now()));if(typeof recalcBrkTotals==='function')recalcBrkTotals();buildRoteiro();renderSidebar();setIpStatus('connected');_ipRetryDelay=1000;_ipRetryTimer=setTimeout(_doIpFetch,1000);return;}}catch(e){}}
+      if(s){try{const _d=JSON.parse(s);if(_d.grade){grade=_d.grade||grade;cur=_d.cur||cur;if(typeof recalcBrkTotals==='function')recalcBrkTotals();buildRoteiro();renderSidebar();setIpStatus('connected');_ipRetryDelay=1000;_ipRetryTimer=setTimeout(_doIpFetch,1000);return;}}catch(e){}}
       setIpStatus('polling');
       _ipRetryDelay=Math.min(_ipRetryDelay*2,8000); // backoff até 8s
       _ipRetryTimer=setTimeout(_doIpFetch,_ipRetryDelay);
@@ -2173,8 +2144,19 @@ function setIpStatus(s){
 }
 
 // ── UTILS ──
-function lsGet(k){ try{return localStorage.getItem(k);}catch(e){return null;} }
-function lsSet(k,v){ try{localStorage.setItem(k,v);}catch(e){} }
+const _MASTER_DATA_KEYS = new Set([
+  'roteiro_grade','roteiro_ts','roteiro_cur','roteiro_cur_ts',
+  'roteiro_air_logs','roteiro_air_ts','roteiro_opec_log',
+  'roteiro_medialib','roteiro_contracts','roteiro_prod_log'
+]);
+function lsGet(k){
+  if(_MASTER_DATA_KEYS.has(k)){ return null; } // dados vem do Firebase
+  try{return localStorage.getItem(k);}catch(e){return null;}
+}
+function lsSet(k,v){
+  if(_MASTER_DATA_KEYS.has(k)){ return; } // dados vao para Firebase
+  try{localStorage.setItem(k,v);}catch(e){}
+}
 function pad(n){ return String(n).padStart(2,'0'); }
 // Rastreia o último elemento clicado para ancorar o toast
 let _lastClickedEl = null;
@@ -2251,11 +2233,11 @@ let opecState = {
 // Chave para o log compartilhado (lido pelo emissor)
 const OPEC_LOG_KEY = 'roteiro_opec_log';
 
-function getOpecLog(){ try{ return JSON.parse(lsGet(OPEC_LOG_KEY)||'[]'); }catch(e){ return []; } }
+function getOpecLog(){ return window._opecLogCache||[]; }
 function saveOpecLog(arr){
   const sliced = arr.slice(-200);
-  lsSet(OPEC_LOG_KEY, JSON.stringify(sliced));
-  // ── Persistir no Firebase para não perder ao fechar ──
+  window._opecLogCache = sliced; // em memoria
+  // ── Persistir no Firebase ──
   if(_db && _code){
     try{
       const ts = Date.now();
@@ -2266,11 +2248,10 @@ function saveOpecLog(arr){
 }
 
 // ── BREAK AIR TIME (Master → compartilha com OPEC via roteiro_air_logs) ──
-function getMasterAirLogs(){ try{ return JSON.parse(lsGet('roteiro_air_logs')||'{}'); }catch(e){ return {}; } }
+function getMasterAirLogs(){ return window._airLogsCache||{}; }
 function saveMasterAirLogs(logs){
-  lsSet('roteiro_air_logs', JSON.stringify(logs));
-  lsSet('roteiro_air_ts', String(Date.now()));
-  // Publicar dentro do nó grade (já tem permissão) para o OPEC receber
+  window._airLogsCache = logs; // em memoria
+  // Publicar no Firebase para o OPEC receber
   if(_db && _code){
     try{
       const ts = Date.now();
@@ -2290,7 +2271,6 @@ function logMasterBrkAir(pi,bi){
   const logs = getMasterAirLogs();
   logs[`${viewDow}-${pi}-${bi}`] = {time:timeStr, progName:prog?.name||'—', brkName:brk?.name||'—', day:viewDow, pi, bi, ts:Date.now()};
   saveMasterAirLogs(logs);
-  lsSet('roteiro_ts', String(Date.now()));
   buildRoteiro();
   if(opecState.open && opecState.pi===pi && opecState.bi===bi) renderOpec();
   showToast(`⏺ ${brk?.name||'Break'} — ${timeStr}`);
@@ -2299,7 +2279,6 @@ function clearMasterBrkAir(pi,bi){
   const logs = getMasterAirLogs();
   delete logs[`${viewDow}-${pi}-${bi}`];
   saveMasterAirLogs(logs);
-  lsSet('roteiro_ts', String(Date.now()));
   buildRoteiro();
   if(opecState.open && opecState.pi===pi && opecState.bi===bi) renderOpec();
 }
@@ -2727,12 +2706,10 @@ function _startMasterWs(){
         if(d.type==='pong') return;
         if(d.type==='state' && d.grade){
           const newTs = d.ts||0;
-          const localTs = parseInt(lsGet('roteiro_ts')||'0');
-          if(newTs >= localTs){
+          if(newTs >= (_fbLastTs||0)){
             grade = d.grade;
             cur   = d.cur||cur;
-            lsSet('roteiro_grade', JSON.stringify(d.grade));
-            lsSet('roteiro_ts',    String(newTs));
+            // Dados em memoria — sem localStorage
             if(typeof recalcBrkTotals==='function') recalcBrkTotals();
             buildRoteiro();
             renderSidebar();
