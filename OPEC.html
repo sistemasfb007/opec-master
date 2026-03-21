@@ -906,39 +906,9 @@ const FB_FIXED = {"apiKey":"AIzaSyDZ_A6YI3a6p9eGb3khWF5dJRf43q0kR5A","databaseUR
 const DOMINIO = '@sistemasfb.com';
 
 let app, db, auth;
-let _gradeRef, _fbReady=false, _fbLastTs=0, _fbIgnore=false, _unsubscribe=null;
-let _stationCode = '';
+let _gradeRef, _fbReady=false, _fbLastTs=0, _fbIgnore=0, _unsubscribe=null;
+let _stationCode = localStorage.getItem('opec_station_code')||'';
 let _currentUser = null;
-
-// ── Desconexão de estação ─────────────────────────────────────────
-// Persiste no sessionStorage para sobreviver a reloads na mesma aba.
-// Quando desconectado: _fbSaveGrade não envia nada e o listener é cancelado.
-let _fbPaused = sessionStorage.getItem('_opec_disc') === '1';
-
-window._fbDisconnectStation = function(){
-  if(!confirm('Desconectar a estação?\n\nEnquanto desconectado, nenhuma edição local subirá ao Firebase.\nIdeal para editar o código localmente sem afetar a produção.')) return;
-  _fbPaused = true;
-  sessionStorage.setItem('_opec_disc','1');
-  if(_unsubscribe){ _unsubscribe(); _unsubscribe=null; }
-  if(_unsubAirLogs){ try{_unsubAirLogs();}catch(e){} _unsubAirLogs=null; }
-  if(_unsubOpecLog){ try{_unsubOpecLog();}catch(e){} _unsubOpecLog=null; }
-  if(typeof _unsubMedialib!=='undefined'&&_unsubMedialib){ try{_unsubMedialib();}catch(e){} _unsubMedialib=null; }
-  if(typeof _unsubContracts!=='undefined'&&_unsubContracts){ try{_unsubContracts();}catch(e){} _unsubContracts=null; }
-  _fbReady = false;
-  _gradeRef = null;
-  _fbDot('red');
-  _renderStationUI();
-  showToast('⏹ Estação desconectada — edições ficam locais','warn');
-};
-
-window._fbConnectStation = function(){
-  _fbPaused = false;
-  sessionStorage.removeItem('_opec_disc');
-  _fbReady = false;
-  _renderStationUI();
-  _fbConnect();
-  showToast('✓ Estação conectada','ok');
-};
 
 // ── Inicializar (mesmo padrão do MASTER) ──
 try{
@@ -968,40 +938,6 @@ try{
       }catch(e){ console.warn('Permissão não verificada:', e.message); }
       loginScreen.style.display = 'none';
       _renderUserTopbar(nome);
-      // Carregar station_code e pin do Firebase
-      try{
-        const prefSnap = await db.ref('_usuarios/'+nome+'/prefs').once('value');
-        if(prefSnap.exists()){
-          const prefs = prefSnap.val();
-          if(prefs.station_code && !_stationCode){
-            _stationCode = prefs.station_code;
-          }
-          if(prefs.pin){
-            currentPin = prefs.pin;
-            window._pinCache = prefs.pin;
-          }
-          // Expor cache de prefs para módulos de layout (panel order, col order, etc.)
-          window._opecPrefsCache = prefs;
-          if(prefs.layout){
-            layout={...layout,...prefs.layout};
-            applyLayout();
-          }
-          if(prefs.ip){
-            ipConfig={...ipConfig,...prefs.ip};
-            const si=$('server-ip'); if(si) si.value=ipConfig.ip||'';
-            const sp=$('server-port'); if(sp) sp.value=ipConfig.port||8765;
-            updateServerStatus();
-          }
-          if(prefs.report_logo_b64){
-            window._reportLogoB64=prefs.report_logo_b64;
-            _reportLogoPreview(prefs.report_logo_b64);
-          }
-          if(prefs.master_gh_url){
-            const hint=document.getElementById('master-gh-saved-hint');
-            if(hint) hint.textContent='Link salvo: '+prefs.master_gh_url;
-          }
-        }
-      }catch(e){ /* prefs nao criticas */ }
       _renderStationUI();
       if(_stationCode) _fbConnect();
     } else {
@@ -1155,45 +1091,34 @@ let _lastAirLogsTs = 0;
 let _lastOpecLogTs = 0;
 
 function _fbConnect(){
+  if(_isLocalFile) return; // arquivo local — sem Firebase
   if(!db||!_stationCode) return;
   _gradeRef = ref(db,`estacoes/${_stationCode}/grade`);
   get(_gradeRef).then(snap=>{
     if(snap.exists()){
-      const d=snap.val(), ts=d?._ts||0;
-      if(ts>_fbLastTs){
-        _applyGrade(d); // Firebase mais recente — aplicar
-      } else if(ts===0 && Object.values(grade).some(v=>Array.isArray(v)&&v.length>0)){
-        // Firebase vazio — publicar grade em memoria (primeiro uso)
-        if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
-      }
-      // FIX: _fbSaveGrade imediato REMOVIDO — publicar grade local ao conectar
-      // sobrescrevia o Firebase com dados de teste do localStorage
+      _applyGrade(snap.val());
     }
     _fbReady=true; _fbDot('green');
-    // Carregar piList do Firebase após conectar
+    // Carregar dados do Firebase após conectar
     if(typeof _fbLoadPiList==='function') _fbLoadPiList();
-    // Carregar medialib do Firebase
     _fbLoadMedialib();
-    // Carregar contracts do Firebase
     _fbLoadContracts();
-    // Carregar prod_log do Firebase
-    loadProdLog();
   }).catch(()=>{ _fbReady=true; _fbDot('red'); });
   if(_unsubscribe) _unsubscribe();
   _unsubscribe=onValue(_gradeRef, snap=>{
     if(!_fbReady||!snap.exists()) return;
     const d=snap.val(), ts=d?._ts||0;
-    // Sempre processar __air_logs, mesmo quando ignorando atualização de grade
+    // Processar __air_logs
     if(d.__air_logs){
       const airTs = d.__air_logs._ts||0;
-      if(airTs > _lastAirLogsTs){
+      if(airTs > (_lastAirLogsTs||0)){
         const logs = {...d.__air_logs}; delete logs._ts;
         _lastAirLogsTs = airTs;
         window._airLogsCache = logs;
         if(typeof renderRoteiro==='function') renderRoteiro();
       }
     }
-    if(_fbIgnore){ _fbIgnore=false; return; }
+    if(_fbIgnore>0){ _fbIgnore--; return; }
     if(ts<=_fbLastTs) return;
     _applyGrade(d);
   });
@@ -1215,11 +1140,11 @@ function _fbConnect(){
     get(rCur).then(snap=>{
       if(!snap.exists()) return;
       const d = snap.val(), fbTs = d._ts||0;
-      if(fbTs > _lastCurTs){
+      if(true){
         const c = {...d}; delete c._ts;
         cur = {...cur, ...c};
         if(!Array.isArray(cur.doneKeys)) cur.doneKeys=[];
-        _lastCurTs = fbTs;
+        
         if(typeof renderRoteiro==='function') renderRoteiro();
         if(typeof renderCtrl==='function') renderCtrl();
       }
@@ -1230,10 +1155,12 @@ function _fbConnect(){
 function _applyAirLogsDedicated(data){
   try{
     const ts = data._ts||0;
-    if(ts && ts <= _lastAirLogsTs) return;
+    const localTs = parseInt(localStorage.getItem('roteiro_air_ts')||'0');
+    if(ts && ts <= Math.max(_lastAirLogsTs, localTs)) return;
     _lastAirLogsTs = ts||Date.now();
     const logs = {...data}; delete logs._ts;
-    window._airLogsCache = logs;
+    localStorage.setItem('roteiro_air_logs', JSON.stringify(logs));
+    localStorage.setItem('roteiro_air_ts', String(_lastAirLogsTs));
     if(typeof renderRoteiro==='function') renderRoteiro();
   }catch(e){}
 }
@@ -1244,56 +1171,27 @@ function _applyOpecLogFb(data){
     if(ts && ts <= _lastOpecLogTs) return;
     _lastOpecLogTs = ts||Date.now();
     const entries = data.entries||[];
-    window._opecLogCache = entries;
-  }catch(e){}
-}
-
-// Detecta grade de teste (DETRAN CARNAVAL etc.)
-function _isSampleGrade(g){
-  try{
-    const s=(typeof g==='string'?g:JSON.stringify(g)).toLowerCase();
-    return s.includes('detran carnaval')&&s.includes('assembleia clina');
-  }catch(_){return false;}
-}
-
-// Salva preferencias do usuario no Firebase
-function _opecSavePrefs(patch){
-  try{
-    if(!auth || !auth.currentUser) return;
-    const nome = auth.currentUser.email.replace(DOMINIO,'');
-    if(!nome) return;
-    db.ref('_usuarios/'+nome+'/prefs').once('value').then(function(snap){
-      const existing = snap.exists()?(snap.val()||{}):{};
-      const merged = Object.assign({}, existing, patch);
-      db.ref('_usuarios/'+nome+'/prefs').set(merged);
-    }).catch(function(){});
+    localStorage.setItem('roteiro_opec_log', JSON.stringify(entries));
   }catch(e){}
 }
 
 function _applyGrade(d){
   const ts=d?._ts||0; _fbLastTs=ts;
-  const g2={...d}; delete g2._ts; delete g2.__air_logs;
-  if(_isSampleGrade(g2)){
-    console.warn('[OPEC] Grade de teste detectada no Firebase — ignorada.');
-    if(typeof showToast==='function') showToast('! Grade de teste no servidor. Va em Config > Manutencao para limpar.');
-    return;
-  }
-  // Extrair air_logs publicados pelo MASTER antes de limpar
+  // Extrair air_logs publicados pelo MASTER
   if(d.__air_logs){
     const airTs = d.__air_logs._ts||0;
-    if(airTs > _lastAirLogsTs){
+    if(airTs > (_lastAirLogsTs||0)){
       const logs = {...d.__air_logs}; delete logs._ts;
       _lastAirLogsTs = airTs;
       window._airLogsCache = logs;
     }
   }
   const raw={...d}; delete raw._ts; delete raw.__air_logs;
-  // Firebase retorna chaves como strings ("0","1",...) — converter para inteiros
-  // e garantir que todos os 7 dias existam como arrays
+  // Normalizar: garantir que todos os 7 dias existam como arrays
   const g={};
   for(let i=0;i<7;i++){
-    const v = raw[i] ?? raw[String(i)];
-    g[i] = Array.isArray(v) ? v : [];
+    const v=raw[i]??raw[String(i)];
+    g[i]=Array.isArray(v)?v:[];
   }
   grade=g;
   if(typeof recalcBrkTotals==='function') recalcBrkTotals();
@@ -1304,66 +1202,23 @@ function _applyGrade(d){
   _fbDot('pulse');
 }
 
+// ── Modo local: quando rodando via file://, não envia ao Firebase ──
+// Só envia quando servido via HTTP (GitHub Pages, servidor web)
+const _isLocalFile = (location.protocol === 'file:');
+
 window._fbSaveGrade = function(g){
+  if(_isLocalFile) return; // arquivo local — não sincronizar com Firebase
   if(!_fbReady||!_gradeRef) return;
-  // Estação desconectada — não envia nada ao Firebase
-  if(_fbPaused) return;
-  const ts=Date.now(); _fbLastTs=ts;
-  _fbIgnore=true;
-  // Garantia: limpa o ignore após 3s caso o listener não consuma
-  setTimeout(()=>{ _fbIgnore=false; }, 3000);
+  const ts=Date.now(); _fbLastTs=ts; _fbIgnore=2;
+  setTimeout(()=>{ _fbIgnore=0; }, 8000);
+  // Preservar __air_logs publicado pelo MASTER
   get(_gradeRef).then(snap=>{
-    const existing=snap.exists()?snap.val():{};
-    const remoteTs=existing._ts||0;
-    if(remoteTs>ts){
-      // Conflito: outro operador salvou versão mais recente — avisar o operador com toast
-      console.warn('[OPEC] Conflito de grade: remoto ('+remoteTs+') > local ('+ts+'). Escrita abortada.');
-      _fbDot('red');
-      // Toast persistente com botão de recarregar
-      let toast=document.getElementById('_conflict-toast');
-      if(!toast){
-        toast=document.createElement('div');
-        toast.id='_conflict-toast';
-        toast.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1c1220;border:1px solid rgba(224,80,80,.5);border-left:4px solid #e05050;border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:14px;z-index:99999;box-shadow:0 8px 32px rgba(0,0,0,.7);max-width:90vw;font-family:var(--font-b,sans-serif)';
-        document.body.appendChild(toast);
-      }
-      toast.innerHTML=`
-        <span style="font-size:18px">⚠</span>
-        <div>
-          <div style="font-size:13px;font-weight:600;color:#e05050;margin-bottom:3px">Conflito de edição detectado</div>
-          <div style="font-size:11px;color:#7a8fa8;line-height:1.6">
-            Outro operador salvou uma versão mais recente.<br>
-            Sua última alteração <strong style="color:#e05050">não foi salva</strong>.
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;flex-shrink:0">
-          <button id="_conflict-reload-btn"
-            style="font-family:var(--font-d,sans-serif);font-size:11px;font-weight:700;letter-spacing:1.5px;
-                   text-transform:uppercase;padding:7px 14px;border-radius:6px;border:none;cursor:pointer;
-                   background:var(--green,#1faa5a);color:#fff;white-space:nowrap">
-            ↺ Recarregar grade
-          </button>
-          <button onclick="this.closest('#_conflict-toast').remove()"
-            style="background:none;border:1px solid rgba(255,255,255,.1);border-radius:6px;
-                   color:#7a8fa8;cursor:pointer;padding:7px 10px;font-size:11px">✕</button>
-        </div>`;
-      document.getElementById('_conflict-reload-btn').onclick=function(){
-        toast.remove();
-        _applyGrade(existing);
-        if(typeof showToast==='function') showToast('✓ Grade atualizada com a versão mais recente.','ok');
-        _fbDot('green');
-      };
-      // Remove o toast automaticamente após 15s se o operador não agir
-      setTimeout(()=>{ const t=document.getElementById('_conflict-toast'); if(t)t.remove(); },15000);
-      return;
-    }
-    // Sem conflito — salvar normalmente
-    const airLogs=existing.__air_logs||null;
-    const payload={...g,_ts:ts};
-    if(airLogs) payload.__air_logs=airLogs;
-    set(_gradeRef,payload).then(()=>_fbDot('green')).catch(()=>_fbDot('red'));
+    const existing = snap.exists() ? snap.val() : {};
+    const airLogs = existing.__air_logs || null;
+    const payload = {...g, _ts:ts};
+    if(airLogs) payload.__air_logs = airLogs;
+    set(_gradeRef, payload).then(()=>_fbDot('green')).catch(()=>_fbDot('red'));
   }).catch(()=>{
-    // Se não conseguir ler, salva mesmo assim (melhor que perder a alteração)
     set(_gradeRef,{...g,_ts:ts}).then(()=>_fbDot('green')).catch(()=>_fbDot('red'));
   });
 };
@@ -1372,89 +1227,41 @@ function _fbDot(s){
   const el=document.getElementById('fb-status-dot'); if(!el) return;
   el.style.background=s==='green'?'#4acc7a':s==='red'?'#e07070':'#f0c040';
   if(s==='pulse') setTimeout(()=>_fbDot('green'),400);
-  // Melhoria 4: Watchdog — reinicia o timer a cada sinal recebido do Firebase
-  if(s==='green'||s==='pulse') _wdReset();
-}
-
-// ── Watchdog Firebase (Melhoria 4) ──
-// Se o Firebase ficar 30s sem responder, emite alerta sonoro e visual
-let _wdTimer=null;
-const _WD_TIMEOUT=30000;
-function _wdReset(){
-  clearTimeout(_wdTimer);
-  _wdTimer=setTimeout(_wdAlert,_WD_TIMEOUT);
-}
-function _wdAlert(){
-  console.warn('[OPEC] Watchdog: Firebase sem resposta por 30s!');
-  _fbDot('red');
-  showToast('⚠ Firebase sem sinal há 30s — verifique a conexão!');
-  // Alerta sonoro via Web Audio API
-  try{
-    const ctx=new(window.AudioContext||window.webkitAudioContext)();
-    [440,480,440].forEach((freq,i)=>{
-      const osc=ctx.createOscillator();
-      const gain=ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.frequency.value=freq;
-      osc.type='sine';
-      gain.gain.setValueAtTime(0.3,ctx.currentTime+i*0.3);
-      gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+i*0.3+0.25);
-      osc.start(ctx.currentTime+i*0.3);
-      osc.stop(ctx.currentTime+i*0.3+0.25);
-    });
-  }catch(e){}
-  // Reagendar para continuar alertando enquanto offline
-  _wdTimer=setTimeout(_wdAlert,_WD_TIMEOUT);
 }
 
 function _renderStationUI(){
   ['fb-station-panel','fb-station-panel-land'].forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
-    const btnBase='font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;border:none;cursor:pointer;padding:3px 9px;transition:all .15s;line-height:1;white-space:nowrap;';
     if(!_stationCode){
       el.innerHTML=`
-        <div style="display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border2);border-radius:5px;padding:3px 8px;background:var(--s2)">
-          <span style="font-size:9px;letter-spacing:1px;color:var(--text3)">ESTAÇÃO</span>
-          <input id="fb-code-inp" placeholder="TV-RO-01" maxlength="20"
-            style="font-family:var(--font-m);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
-                   width:80px;background:transparent;border:none;border-bottom:1px solid var(--gold);
-                   color:var(--gold);outline:none;padding:1px 3px;"
-            onkeydown="if(event.key==='Enter')window._fbSetCode(this.value)">
-          <button onclick="window._fbSetCode(document.getElementById('fb-code-inp').value)"
-            style="${btnBase}background:var(--gold);color:#000;border-radius:3px;padding:3px 8px">
-            Ativar
-          </button>
-        </div>`;
-    } else if(_fbPaused){
-      el.innerHTML=`
-        <div style="display:inline-flex;align-items:center;border:1px solid rgba(224,80,80,.3);border-radius:5px;overflow:hidden;background:var(--s2)">
-          <span style="padding:3px 9px;font-family:var(--font-m);font-size:9px;font-weight:700;
-                       letter-spacing:2px;color:var(--red2);text-transform:uppercase;opacity:.8"
-                title="Desconectada — nada sobe ao Firebase">⏹ ${_stationCode}</span>
-          <button onclick="window._fbConnectStation()"
-            style="${btnBase}background:rgba(31,170,90,.15);color:var(--green);border-left:1px solid rgba(31,170,90,.25);padding:4px 10px"
-            onmouseover="this.style.background='rgba(31,170,90,.28)'"
-            onmouseout="this.style.background='rgba(31,170,90,.15)'">Conectar</button>
-        </div>`;
+        <span style="font-size:9px;color:var(--text3);letter-spacing:1px;margin-right:6px">CÓD. ESTAÇÃO</span>
+        <input id="fb-code-inp" placeholder="EX: TV-RO-01" maxlength="20"
+          style="font-family:var(--font-m);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+                 width:100px;background:var(--s2);border:1px solid var(--gold);border-radius:4px;padding:2px 7px;
+                 color:var(--gold);outline:none"
+          onkeydown="if(event.key==='Enter')window._fbSetCode(this.value)">
+        <button onclick="window._fbSetCode(document.getElementById('fb-code-inp').value)"
+          style="font-size:10px;padding:2px 10px;background:var(--gold);border:none;border-radius:4px;
+                 color:#000;font-weight:700;cursor:pointer;margin-left:4px">Ativar</button>`;
     } else {
       el.innerHTML=`
-        <div style="display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:5px;overflow:hidden;background:var(--s2)">
-          <span onclick="navigator.clipboard.writeText('${_stationCode}').then(()=>{this.textContent='✓';setTimeout(()=>this.textContent='${_stationCode}',1200)})"
-            style="padding:3px 9px;font-family:var(--font-m);font-size:9px;font-weight:700;
-                   letter-spacing:2px;color:var(--gold);text-transform:uppercase;cursor:pointer"
+        <span id="fb-code-display"
+          style="display:flex;align-items:center;width:100%;
+                 background:transparent;border:1px solid var(--border);border-radius:6px;
+                 overflow:hidden;cursor:default;color:var(--text2);">
+          <span onclick="navigator.clipboard.writeText('${_stationCode}').then(()=>{this.textContent='Copiado';setTimeout(()=>this.textContent='${_stationCode}',1200)})"
+            style="flex:1;padding:5px 11px;cursor:pointer;
+                   font-family:var(--font-m);font-size:11px;font-weight:700;
+                   letter-spacing:2px;color:var(--gold);text-transform:uppercase"
             title="Copiar código">${_stationCode}</span>
-          <span id="fb-status-dot" style="width:5px;height:5px;border-radius:50%;background:var(--green);margin:0 4px;flex-shrink:0"></span>
-          <button onclick="window._fbDisconnectStation()"
-            style="${btnBase}background:transparent;color:var(--text3);border-left:1px solid var(--border);padding:4px 9px"
-            onmouseover="this.style.color='var(--red2)';this.style.background='rgba(224,80,80,.07)'"
-            onmouseout="this.style.color='var(--text3)';this.style.background='transparent'"
-            title="Desconectar estação">Desconectar</button>
           <button onclick="window._fbEditCode()"
-            style="${btnBase}background:transparent;color:var(--text3);border-left:1px solid var(--border);padding:4px 8px"
+            style="padding:5px 10px;background:transparent;border:none;border-left:1px solid var(--border);
+                   color:var(--text3);cursor:pointer;font-size:12px;font-weight:700;line-height:1;
+                   transition:all .15s"
             onmouseover="this.style.color='var(--text)';this.style.background='var(--s3)'"
             onmouseout="this.style.color='var(--text3)';this.style.background='transparent'"
-            title="Editar código">—</button>
-        </div>`;
+            title="Editar estação">—</button>
+        </span>`;
     }
   });
 }
@@ -1463,7 +1270,7 @@ window._renderStationUI = _renderStationUI;
 window._fbSetCode = function(raw){
   const code=(raw||'').trim().toUpperCase().replace(/[^A-Z0-9\-_]/g,'');
   if(!code){ alert('Digite um código (letras e números)'); return; }
-  _stationCode=code; _stationCode=code; _opecSavePrefs({station_code:code});
+  _stationCode=code; localStorage.setItem('opec_station_code',code);
   _renderStationUI(); _fbConnect();
 };
 window._fbEditCode = function(){
@@ -1489,7 +1296,7 @@ window._fbConfirmEdit = function(raw){
   if(!confirm(`Trocar o código de "${_stationCode}" para "${code}"?`)) return;
   if(_unsubscribe){ _unsubscribe(); _unsubscribe=null; }
   _fbReady=false; _stationCode=code;
-  _stationCode=code; _opecSavePrefs({station_code:code});
+  localStorage.setItem('opec_station_code',code);
   _renderStationUI(); _fbConnect();
 };
 
@@ -2174,13 +1981,6 @@ function _segConflictResp(ok){
       <button class="btn btn-ghost btn-sm" style="width:100%" onclick="showLinkModal();toggleSettings()">Conectar Exibidor</button>
     </div>
 
-    <!-- MANUTENCAO -->
-    <div class="sp-section">
-      <div class="sp-sec-title" style="color:var(--red2)">Manutencao</div>
-      <button onclick="clearSampleDataFromFirebase()" style="width:100%;padding:8px 14px;margin-bottom:6px;background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.25);border-radius:7px;cursor:pointer;font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--red2)" onmouseover="this.style.background='rgba(192,57,43,.18)'" onmouseout="this.style.background='rgba(192,57,43,.08)'" title="Remove dados de teste do Firebase e publica a grade atual">
-        Limpar Grade de Teste do Servidor
-      </button>
-    </div>
     <!-- RESET -->
     <div class="sp-section" style="padding-bottom:18px">
       <button onclick="resetLayout()" style="
@@ -2728,9 +2528,7 @@ let selectedContractId=null;
 
 // ═══ BOOT ═══
 window.addEventListener('DOMContentLoaded',()=>{
-  loadStorage();
-  loadMediaLib();
-  // loadSampleData() REMOVIDA DO BOOT -- nunca publicar dados de teste no Firebase
+  // grade, medialib e contracts vêm do Firebase — sem localStorage
   applyLayout();
   buildSwatches();
   updateClocks();
@@ -2752,8 +2550,30 @@ function goHome(){setView('landing');stopTimer();}
 function startEmissor(){setView('emissor');loadMediaLib();renderWeekNav();renderRoteiro();renderMidList();renderCtrl();initPanels();renderContractList();loadProdLog();renderProdLog();_initProdTime();setTimeout(function(){if(typeof _im==='function')_im();},50);}
 function _initProdTime(){const now=new Date();const hh=String(now.getHours()).padStart(2,'0');const mm=String(now.getMinutes()).padStart(2,'0');const el=$('prod-time');if(el)el.value=`${hh}:${mm}`;}
 function startExibidorExt(){
-  // Abrir MASTER.html diretamente na mesma pasta
+  var code=localStorage.getItem('opec_station_code')||'--';
+  var el=document.getElementById('master-modal-code');
+  if(el) el.textContent=code;
+  // Preencher links salvos
+  var savedUrl=localStorage.getItem('master_saved_url')||'';
+  var ghUrl=localStorage.getItem('master_gh_url')||'';
+  var li=document.getElementById('master-link-inp');
+  var gi=document.getElementById('master-gh-inp');
+  var gh=document.getElementById('master-gh-saved-hint');
+  if(li&&savedUrl) li.value=savedUrl;
+  if(gi&&ghUrl){ gi.value=ghUrl; if(gh) gh.textContent='Link salvo'; }
+  document.getElementById('master-open-modal').style.display='flex';
+}
+function _masterAbrirPasta(){
+  document.getElementById('master-open-modal').style.display='none';
   window.open('MASTER.html','_blank');
+}
+function _masterAbrirLink(){
+  var inp=document.getElementById('master-link-inp');
+  var v=(inp?inp.value:'').trim();
+  if(!v){if(inp)inp.style.borderColor='#e07070';return;}
+  document.getElementById('master-open-modal').style.display='none';
+  var url=v.indexOf('http')===0?v:('file:///'+v.split('\\').join('/'));
+  window.open(url,'_blank');
 }
 function setView(v){document.querySelectorAll('.view').forEach(e=>e.classList.remove('active'));document.getElementById(v).classList.add('active');}
 
@@ -3022,7 +2842,6 @@ function _confirmRemoveMedia(){
     saveGrade();
     renderRoteiro();
     broadcastState();
-    if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
   }
 
   mediaLib = mediaLib.filter(m => {
@@ -3070,6 +2889,7 @@ function analyzeBrkConflict(items){
 }
 
 function renderRoteiro(){
+  if(!Array.isArray(grade[selectedDay])) grade[selectedDay]=[];
   const list=$('roteiro-list'),progs=grade[selectedDay]||[];
   if(!progs.length){list.innerHTML=`<div class="empty-hint">Nenhum programa para ${DAYS_FULL[selectedDay]}.<br>Clique em <b>＋Prog</b>.</div>`;buildJumpBtns();return;}
   list.innerHTML=progs.map((prog,pi)=>{
@@ -3080,7 +2900,15 @@ function renderRoteiro(){
         const isAB=isAP&&cur.brkIdx===bi;
         const iHtml=!(brk.items||[]).length
           ?`<div class="empty-hint" style="padding:6px 22px">Sem materiais.</div>`
-          :brk.items.map((item,ii)=>{
+          :(()=>{
+            const visibleItems = (brk.items||[]).filter(it=>{
+              if(!it.piDay) return true;
+              return it.piDay===selectedDate.getDate() &&
+                     it.piMonth===selectedDate.getMonth() &&
+                     (it.piYear==null||it.piYear===selectedDate.getFullYear());
+            });
+            if(!visibleItems.length) return `<div class="empty-hint" style="padding:6px 22px">Sem materiais para ${selectedDate.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}.</div>`;
+            return visibleItems.map((item,ii)=>{
             const key=mkKey(selectedDay,pi,bi,ii);
             const act=isAB&&cur.itemIdx===ii,dn=cur.doneKeys.includes(key);
             const exp=isExpired(item.dateEnd);
@@ -3133,14 +2961,16 @@ function renderRoteiro(){
 
             </div>`;
           }).join('');
+          })()
         // Verificar conflitos de segmento no break
-        const _conf = analyzeBrkConflict(brk.items||[]);
+        const _brkVis=(brk.items||[]).filter(it=>!it.piDay||( it.piDay===selectedDate.getDate()&&it.piMonth===selectedDate.getMonth()&&(it.piYear==null||it.piYear===selectedDate.getFullYear())));
+        const _conf = analyzeBrkConflict(_brkVis);
         const _confHtml = _conf.hasConflict
           ? `<span class="brk-conflict" title="Concorrência detectada: ${_conf.conflicts.map(s=>SEG_LABELS[s]||s).join(', ')}">! CONCORRÊNCIA: ${_conf.conflicts.map(s=>SEG_LABELS[s]||s).join(' + ')}</span>`
           : '';
         return `<div class="brk-block" id="bb-${pi}-${bi}">
           <div class="brk-head" onclick="toggleBrk(${pi},${bi})">
-            <span class="bh-lbl">${brk.name}</span><span class="bh-cnt">${(brk.items||[]).length} mat.</span><span class="bh-tot">${fmtSec((brk.items||[]).reduce((s,it)=>s+(parseInt(it.dur)||0),0))}</span>${_confHtml}
+            <span class="bh-lbl">${brk.name}</span><span class="bh-cnt">${_brkVis.length} mat.</span><span class="bh-tot">${fmtSec(_brkVis.reduce((s,it)=>s+(parseInt(it.dur)||0),0))}</span>${_confHtml}
             ${getBrkAirLog(selectedDay,pi,bi)
               ?`<button class="brk-air-btn logged" onclick="event.stopPropagation();clearBrkAir(${pi},${bi})">✓ ${getBrkAirLog(selectedDay,pi,bi).time}</button>`
               :`<button class="brk-air-btn idle" onclick="event.stopPropagation();logBrkAir(${pi},${bi})" title="Registrar horário no ar"> Ar</button>`}
@@ -3378,19 +3208,25 @@ function renderCtrl(){
 
 // ═══ IP / BROADCAST ═══
 function loadIpConfig(){
-  // IP carregado do Firebase via prefs no login
+  try{const c=lsGet('roteiro_ip');if(c){ipConfig=JSON.parse(c);$('server-ip').value=ipConfig.ip||'';$('server-port').value=ipConfig.port||8765;updateServerStatus();}}catch(e){}
 }
 function saveIpConfig(){
   ipConfig.ip=$('server-ip').value.trim();
   ipConfig.port=parseInt($('server-port').value)||8765;
-  _opecSavePrefs({ip:ipConfig});
+  lsSet('roteiro_ip',JSON.stringify(ipConfig));
   updateServerStatus();
   showToast('IP salvo!');
 }
 function updateServerStatus(){ /* IP display removido */ }
 function testConnection(){showToast('Teste: verifique se o Exibidor está online com o mesmo IP');}
 function broadcastState(){
-  // Firebase e a fonte de verdade — sem localStorage
+  // Write to localStorage (for same-machine) + emit IP info for cross-network
+  lsSet('roteiro_ts',Date.now());
+  if(ipConfig.ip){
+    // Store IP-tagged state for cross-network polling
+    const payload=JSON.stringify({grade,cur,ts:Date.now()});
+    lsSet('roteiro_ip_state',payload);
+  }
   // Persistir cur no Firebase para sobreviver a reloads
   try{
     if(typeof db!=='undefined' && db && _stationCode){
@@ -3420,8 +3256,8 @@ function doAddProg(){
   // Create one program per selected day
   let created = 0;
   [...mpSelectedDays].sort((a,b)=>a-b).forEach(day => {
-    if(!HOURS[day]) return;
-    if(!Array.isArray(grade[day])) grade[day]=[];  // segurança extra
+    if(!HOURS[day]) return; // skip days without transmission
+    if(!Array.isArray(grade[day])) grade[day] = []; // garantir que o dia existe
     const breaks = brkConfigs.map(b => ({ id: uid(), name: b.name, total: b.total, items: [] }));
     grade[day].push({ id: uid(), time, timeEnd, name, breaks });
     grade[day].sort((a,b) => a.time.localeCompare(b.time));
@@ -3517,7 +3353,6 @@ Atenção: este programa tem materiais nos breaks. Tudo será apagado.`
   grade[selectedDay].splice(epEditPi, 1);
   closeModal('m-edit-prog');
   renderRoteiro(); renderMidList();
-  if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
   saveGrade();
   if(document.getElementById('progs-tab')?.classList.contains('open')) renderProgs();
   showToast('✓Programa removido');
@@ -3575,7 +3410,6 @@ function doEditProg(){
   renderWeekNav();
   renderRoteiro();
   renderMidList();
-  if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
   if(document.getElementById('progs-tab')?.classList.contains('open')) renderProgs();
   showToast(`✓Programa atualizado!`);
   broadcastState();
@@ -4369,8 +4203,11 @@ function resetLayout(){
   applyLayout();
   saveLayout();
 
-  // 2. Resetar ordem e visibilidade dos painéis do controle via Firebase
-  _opecSavePrefs({panelOrder:null, panelHidden:[], colOrder:null});
+  // 2. Resetar ordem e visibilidade dos painéis do controle
+  const _PK='opec_panel_layout_v1';
+  localStorage.removeItem(_PK+'_order');
+  localStorage.removeItem(_PK+'_hidden');
+  localStorage.removeItem(_PK+'_col_order');
 
   // 3. Restaurar colunas para ordem padrão
   const defColOrder=['col-roteiro','col-midias','col-controle'];
@@ -4396,9 +4233,7 @@ function resetLayout(){
 
 // ═══ STORAGE ═══
 function save(){
-  // Dados operacionais vao exclusivamente para o Firebase via broadcastState/_fbSaveGrade
-  // localStorage nao e mais usado para grade/cur
-  if(typeof broadcastState==='function') broadcastState();
+  // grade via Firebase
 }
 function recalcBrkTotals(){
   Object.values(grade).forEach(progs => {
@@ -4411,33 +4246,70 @@ function recalcBrkTotals(){
 }
 function saveGrade(){
   recalcBrkTotals();
-  // Garantir que os 7 dias existam com chaves numéricas antes de salvar
-  const normalized={};
-  for(let i=0;i<7;i++) normalized[i]=Array.isArray(grade[i])?grade[i]:[];
-  grade=normalized;
+  // Garantir que todos os 7 dias existam
+  for(let i=0;i<7;i++) if(!Array.isArray(grade[i])) grade[i]=[];
+  // _fbSaveGrade já verifica _isLocalFile internamente
   if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
-  if(typeof broadcastState==='function') broadcastState();
 }
-function saveLayout(){ _opecSavePrefs({layout:layout}); }
+function saveLayout(){lsSet('roteiro_layout',JSON.stringify(layout));}
 function saveContracts(){
-  if(typeof db==='undefined'||!db||!_stationCode){ return; }
-  try{
+  if(_isLocalFile) return; // arquivo local — não sincronizar
+  if(typeof db!=='undefined'&&db&&_stationCode){
     ref(db,'estacoes/'+_stationCode+'/contracts').set({items:contracts,_ts:Date.now()}).catch(function(){});
-  }catch(e){}
+  }
 }
 function loadStorage(){
-  // grade e cur chegam do Firebase via _fbConnect/_applyGrade
-  // contracts chegam do Firebase via _fbLoadContracts
-  // layout vem do Firebase via prefs do usuário (carregado no login)
+  // Tudo via Firebase — localStorage não é usado
 }
-// ── Cache de Emergência — lê apenas se Firebase E WS falharem ──
-// Stubs silenciosos — sem localStorage, sem warn no console.
-// Para ativar um cache real de emergência, implemente o corpo destas funções.
-function lsGet(k){ return null; }
-function lsSet(k,v){ /* descartado */ }
-function lsRemove(k){ /* descartado */ }
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 
 // ═══ SAMPLE DATA ═══
+// ── Carregar mediaLib do Firebase ──
+let _unsubMedialib=null;
+function _fbLoadMedialib(){
+  if(typeof db==='undefined'||!db||!_stationCode) return;
+  if(_unsubMedialib){ try{_unsubMedialib();}catch(e){} _unsubMedialib=null; }
+  const r=ref(db,'estacoes/'+_stationCode+'/medialib');
+  get(r).then(function(snap){
+    if(!snap.exists()) return;
+    const d=snap.val();
+    window._mediaLibFbTs=d._ts||0;
+    mediaLib=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);
+    if(typeof renderMidList==='function') renderMidList();
+    if(typeof renderOpcMidias==='function') renderOpcMidias();
+  }).catch(function(){});
+  _unsubMedialib=onValue(r,function(snap){
+    if(!snap.exists()) return;
+    const d=snap.val(), ts=d._ts||0;
+    if(ts<=(window._mediaLibFbTs||0)) return;
+    window._mediaLibFbTs=ts;
+    mediaLib=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);
+    if(typeof renderMidList==='function') renderMidList();
+    if(typeof renderOpcMidias==='function') renderOpcMidias();
+  });
+}
+
+// ── Carregar contracts do Firebase ──
+let _unsubContracts=null;
+function _fbLoadContracts(){
+  if(typeof db==='undefined'||!db||!_stationCode) return;
+  if(_unsubContracts){ try{_unsubContracts();}catch(e){} _unsubContracts=null; }
+  const r=ref(db,'estacoes/'+_stationCode+'/contracts');
+  get(r).then(function(snap){
+    if(!snap.exists()) return;
+    const d=snap.val();
+    contracts=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);
+    if(typeof renderContractList==='function') renderContractList();
+  }).catch(function(){});
+  _unsubContracts=onValue(r,function(snap){
+    if(!snap.exists()) return;
+    const d=snap.val();
+    contracts=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);
+    if(typeof renderContractList==='function') renderContractList();
+  });
+}
+
 function loadSampleData(){
   const today=new Date().toISOString().slice(0,10);
   const expDate='2025-12-31'; // expired
@@ -4563,23 +4435,15 @@ function jumpProg(pi){
 // buildJumpBtns is called directly inside renderRoteiro (see original function above — already integrated)
 
 // ── BREAK AIR TIME ──
-function getAirLogs(){ return window._airLogsCache||{}; }
-function saveAirLogs(logs){
-  // Air logs vao para Firebase via _fbSaveGrade (campo __air_logs)
-  // Sem localStorage
-  if(typeof db==='undefined'||!db||!_stationCode) return;
-  try{
-    const ts=Date.now();
-    ref(db,'estacoes/'+_stationCode+'/air_logs').set({...logs,_ts:ts}).catch(function(){});
-  }catch(e){}
-}
+function getAirLogs(){try{return JSON.parse(lsGet('roteiro_air_logs')||'{}');}catch(e){return {};}}
+function saveAirLogs(logs){lsSet('roteiro_air_logs',JSON.stringify(logs));}
 function getBrkAirLog(day,pi,bi){return getAirLogs()[`${day}-${pi}-${bi}`]||null;}
 function logBrkAir(pi,bi){
   const now=new Date(),timeStr=now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   const prog=(grade[selectedDay]||[])[pi],brk=(prog?.breaks||[])[bi];
   const logs=getAirLogs();
   logs[`${selectedDay}-${pi}-${bi}`]={time:timeStr,progName:prog?.name||'—',brkName:brk?.name||'—',day:selectedDay,pi,bi,ts:Date.now()};
-  saveAirLogs(logs);
+  saveAirLogs(logs);lsSet('roteiro_ts',Date.now());
   renderRoteiro();showToast(`${brk?.name||'Break'} — ${timeStr}`);
 }
 function clearBrkAir(pi,bi){
@@ -4588,21 +4452,8 @@ function clearBrkAir(pi,bi){
 
 // ── PRODUCTION LOG ──
 let prodLog=[];
-function loadProdLog(){
-  // Prod log carregado do Firebase — nao usa localStorage
-  if(typeof db==='undefined'||!db||!_stationCode){ prodLog=[]; return; }
-  get(ref(db,'estacoes/'+_stationCode+'/prod_log')).then(function(snap){
-    if(snap.exists()) prodLog=(snap.val().entries)||[];
-    else prodLog=[];
-    if(typeof renderProdLog==='function') renderProdLog();
-  }).catch(function(){ prodLog=[]; });
-}
-function saveProdLog(){
-  if(typeof db==='undefined'||!db||!_stationCode){ return; }
-  try{
-    ref(db,'estacoes/'+_stationCode+'/prod_log').set({entries:prodLog.slice(-500),_ts:Date.now()}).catch(function(){});
-  }catch(e){}
-}
+function loadProdLog(){try{prodLog=JSON.parse(lsGet('roteiro_prod_log')||'[]');}catch(e){prodLog=[];}}
+function saveProdLog(){lsSet('roteiro_prod_log',JSON.stringify(prodLog.slice(-500)));}
 function logProd(){
   const seq=$('prod-seq').value.trim(),name=$('prod-name').value.trim(),type=$('prod-type').value,timeVal=$('prod-time').value;
   if(!name&&!seq){showToast('Informe o material ou observação');return;}
@@ -4610,15 +4461,6 @@ function logProd(){
   const labels={on_air:'No Ar',skip:'Pulado',repeat:'Repetido',error:'Erro',note:'Obs.'};
   const e={id:uid(),ts:Date.now(),time:timeStr,seq:seq||'—',name:name||'—',type,typeLabel:labels[type]||type,dateStr:now.toLocaleDateString('pt-BR')};
   prodLog.unshift(e);saveProdLog();renderProdLog();
-  // Melhoria 4: Auditoria — salvar em coleção separada logs_exibicao para rastreabilidade gerencial
-  try{
-    if(typeof db!=='undefined'&&db&&_stationCode){
-      const operador=(typeof auth!=='undefined'&&auth&&auth.currentUser)?auth.currentUser.email:'desconhecido';
-      ref(db,'logs_exibicao/'+_stationCode+'/'+e.id).set({
-        ...e, estacao:_stationCode, operador, _ts:Date.now()
-      }).catch(()=>{});
-    }
-  }catch(err){}
   $('prod-seq').value='';$('prod-name').value='';_initProdTime();
   showToast(`✓ ${e.typeLabel}: ${e.name}`);
 }
@@ -4649,47 +4491,19 @@ function toggleMediaPanel(){
 let mediaLib = [];
 
 function loadMediaLib(){
-  // Dados carregados do Firebase via _fbConnect — nao usa localStorage
-  // O listener onValue do Firebase mantem mediaLib sempre atualizado
-  // Esta funcao so executa o fallback de importacao da grade se mediaLib estiver vazio
-
-  // Se biblioteca vazia, importar itens únicos da grade automaticamente
-  if(mediaLib.length===0 && grade){
-    const seen=new Set();
-    for(const dow of Object.keys(grade)){
-      (grade[dow]||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>(brk.items||[]).forEach(item=>{
-        const k=(item.seq||'')+'|'+(item.name||'').toLowerCase();
-        if(seen.has(k)) return;
-        seen.add(k);
-        mediaLib.push({
-          id:    item.id||uid(),
-          seq:   item.seq||'',
-          name:  item.name||'',
-          title: item.title||'',
-          dur:   item.dur||30,
-          dateStart: item.dateStart||'',
-          dateEnd:   item.dateEnd||'',
-          piNumber:  item.piNumber||'',
-          piClient:  item.piClient||'',
-          segment:   item.segment||guessSegment(item.piClient||item.name||''),
-        });
-      })));
-    }
-    if(mediaLib.length>0){
-      saveMediaLib();
-      console.log('[mediaLib] Importados '+mediaLib.length+' materiais da grade');
-    }
-  }
-
-  // Garantir id em todos
+  // mediaLib vem do Firebase via _fbLoadMedialib()
+  // Garantir id em todos os itens
   let changed=false;
   mediaLib.forEach(m=>{ if(!m.id){m.id=uid();changed=true;} });
   if(changed) saveMediaLib();
 }
 function saveMediaLib(){
-  if(typeof db==='undefined'||!db||!_stationCode){ return; }
+  if(_isLocalFile) return; // arquivo local — não sincronizar
+  if(typeof db==='undefined'||!db||!_stationCode) return;
   try{
-    ref(db,'estacoes/'+_stationCode+'/medialib').set({items:mediaLib,_ts:Date.now()}).catch(function(){});
+    const _ts=Date.now();
+    window._mediaLibFbTs=_ts;
+    ref(db,'estacoes/'+_stationCode+'/medialib').set({items:mediaLib,_ts:_ts}).catch(function(){});
   }catch(e){}
 }
 
@@ -4844,48 +4658,9 @@ function switchOpc(tab){
   }
 }
 
-// OPC Mídias table — com debounce (250ms) e paginação (50 itens/página)
+// OPC Mídias table
 let opcSortKey='seq',opcSortDir=1;
-const OPC_PAGE_SIZE=50;
-let _opcPage=0,_opcDebTimer=null;
-
-// Chamada pelo oninput — aguarda 250ms antes de re-renderizar
 function renderOpcMidias(){
-  clearTimeout(_opcDebTimer);
-  _opcDebTimer=setTimeout(_renderOpcMidiasPaged,250);
-}
-
-// Carrega próxima página sem resetar a lista (botão "Carregar mais")
-function renderOpcMidiasMore(){
-  _opcPage++;
-  _renderOpcMidiasPaged(true);
-}
-
-// Gera o HTML de uma linha da tabela
-function _opcMidiaRow(item){
-  const exp=isExpired(item.dateEnd),nd=!item.dateEnd;
-  const sc=SEG_TEXT[item.segment]||'var(--text2)',sb=SEG_BG[item.segment]||'rgba(80,80,80,.1)';
-  return `<tr class="${exp?'exp-row':''}" style="cursor:pointer">
-    <td title="Clique para editar o Nº Mídia" onclick="opcEditSeq('${item.id}','${item.seq||''}')"
-      style="cursor:pointer" onmouseover="this.style.background='rgba(212,160,23,.08)'" onmouseout="this.style.background=''">
-      <span class="td-seq" style="text-decoration:underline dotted;text-underline-offset:3px">${item.seq||'—'}</span>
-      <span style="font-size:8px;color:var(--text3);margin-left:3px">✏</span>
-    </td>
-    <td><div class="td-name">${item.name||'—'}</div>${item.title?`<div class="td-title">${item.title}</div>`:''}</td>
-    <td><span class="td-dur">${fmtSec(item.dur)}</span></td>
-    <td style="font-size:10px;color:var(--gold)">${item.piNumber?'PI '+item.piNumber:item.piClient||'—'}</td>
-    <td><span class="td-seg" style="background:${sb};color:${sc};border:1px solid ${sc}33">${SEG_LABELS[item.segment]||item.segment||'—'}</span></td>
-    <td><span class="td-status ${exp?'exp':nd?'nd':'ok'}">${exp?'Vencido':nd?'Sem data':'Ativo'}</span></td>
-    <td style="display:flex;gap:4px;align-items:center">
-      <button class="btn btn-ghost btn-xs" onclick="opcEditSeq('${item.id}','${item.seq||''}')">✏</button>
-      <button class="btn btn-red btn-xs" onclick="opcRemoveMidia('${item.id}')">✕</button>
-    </td>
-  </tr>`;
-}
-
-// Implementação real com paginação
-function _renderOpcMidiasPaged(append){
-  if(!append) _opcPage=0;
   const q=($('opc-search')?.value||'').toLowerCase().trim();
   const segF=$('opc-seg-f')?.value||'',statusF=$('opc-status-f')?.value||'';
   let items=getAllMidias().filter(item=>{
@@ -4905,41 +4680,29 @@ function _renderOpcMidiasPaged(append){
     return String(va).localeCompare(String(vb))*opcSortDir;
   });
   const tbody=$('opc-midias-tbody');if(!tbody)return;
-  const total=items.length;
-  const slice=items.slice(0,(_opcPage+1)*OPC_PAGE_SIZE);
-  const hasMore=slice.length<total;
-  if(append){
-    const moreRow=document.getElementById('opc-load-more-row');
-    if(moreRow)moreRow.remove();
-    tbody.insertAdjacentHTML('beforeend',items.slice(_opcPage*OPC_PAGE_SIZE,(_opcPage+1)*OPC_PAGE_SIZE).map(_opcMidiaRow).join(''));
-  } else {
-    if(!slice.length){
-      tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma mídia encontrada</td></tr>';
-      const ce=$('opc-cnt'),ee=$('opc-exp-cnt');
-      if(ce)ce.textContent='0 mídia(s)';
-      if(ee)ee.textContent='';
-      return;
-    }
-    tbody.innerHTML=slice.map(_opcMidiaRow).join('');
-  }
-  if(hasMore){
-    const remaining=total-slice.length;
-    tbody.insertAdjacentHTML('beforeend',
-      `<tr id="opc-load-more-row"><td colspan="7" style="text-align:center;padding:12px">
-        <button onclick="renderOpcMidiasMore()"
-          style="font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:2px;
-                 text-transform:uppercase;padding:6px 20px;border-radius:6px;cursor:pointer;
-                 background:rgba(58,154,224,.1);border:1px solid rgba(58,154,224,.3);
-                 color:var(--blue2);transition:all .15s"
-          onmouseover="this.style.background='rgba(58,154,224,.2)'"
-          onmouseout="this.style.background='rgba(58,154,224,.1)'">
-          ↓ Carregar mais ${remaining} mídia(s)
-        </button>
-      </td></tr>`);
-  }
+  tbody.innerHTML=items.map((item,idx)=>{
+    const exp=isExpired(item.dateEnd),nd=!item.dateEnd;
+    const sc=SEG_TEXT[item.segment]||'var(--text2)',sb=SEG_BG[item.segment]||'rgba(80,80,80,.1)';
+    return `<tr class="${exp?'exp-row':''}" style="cursor:pointer">
+      <td title="Clique para editar o Nº Mídia" onclick="opcEditSeq('${item.id}','${item.seq||''}')"
+        style="cursor:pointer" onmouseover="this.style.background='rgba(212,160,23,.08)'" onmouseout="this.style.background=''">
+        <span class="td-seq" style="text-decoration:underline dotted;text-underline-offset:3px">${item.seq||'—'}</span>
+        <span style="font-size:8px;color:var(--text3);margin-left:3px">✏</span>
+      </td>
+      <td><div class="td-name">${item.name||'—'}</div>${item.title?`<div class="td-title">${item.title}</div>`:''}</td>
+      <td><span class="td-dur">${fmtSec(item.dur)}</span></td>
+      <td style="font-size:10px;color:var(--gold)">${item.piNumber?'PI '+item.piNumber:item.piClient||'—'}</td>
+      <td><span class="td-seg" style="background:${sb};color:${sc};border:1px solid ${sc}33">${SEG_LABELS[item.segment]||item.segment||'—'}</span></td>
+      <td><span class="td-status ${exp?'exp':nd?'nd':'ok'}">${exp?'Vencido':nd?'Sem data':'Ativo'}</span></td>
+      <td style="display:flex;gap:4px;align-items:center">
+        <button class="btn btn-ghost btn-xs" onclick="opcEditSeq('${item.id}','${item.seq||''}')">✏</button>
+        <button class="btn btn-red btn-xs" onclick="opcRemoveMidia('${item.id}')">✕</button>
+      </td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text3)">Nenhuma mídia encontrada</td></tr>';
   const expCnt=items.filter(i=>isExpired(i.dateEnd)).length;
   const ce=$('opc-cnt'),ee=$('opc-exp-cnt');
-  if(ce)ce.textContent=`${total} mídia(s) · exibindo ${slice.length}`;
+  if(ce)ce.textContent=`${items.length} mídia(s)`;
   if(ee)ee.textContent=expCnt?`! ${expCnt} vencida(s)`:'';
 }
 
@@ -5146,15 +4909,15 @@ function deleteCtr(){
 let currentPin=null;
 function generatePin(){
   currentPin=String(Math.floor(100000+Math.random()*900000));
-  _opecSavePrefs({pin:currentPin});renderPinModal();showToast(' PIN: '+currentPin);
+  lsSet('roteiro_pin',currentPin);renderPinModal();showToast(' PIN: '+currentPin);
 }
-function revokePin(){currentPin=null;_opecSavePrefs({pin:''});showToast('PIN revogado');}
+function revokePin(){currentPin=null;lsSet('roteiro_pin','');showToast('PIN revogado');}
 function copyPin(){
-  const pin=currentPin||currentPin||'';
+  const pin=currentPin||lsGet('roteiro_pin');
   if(!pin){generatePin();return;}
   navigator.clipboard.writeText(pin).then(()=>showToast('PIN copiado: '+pin)).catch(()=>{});
 }
-function loadPin(){ /* pin carregado do Firebase no login via _opecSavePrefs */ }
+function loadPin(){const p=lsGet('roteiro_pin');if(p)currentPin=p;}
 function updatePinDisplay(){
   const d=$('pin-display'),l=$('pin-lbl'),u=$('pin-url');
   if(d)d.textContent=currentPin||'——————';
@@ -5182,7 +4945,7 @@ function renderReport(){
   const from=$('rf-from')?.value||'',to=$('rf-to')?.value||'';
   const client=($('rf-client')?.value||'').toLowerCase().trim();
   const typeF=$('rf-type')?.value||'';
-  const airVals=Object.values(window._airLogsCache||{});
+  const airVals=(()=>{try{return Object.values(JSON.parse(lsGet('roteiro_air_logs')||'{}'));}catch(e){return [];}})();
   let entries=[];
   airVals.forEach(log=>{
     const iso=new Date(log.ts).toISOString().slice(0,10);
@@ -5309,7 +5072,7 @@ function printReport(){
   });
 
   /* ─── 3. Coletar breaks no ar (air logs) ────────────────────────── */
-  const airVals = Object.values(window._airLogsCache||{});
+  const airVals = (()=>{try{return Object.values(JSON.parse(lsGet('roteiro_air_logs')||'{}'));}catch(ex){return [];}})();
   airVals.forEach(l=>{
     const iso = isoDate(l.ts);
     if(from&&iso<from) return;
@@ -5886,7 +5649,7 @@ function printReport(){
 
 function exportReportCSV(){
   loadProdLog();
-  const airVals=Object.values(window._airLogsCache||{});
+  const airVals=(()=>{try{return Object.values(JSON.parse(lsGet('roteiro_air_logs')||'{}'));}catch(e){return [];}})();
   const rows=[['Data','Hora','Tipo','Nº Mídia','Material']];
   airVals.forEach(l=>rows.push([new Date(l.ts).toLocaleDateString('pt-BR'),l.time,'Break no ar','—',`${l.progName} — ${l.brkName}`]));
   prodLog.forEach(e=>rows.push([e.dateStr||'—',e.time,e.typeLabel,e.seq||'—',e.name||'—']));
@@ -5901,10 +5664,12 @@ function exportReportCSV(){
 const OPEC_LOG_KEY = 'roteiro_opec_log';
 let lastOpecTs = 0;
 
-function getOpecLog(){ return window._opecLogCache||[]; }
+function getOpecLog(){ try{ return JSON.parse(lsGet(OPEC_LOG_KEY)||'[]'); }catch(e){ return []; } }
 
 function syncOpecLog(){
-  // opec_log agora vem do Firebase via _opecLogCache — sem localStorage
+  const ts = parseInt(lsGet('roteiro_opec_ts')||'0');
+  if(ts === lastOpecTs) return;
+  lastOpecTs = ts;
   renderOpecLog();
 }
 
@@ -5939,15 +5704,17 @@ setInterval(syncOpecLog, 1000);
 // ── Sync de horários de break (.AR do Master) em tempo real ──
 let _lastAirTs = 0;
 setInterval(()=>{
-  // Firebase listener ja atualiza renderRoteiro quando air_logs mudam
-  if(false){
+  const ts = parseInt(lsGet('roteiro_air_ts')||'0');
+  if(ts !== _lastAirTs){
+    _lastAirTs = ts;
+    if(typeof renderRoteiro === 'function') renderRoteiro();
   }
 }, 500);
 setInterval(()=>{if(typeof renderCtrl==='function')renderCtrl();},30000);
 
 // Ao iniciar, carrega log
 window.addEventListener('DOMContentLoaded', ()=>{
-  setTimeout(()=>{ renderOpecLog(); }, 500);
+  setTimeout(()=>{ renderOpecLog(); lastOpecTs = parseInt(lsGet('roteiro_opec_ts')||'0'); }, 500);
 });
 
 
@@ -6215,10 +5982,12 @@ function startWebSocket(){
         if(d.type==='ping'){ ws.send(JSON.stringify({type:'pong'})); return; }
         // Estado recebido de outro PC — atualizar grade se for mais recente
         if(d.type==='state' && d.ts && d.grade){
-          if(d.ts > _fbLastTs){
+          const localTs = parseInt(lsGet('roteiro_ts')||'0');
+          if(d.ts > localTs){
             grade = d.grade;
-            // Via WS: Firebase sera atualizado via _fbSaveGrade chamado abaixo
-            if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(d.grade);
+            // grade recebida via broadcast — aplicada via _applyGrade
+            lsSet('roteiro_ts', String(d.ts));
+            lsSet('roteiro_cur_ts', String(d.ts));
             recalcBrkTotals();
             renderWeekNav();
             renderRoteiro();
@@ -6243,6 +6012,7 @@ function wsBroadcast(){
   broadcastState();
   if(ws && ws.readyState===WebSocket.OPEN){
     const ts = Date.now();
+    lsSet('roteiro_ts', String(ts));
     try{ ws.send(JSON.stringify({type:'state', grade, cur, ts})); }catch(e){}
   }
 }
@@ -6627,88 +6397,36 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       if(loaded.length === 0 && piList.length > 0) return false; // não substituir por lista vazia
       piList = loaded;
       window._piList = piList;
-      // pilist agora vive exclusivamente no Firebase
+      // pilist vive no Firebase — sem localStorage
       piRenderList();
       return true;
     }catch(e){ return false; }
   }
   // Carregar do Firebase ao conectar
-  let _unsubPiList = null;
   function _fbLoadPiList(){
     try{
-      if(typeof db==='undefined'||!db||!window._stationCode) return;
-      // Cancelar listener anterior antes de criar um novo
-      if(_unsubPiList){ try{ _unsubPiList(); }catch(e){} _unsubPiList=null; }
-      get(ref(db,'estacoes/'+window._stationCode+'/pilist')).then(function(snap){
+      if(typeof db==='undefined'||!db||!_stationCode) return;
+      get(ref(db,'estacoes/'+_stationCode+'/pilist')).then(function(snap){
         if(snap.exists()){
           var d = snap.val();
           var fbTs = d._ts||0;
-          if(fbTs >= (window._piListFbTs||0)){
+          var localTs = parseInt(localStorage.getItem('roteiro_pilist_ts')||'0');
+          if(fbTs >= 0){
             _applyPiList(d.data||'[]', 'firebase');
           }
         }
       }).catch(function(){});
-      _unsubPiList = onValue(ref(db,'estacoes/'+window._stationCode+'/pilist'), function(snap){
+      // Escutar mudanças em tempo real (outro navegador aplica PI)
+      onValue(ref(db,'estacoes/'+_stationCode+'/pilist'), function(snap){
         if(!snap.exists()) return;
         var d = snap.val();
         var fbTs = d._ts||0;
-        if(fbTs > (window._piListFbTs||0)){
-          _applyPiList(d.data||'[]', 'firebase');
-        }
+        _applyPiList(d.data||'[]', 'firebase');
       });
     }catch(e){}
   }
-  // piList carregado do Firebase via _fbLoadPiList — sem localStorage
-  window._piList=piList;
-
-// Carrega biblioteca de midias do Firebase com listener em tempo real
-let _unsubMedialib = null;
-function _fbLoadMedialib(){
-  if(typeof db==='undefined'||!db||!_stationCode) return;
-  // Cancelar listener anterior antes de criar um novo
-  if(_unsubMedialib){ try{ _unsubMedialib(); }catch(e){} _unsubMedialib=null; }
-  const r=ref(db,'estacoes/'+_stationCode+'/medialib');
-  get(r).then(function(snap){
-    if(snap.exists()){
-      const d=snap.val();
-      window._mediaLibFbTs = d._ts||0;
-      mediaLib=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);
-    }
-    if(typeof renderMidList==='function') renderMidList();
-    if(typeof renderOpcMidias==='function') renderOpcMidias();
-  }).catch(function(){});
-  _unsubMedialib = onValue(r,function(snap){
-    if(!snap.exists()) return;
-    const d=snap.val(), ts=d._ts||0;
-    if(ts && ts<=(window._mediaLibFbTs||0)) return;
-    window._mediaLibFbTs=ts;
-    mediaLib=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);
-    if(typeof renderMidList==='function') renderMidList();
-    if(typeof renderOpcMidias==='function') renderOpcMidias();
-  });
-}
-
-let _unsubContracts = null;
-// Carrega contratos do Firebase com listener em tempo real
-function _fbLoadContracts(){
-  if(typeof db==='undefined'||!db||!_stationCode) return;
-  // Cancelar listener anterior antes de criar um novo
-  if(_unsubContracts){ try{ _unsubContracts(); }catch(e){} _unsubContracts=null; }
-  const r=ref(db,'estacoes/'+_stationCode+'/contracts');
-  get(r).then(function(snap){
-    if(snap.exists()){
-      const d=snap.val();
-      contracts=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);
-    }
-    if(typeof renderContractList==='function') renderContractList();
-  }).catch(function(){});
-  _unsubContracts = onValue(r,function(snap){
-    if(!snap.exists()) return;
-    const d=snap.val();
-    contracts=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);
-    if(typeof renderContractList==='function') renderContractList();
-  });
-}
+  // piList carregada do Firebase via _fbLoadPiList (chamado pelo _fbConnect)
+    window._piList=piList;
 
   // Boot: renderizar lista assim que o DOM estiver pronto
   function _piBootRender(){
@@ -6744,17 +6462,22 @@ function _fbLoadContracts(){
         materialSeq:p.materialSeq, lines:p.lines, applied:p.applied||false,
         appliedCount:p.appliedCount||0
       }));
-      // Salvar APENAS no Firebase — sem localStorage
-      if(typeof db!=='undefined' && db && window._stationCode){
-        var _ts = Date.now();
-        set(ref(db,'estacoes/'+window._stationCode+'/pilist'), {data: JSON.stringify(toSave), _ts: _ts});
-      }
+      // Salvar no Firebase apenas quando servido via HTTP
+      try{
+        if(!_isLocalFile && typeof db!=='undefined' && db && _stationCode){
+          var _ts = Date.now();
+          set(ref(db,'estacoes/'+_stationCode+'/pilist'), {data: JSON.stringify(toSave), _ts: _ts});
+        }
+      }catch(e){}
     }catch(e){}
   }
 
   const MESES={janeiro:0,fevereiro:1,marco:2,março:2,abril:3,maio:4,junho:5,
     julho:6,agosto:7,setembro:8,outubro:9,novembro:10,dezembro:11,
     jan:0,fev:1,mar:2,abr:3,mai:4,jun:5,jul:6,ago:7,set:8,out:9,nov:10,dez:11};
+
+  // Expor no window para ser chamado pelo _fbConnect (escopo global)
+  window._fbLoadPiList = _fbLoadPiList;
 
   // ── PDF.js sob demanda ──
   function ensurePdfJs(cb){
@@ -6848,90 +6571,107 @@ function _fbLoadContracts(){
   }
 
   // ── Parser de faixas ──
-  // Âncora: linha "ás HH:MM [ins ins ins... total]"
+  // ── Parser de faixas — formato REAL Pen6 (validado com pdfplumber) ──
+  // Estrutura real:
+  //   [A] "16 17 18 TOT 172,00..."  ← dias + valores na mesma linha
+  //   [B] '30" - Rotativo Manhã'    ← nome
+  //   [C] "S T Q INS" ou "06:30 D D INS" ← dias semana / hora início
+  //   [D] "06:00" (isolado)         ← hora início (opcional)
+  //   [E] "ás 11:00 3 3 3 36"       ← hora fim + inserções + total
   function parseFaixas(lines){
-    const faixas=[];
+    const faixas = [];
 
-    // Helper: extrair hora de uma linha que pode ter hora no início, fim ou sozinha
-    function extractTimeFromLine(l){
-      // 1. linha isolada "18:00"
-      if(/^\d{1,2}:\d{2}$/.test(l.trim())) return l.trim();
-      // 2. hora no FINAL: "S S S INS 18:00"
-      const mEnd = l.match(/(\d{1,2}:\d{2})\s*$/);
-      if(mEnd && /[STQD]/i.test(l)) return mEnd[1];
-      // 3. hora no INÍCIO: "18:00 S S S INS" (PDF.js pode inverter)
-      const mStart = l.match(/^(\d{1,2}:\d{2})\s+[STQD]/i);
-      if(mStart) return mStart[1];
-      return null;
+    function isDaysLine(l){
+      if(!/\bTOT\b/i.test(l) || /^[aáà]/i.test(l.trim())) return false;
+      if(/^Total\b/i.test(l.trim())) return false;
+      const before = l.split(/\bTOT\b/i)[0];
+      return (before.match(/\b(\d{1,2})\b/g)||[]).some(n=>parseInt(n)>=1&&parseInt(n)<=31);
     }
+    function extractDaysFromLine(l){
+      const before = l.split(/\bTOT\b/i)[0];
+      return (before.match(/\b(\d{1,2})\b/g)||[]).map(Number).filter(d=>d>=1&&d<=31);
+    }
+    function isNameLine(l){ return /\d+["""''\u201c\u201d]\s*[-\u2013]/.test(l); }
+    function isTimeLine(l){ return /^\d{1,2}:\d{2}\s*$/.test(l.trim()); }
+    function isAsLine(l){ return /^[aáà]s?\s+\d{1,2}:\d{2}/i.test(l.trim()); }
+    function isDowLine(l){ return /\bINS\b/i.test(l); }
 
-    for(let i=0;i<lines.length;i++){
-      const mAs=lines[i].match(/^[aáàÀ]s?\s+(\d{1,2}:\d{2})\s*(.*)/i);
-      if(!mAs) continue;
+    let i = 0;
+    while(i < lines.length){
+      const l = lines[i];
+      if(!isDaysLine(l)){ i++; continue; }
 
-      const timeEnd=mAs[1];
-      const rest=mAs[2].trim();
-      const nums=rest.match(/\d+/g)?.map(Number)||[];
+      const dias = extractDaysFromLine(l);
+      let nome='', timeStart='', timeEnd='', insNums=[];
+      let j = i + 1;
 
-      let timeStart='', nome='', dias=[];
-
-      // Buscar até 12 linhas para trás (margem maior para PDFs com variações)
-      for(let j=i-1;j>=Math.max(0,i-12);j--){
-        const l=lines[j];
-
-        // Parar se encontrar outra âncora "ás HH:MM" — seria outra faixa
-        if(!timeStart && j<i-1 && /^[aáàÀ]s?\s+\d{1,2}:\d{2}/i.test(l)) break;
-
-        // hora de início
-        if(!timeStart){
-          const t = extractTimeFromLine(l);
-          if(t){ timeStart=t; continue; }
-        }
-
-        // nome da faixa
-        if(!nome && /\d+[""″'']\s*[-–]/.test(l)){
-          nome=l.replace(/^\d+[""″'']\s*[-–]\s*/,'').replace(/\s+/g,' ').trim();
-          continue;
-        }
-
-        // linha de dias
-        if(!dias.length){
-          const d=extractDays(l);
-          if(d.length>=2){ dias=d; continue; }
-        }
+      // [B] Nome
+      if(j < lines.length && isNameLine(lines[j])){
+        nome = lines[j].replace(/^\d+["""''\u201c\u201d]\s*[-\u2013]\s*/,'').replace(/\s+/g,' ').trim();
+        j++;
       }
 
-      if(!dias.length || !nums.length) continue;
+      // [C] Linha dias semana — pode ter hora no início "06:30 D D INS"
+      if(j < lines.length && isDowLine(lines[j])){
+        const mTime = lines[j].match(/^(\d{1,2}:\d{2})\s+[STQD]/i);
+        if(mTime) timeStart = mTime[1];
+        j++;
+      }
 
-      let insArr=[], total=0;
-      if(nums.length>dias.length){
-        insArr=nums.slice(0,dias.length);
-        total=nums[nums.length-1];
+      // [D] Hora início isolada
+      if(!timeStart && j < lines.length && isTimeLine(lines[j])){
+        timeStart = lines[j].trim();
+        j++;
+      }
+
+      // [E] "ás HH:MM ins..." — tolerância até 2 linhas extras
+      let asFound = false;
+      for(let extra=0; extra<3 && j+extra<lines.length; extra++){
+        if(isAsLine(lines[j+extra])){ if(extra>0) j+=extra; asFound=true; break; }
+        if(isDaysLine(lines[j+extra])) break;
+      }
+      if(asFound && j < lines.length && isAsLine(lines[j])){
+        const mAs = lines[j].match(/^[aáà]s?\s+(\d{1,2}:\d{2})\s*(.*)/i);
+        if(mAs){
+          timeEnd = mAs[1].padStart(5,'0');
+          insNums = (mAs[2].match(/\d+/g)||[]).map(Number);
+        }
+        j++;
+      }
+
+      if(!dias.length || !insNums.length){ i++; continue; }
+
+      let insArr, total;
+      if(insNums.length > dias.length){
+        insArr = insNums.slice(0, dias.length);
+        total  = insNums[insNums.length-1];
       } else {
-        insArr=nums.slice(0,dias.length);
-        total=insArr.reduce((s,v)=>s+v,0);
+        insArr = insNums.slice(0, dias.length);
+        total  = insArr.reduce((s,v)=>s+v, 0);
       }
-      const calcTotal=insArr.reduce((s,v)=>s+v,0);
-      if(total<calcTotal) total=calcTotal;
+      if(total < insArr.reduce((s,v)=>s+v,0)) total = insArr.reduce((s,v)=>s+v,0);
 
-      const insMap={};
-      dias.forEach((d,idx)=>{ insMap[d]=(insMap[d]||0)+(insArr[idx]||1); });
-      const insPerDay=insArr.length?insArr[0]:1;
+      const insMap = {};
+      dias.forEach((d,idx)=>{ const n=insArr[idx]??0; if(n>0) insMap[d]=(insMap[d]||0)+n; });
+      if(!Object.keys(insMap).length){ i++; continue; }
 
       faixas.push({
-        program:  nome||`Faixa ${timeStart}`,
-        timeStart, timeEnd,
-        insertionsPerDay:    insPerDay,
+        program:             nome || `Programa ${timeStart||'?'}`,
+        timeStart:           timeStart || '00:00',
+        timeEnd:             timeEnd   || '00:00',
+        insertionsPerDay:    insArr.find(v=>v>0)||1,
         insertionsPerDayMap: insMap,
-        days:            dias,
-        totalInsertions: total,
-        duration:        30
+        days:                Object.keys(insMap).map(Number),
+        totalInsertions:     total,
+        duration:            30,
       });
+
+      i = j;
     }
     return faixas;
   }
 
-  function parsePeriod(period){
+    function parsePeriod(period){
     if(!period) return {monthNum:new Date().getMonth(),yearNum:new Date().getFullYear()};
     const m=(period||'').match(/([A-ZÇÃÕÂÊÁa-záãõâêç]+)\s*[\/\s]\s*(\d{4})/i)||
             (period||'').match(/([A-ZÇÃÕÂÊÁa-záãõâêç]+)\s+DE\s+(\d{4})/i);
@@ -7248,7 +6988,8 @@ function _fbLoadContracts(){
   function piRenderPreview(){
     const pi=selPi;
     window._piCurrentSelPiNum = selPi ? String(selPi.piNumber||'') : '';
-    const g=grade;
+    // Deep clone da grade Firebase — evita modificar a referência original
+    const g=JSON.parse(JSON.stringify(grade));
     const {monthNum,yearNum}=parsePeriod(pi.period);
     const totalIns=(pi.lines||[]).reduce((s,l)=>s+l.totalInsertions,0);
     const DSH=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -7539,9 +7280,8 @@ function _fbLoadContracts(){
 
   window.piComputeDist=function(){
     if(!selPi)return;
-    const g=grade;
     const {monthNum,yearNum}=parsePeriod(selPi.period);
-    piDist=piBuildDist(selPi,g,monthNum,yearNum);
+    piDist=piBuildDist(selPi,grade,monthNum,yearNum);
     piRenderDist(piDist,monthNum,yearNum);
     piSetStep(3);
     document.getElementById('pi-btn-apply').style.display='inline-flex';
@@ -7552,9 +7292,8 @@ function _fbLoadContracts(){
     // Se piDist não foi calculado ainda (ex: PI já aplicada e usuário clicou direto),
     // calcular automaticamente antes de abrir o modal
     if(!piDist){
-      const g=grade;
       const {monthNum,yearNum}=parsePeriod(selPi.period);
-      piDist=piBuildDist(selPi,g,monthNum,yearNum);
+      piDist=piBuildDist(selPi,grade,monthNum,yearNum);
     }
     if(!piDist) return;
     let matched=0, flexCount=0, unmatched=0;
@@ -7673,14 +7412,13 @@ function _fbLoadContracts(){
     if(!selPi) return;
     // Garantir que piDist existe antes de aplicar
     if(!piDist){
-      const _g=grade;
       const {monthNum:_mn,yearNum:_yn}=parsePeriod(selPi.period);
-      piDist=piBuildDist(selPi,_g,_mn,_yn);
+      piDist=piBuildDist(selPi,grade,_mn,_yn);
     }
     if(!piDist) return;
-    const g=grade; // Firebase em memoria
+    const g=JSON.parse(JSON.stringify(grade)); // deep clone Firebase
     let added=0,synced=0;
-    // Sincronizar materiais ja vinculados
+    // Sincronizar materiais já vinculados
     Object.values(g).forEach(progs=>(progs||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>{
       (brk.items||[]).forEach(it=>{
         const byNum=selPi.piNumber&&String(it.piNumber||'').trim()===String(selPi.piNumber).trim();
@@ -7749,6 +7487,7 @@ function _fbLoadContracts(){
               piNumber:  selPi.piNumber,
               piDay:     day.dayNum,
               piMonth:   day.monthNum,
+              piYear:    day.yearNum,
               piClient:  selPi.client,
               dateStart: selPi.dateStart||'',
               dateEnd:   selPi.dateEnd||'',
@@ -7760,10 +7499,9 @@ function _fbLoadContracts(){
         });
       });
     });
-    grade=g; // Firebase atualizado via _fbSaveGrade abaixo
+    grade=g;
     recalcBrkTotals();
     // Sincronizar via Firebase e broadcast
-    if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(g);
     if(typeof broadcastState==='function') broadcastState();
     renderRoteiro();if(typeof renderMidList==='function')renderMidList();renderCtrl();
     selPi.applied=true;
@@ -7866,7 +7604,7 @@ function _fbLoadContracts(){
 
     //Remover inserções da grade sempre que a PI tiver número (independente do flag applied)
     if(p.piNumber){
-      const g = grade;
+      const g = JSON.parse(JSON.stringify(grade)); // deep clone Firebase
       const _piNum = String(p.piNumber).trim();
       let removed = 0;
       Object.values(g).forEach(progs=>(progs||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>{
@@ -7877,10 +7615,8 @@ function _fbLoadContracts(){
       if(removed > 0){
         grade = g;
         recalcBrkTotals();
-        if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(g);
         renderRoteiro();
         broadcastState();
-        if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
         showToast(`PI ${p.piNumber} excluída — ${removed} inserção(ões) removidas do roteiro`);
       } else {
         showToast(`PI ${p.piNumber} excluída`);
@@ -8500,7 +8236,7 @@ function _fbLoadContracts(){
 <script>
 // ── Lógica do modal de estação (script normal, não módulo) ──
 function _estacaoAtualizarStatus(){
-  const code = _stationCode||'';
+  const code = localStorage.getItem('opec_station_code')||'';
   const dot  = document.getElementById('estacao-status-dot');
   const txt  = document.getElementById('estacao-status-txt');
   const inp  = document.getElementById('estacao-inp');
@@ -8520,7 +8256,7 @@ function _estacaoSalvar(){
   const inp = document.getElementById('estacao-inp');
   const code = (inp?.value||'').trim().toUpperCase().replace(/[^A-Z0-9\-_]/g,'');
   if(!code){ inp.style.borderColor='#e07070'; setTimeout(()=>inp.style.borderColor='#f0c040',1000); return; }
-  _stationCode=code; _opecSavePrefs({station_code:code});
+  localStorage.setItem('opec_station_code', code);
   _estacaoAtualizarStatus();
   // Chamar a função do módulo Firebase se já tiver carregado
   if(typeof window._fbSetCode === 'function') window._fbSetCode(code);
@@ -8533,7 +8269,7 @@ function _estacaoSalvar(){
 
 function _estacaoLimpar(){
   if(!confirm('Desconectar estação atual?')) return;
-  _stationCode=''; _opecSavePrefs({station_code:''});
+  localStorage.removeItem('opec_station_code');
   _estacaoAtualizarStatus();
   _estacaoAtualizarBotoes('');
   document.getElementById('estacao-modal').style.display='none';
@@ -8560,7 +8296,7 @@ function _estacaoAtualizarBotoes(code){
 
 // Boot — atualizar ao carregar
 document.addEventListener('DOMContentLoaded',()=>{
-  const code = _stationCode||'';
+  const code = localStorage.getItem('opec_station_code')||'';
   _estacaoAtualizarBotoes(code);
   // Abrir modal ao clicar no botão do setup overlay
   const over = document.getElementById('estacao-modal');
@@ -8571,7 +8307,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 // ═══ ESTAÇÃO — modal de configuração ═══
 function _estacaoAbrirModal(){
-  const code = _stationCode||'';
+  const code = localStorage.getItem('opec_station_code')||'';
   const inp  = document.getElementById('estacao-inp');
   const dot  = document.getElementById('estacao-dot');
   const txt  = document.getElementById('estacao-txt');
@@ -8591,7 +8327,7 @@ function _estacaoSalvar(){
     if(inp){ inp.style.borderColor='#e07070'; setTimeout(()=>inp.style.borderColor='#f0c040',1200); }
     return;
   }
-  _stationCode=code; _opecSavePrefs({station_code:code});
+  localStorage.setItem('opec_station_code', code);
   document.getElementById('estacao-modal').style.display='none';
   _estacaoAtualizarBotoes(code);
   // Chamar módulo Firebase se já carregou
@@ -8601,7 +8337,7 @@ function _estacaoSalvar(){
 
 function _estacaoLimpar(){
   if(!confirm('Desconectar estação atual?')) return;
-  _stationCode=''; _opecSavePrefs({station_code:''});
+  localStorage.removeItem('opec_station_code');
   document.getElementById('estacao-modal').style.display='none';
   _estacaoAtualizarBotoes('');
   showToast('Estação desconectada');
@@ -8623,16 +8359,30 @@ function _estacaoAtualizarBotoes(code){
 // Inicializar botões ao carregar
 document.addEventListener('DOMContentLoaded',()=>{
   setTimeout(()=>{
-    const code = _stationCode||'';
+    const code = localStorage.getItem('opec_station_code')||'';
     _estacaoAtualizarBotoes(code);
   }, 100);
 });
 
 
-function _copiarLinkMaster(v){
+function _masterSalvarURL(){
+  var v=(document.getElementById('master-save-url-inp').value||'').trim();
+  if(!v) return;
+  localStorage.setItem('master_saved_url', v);
+  document.getElementById('master-link-inp').value = v;
+  document.getElementById('master-save-url-inp').value = '';
+  showToast('✓ Link salvo!');
+}
+function _masterAbrirGH(){
+  var v=(document.getElementById('master-gh-inp').value||'').trim();
+  if(v){ localStorage.setItem('master_gh_url', v); window.open(v,'_blank'); }
+}
+function _masterCopiarGH(){
+  var v=(document.getElementById('master-gh-inp').value||'').trim();
+  if(!v){ showToast('Cole o link primeiro'); return; }
   navigator.clipboard.writeText(v).then(function(){
     showToast('✓ Link copiado! Cole no celular ou outro PC');
-    _opecSavePrefs({master_gh_url:v});
+    localStorage.setItem('master_gh_url', v);
     var el=document.getElementById('master-gh-saved-hint');
     if(el) el.textContent='Link salvo para uso futuro';
   });
@@ -8640,14 +8390,13 @@ function _copiarLinkMaster(v){
 
 
 // Logo do veículo para comprovante
-window._reportLogoB64 = '';
-// Logo carregada do Firebase via prefs no login
+window._reportLogoB64 = localStorage.getItem('report_logo_b64')||'';
 function _reportLogoChange(inp){
   const file=inp.files[0]; if(!file) return;
   const reader=new FileReader();
   reader.onload=function(e){
     window._reportLogoB64=e.target.result;
-    _opecSavePrefs({report_logo_b64:e.target.result});
+    localStorage.setItem('report_logo_b64',e.target.result);
     _reportLogoPreview(e.target.result);
   };
   reader.readAsDataURL(file);
@@ -8660,7 +8409,7 @@ function _reportLogoPreview(b64){
 }
 function _reportLogoClear(){
   window._reportLogoB64='';
-  _opecSavePrefs({report_logo_b64:''});
+  localStorage.removeItem('report_logo_b64');
   const hint=document.getElementById('rf-logo-hint');
   const img=document.getElementById('rf-logo-img');
   if(hint) hint.style.display='';
@@ -8719,6 +8468,89 @@ document.addEventListener('DOMContentLoaded',()=>{
   </div>
 </div>
 
+<div id="master-open-modal" onclick="if(event.target===this)this.style.display='none'" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.88);z-index:99999;align-items:center;justify-content:center">
+<div style="background:#14141f;border:1px solid #333;border-radius:14px;width:460px;padding:28px;max-height:90vh;overflow-y:auto">
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <b style="font-size:17px;color:#f0c040;letter-spacing:1px">ROTEIRO MASTER</b>
+    <button onclick="document.getElementById('master-open-modal').style.display='none'"
+      style="background:none;border:none;color:#555;font-size:22px;cursor:pointer">&#10005;</button>
+  </div>
+
+  <!-- Opção 1: mesma pasta -->
+  <div onclick="_masterAbrirPasta()"
+    style="display:flex;align-items:center;gap:12px;background:#0a0a15;border:2px solid #222;border-radius:10px;padding:14px;margin-bottom:10px;cursor:pointer"
+    onmouseover="this.style.borderColor='#f0c040'" onmouseout="this.style.borderColor='#222'">
+    <span style="font-size:26px">&#128193;</span>
+    <div>
+      <b style="color:#fff">Abrir da mesma pasta</b>
+      <div style="font-size:11px;color:#666;margin-top:2px">Abre MASTER.html que esta na mesma pasta — mesmo PC ou rede local</div>
+    </div>
+  </div>
+
+  <!-- Opção 2: link salvo -->
+  <div style="background:#0a0a15;border:1px solid #222;border-radius:10px;padding:14px;margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <span style="font-size:26px">&#128279;</span>
+      <div>
+        <b style="color:#fff">Abrir por URL salvo</b>
+        <div style="font-size:11px;color:#666;margin-top:2px">Se ja hospedou o MASTER online, cole o link aqui</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <input id="master-link-inp" placeholder="https://seu-site.com/MASTER.html"
+        style="flex:1;background:#111;border:1px solid #333;border-radius:5px;padding:7px 10px;color:#fff;font-size:11px;outline:none;box-sizing:border-box"
+        onkeydown="if(event.key=='Enter')_masterAbrirLink()">
+      <button onclick="_masterAbrirLink()"
+        style="padding:7px 14px;background:#5aaaf0;border:none;border-radius:5px;color:#000;font-weight:700;cursor:pointer;white-space:nowrap">Abrir</button>
+    </div>
+    <div style="display:flex;gap:6px">
+      <input id="master-save-url-inp" placeholder="Cole e salve o link para usar sempre"
+        style="flex:1;background:#111;border:1px solid #222;border-radius:5px;padding:6px 10px;color:#aaa;font-size:10px;outline:none;box-sizing:border-box">
+      <button onclick="_masterSalvarURL()"
+        style="padding:6px 10px;background:#333;border:none;border-radius:5px;color:#aaa;font-size:10px;cursor:pointer;white-space:nowrap">Salvar link</button>
+    </div>
+  </div>
+
+  <!-- Opção 3: GitHub Pages (link de qualquer lugar) -->
+  <div style="background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.25);border-radius:10px;padding:14px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <span style="font-size:26px">&#127760;</span>
+      <div>
+        <b style="color:#5aaaf0">Acessar de qualquer lugar (celular, outro PC)</b>
+        <div style="font-size:11px;color:#666;margin-top:2px">Hospede o MASTER.html no GitHub Pages — gratis e permanente</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#aaa;line-height:1.9;margin-bottom:10px">
+      <b style="color:#fff">Como fazer (1 vez):</b><br>
+      1.Acesse <a href="https://github.com" target="_blank" style="color:#5aaaf0">github.com</a> — crie conta gratuita<br>
+      2. Crie um repositorio com o nome <b style="color:#fff">master-tv</b><br>
+      3. Envie o arquivo <b style="color:#f0c040">MASTER.html</b> para o repositorio<br>
+      4. Va em <b style="color:#fff">Settings → Pages → Branch: main</b> → Save<br>
+      5. O link gerado sera:<br>
+      <code style="background:#111;padding:3px 8px;border-radius:4px;color:#4acc7a;display:block;margin-top:4px">https://SEU-USUARIO.github.io/master-tv/MASTER.html</code>
+    </div>
+    <div style="display:flex;gap:6px">
+      <input id="master-gh-inp" placeholder="https://SEU-USUARIO.github.io/master-tv/MASTER.html"
+        style="flex:1;background:#111;border:1px solid #333;border-radius:5px;padding:7px 10px;color:#fff;font-size:11px;outline:none;box-sizing:border-box"
+        onkeydown="if(event.key=='Enter')_masterAbrirGH()">
+      <button onclick="_masterAbrirGH()"
+        style="padding:7px 12px;background:#4acc7a;border:none;border-radius:5px;color:#000;font-weight:700;cursor:pointer;white-space:nowrap">Abrir</button>
+      <button onclick="_masterCopiarGH()"
+        style="padding:7px 12px;background:#333;border:none;border-radius:5px;color:#fff;font-size:11px;cursor:pointer;white-space:nowrap">&#128203;Copiar</button>
+    </div>
+    <div id="master-gh-saved-hint" style="font-size:10px;color:#555;margin-top:6px"></div>
+  </div>
+
+  <!-- Info Firebase -->
+  <div style="background:rgba(74,204,122,.07);border:1px solid rgba(74,204,122,.2);border-radius:8px;padding:10px;font-size:11px;color:#4acc7a;line-height:1.7">
+    &#9729; Qualquer link acima sincroniza automaticamente via nuvem com o codigo:
+    <b id="master-modal-code" style="font-family:monospace;color:#f0c040;letter-spacing:1px">--</b>
+  </div>
+
+</div>
+</div>
+
 </div><!-- /opec-app-root -->
 
 <!-- === LAYOUT PANEL === -->
@@ -8752,13 +8584,8 @@ var _COLS={
 
 /* ──Salvar/restaurar ordem das colunas ── */
 var _CK=_K+'_col_order';
-function _getColOrder(){
-  try{ return (window._opecPrefsCache||{}).colOrder||null; }catch(e){return null;}
-}
-function _saveColOrder(order){
-  if(window._opecPrefsCache) window._opecPrefsCache.colOrder=order;
-  if(typeof _opecSavePrefs==='function') _opecSavePrefs({colOrder:order});
-}
+function _getColOrder(){try{return JSON.parse(localStorage.getItem(_CK)||'null');}catch(e){return null;}}
+function _saveColOrder(order){localStorage.setItem(_CK,JSON.stringify(order));}
 
 function _applyColOrder(order){
   /* order = ['col-roteiro','col-midias','col-controle'] em qualquer sequência */
@@ -8932,14 +8759,13 @@ function _rv(){
   });
 }
 
-function _savePanelOrder(order){
-  if(window._opecPrefsCache) window._opecPrefsCache.panelOrder=order;
-  if(typeof _opecSavePrefs==='function') _opecSavePrefs({panelOrder:order});
-}
-
 function _saveCtrlOrder(){
   var sc=document.querySelector('.ctrl-scroll');
   if(!sc) return;
+  var rows=document.querySelectorAll('#sp-panel-list .ctrl-scroll .card[data-panel-id], #sp-panel-list [data-pid]');
+  /* pega só os da seção de painéis do controle */
+  var panelRows=document.querySelectorAll('#sp-panel-list [data-pid^="no-ar"],[data-pid^="dashboard"],[data-pid^="distribuicao"],[data-pid^="avisos"],[data-pid^="calendario"],[data-pid^="dados"],[data-pid^="mapa"],[data-pid^="materiais"]');
+  /* fallback: pega todos que não são col- */
   var allRows=document.querySelectorAll('#sp-panel-list [data-pid]');
   allRows.forEach(function(row){
     var pid=row.dataset.pid;
@@ -8948,12 +8774,10 @@ function _saveCtrlOrder(){
     if(c) sc.appendChild(c);
   });
   var cards=sc.querySelectorAll('.card[data-panel-id]');
-  _savePanelOrder(Array.from(cards).map(function(c){return c.dataset.panelId;}));
+  localStorage.setItem(_K+'_order',JSON.stringify(Array.from(cards).map(function(c){return c.dataset.panelId;})));
 }
 
-function _gh(){
-  try{ return (window._opecPrefsCache||{}).panelHidden||[]; }catch(e){return[];}
-}
+function _gh(){try{return JSON.parse(localStorage.getItem(_K+'_hidden')||'[]');}catch(e){return[];}}
 
 function _tv(pid){
   var card=document.querySelector('.card[data-panel-id="'+pid+'"]');
@@ -8961,16 +8785,16 @@ function _tv(pid){
   var h=_gh(),i=h.indexOf(pid);
   if(i>-1){h.splice(i,1);card.style.display='';}
   else{h.push(pid);card.style.display='none';}
-  if(window._opecPrefsCache) window._opecPrefsCache.panelHidden=h;
-  if(typeof _opecSavePrefs==='function') _opecSavePrefs({panelHidden:h});
+  localStorage.setItem(_K+'_hidden',JSON.stringify(h));
   _rv();
 }
 
 window._resetLayout=function(){
   if(typeof resetLayout==='function'){ resetLayout(); }
   else {
-    if(window._opecPrefsCache){ window._opecPrefsCache.panelOrder=null; window._opecPrefsCache.panelHidden=[]; window._opecPrefsCache.colOrder=null; }
-    if(typeof _opecSavePrefs==='function') _opecSavePrefs({panelOrder:null,panelHidden:[],colOrder:null});
+    localStorage.removeItem(_K+'_order');
+    localStorage.removeItem(_K+'_hidden');
+    localStorage.removeItem(_CK);
     location.reload();
   }
 };
@@ -8989,7 +8813,7 @@ function _initD(){
   sc.addEventListener('dragend',function(){
     document.querySelectorAll('.card.dragging,.card.drag-over').forEach(function(c){c.classList.remove('dragging','drag-over');});
     var cards=sc.querySelectorAll('.card[data-panel-id]');
-    _savePanelOrder(Array.from(cards).map(function(c){return c.dataset.panelId;}));
+    localStorage.setItem(_K+'_order',JSON.stringify(Array.from(cards).map(function(c){return c.dataset.panelId;})));
     _rv();
   });
   sc.addEventListener('dragover',function(e){
@@ -9006,13 +8830,12 @@ function _initD(){
 
 function _restore(){
   try{
-    var prefs=window._opecPrefsCache||{};
     /* restaura ordem colunas */
-    var co=prefs.colOrder||null;
+    var co=_getColOrder();
     if(co) _applyColOrder(co);
     /* restaura ordem painéis controle */
-    var order=prefs.panelOrder||null;
-    var h=prefs.panelHidden||[];
+    var order=JSON.parse(localStorage.getItem(_K+'_order')||'null');
+    var h=_gh();
     var sc=document.querySelector('.ctrl-scroll');
     if(order&&sc) order.forEach(function(pid){
       var c=sc.querySelector('.card[data-panel-id="'+pid+'"]');
@@ -9106,7 +8929,7 @@ function _initColDrag(){
   });
 
   function _getColOrder(){
-    try{ return (window._opecPrefsCache||{}).colOrder||null; }catch(e){return null;}
+    try{return JSON.parse(localStorage.getItem(_K+'_col_order')||'null');}catch(e){return null;}
   }
 
   var _moveThrottle=null;
@@ -9184,7 +9007,7 @@ function _initColDrag(){
       if(side==='before') newOrder.splice(ti,0,fromId);
       else newOrder.splice(ti+1,0,fromId);
 
-      _saveColOrder(newOrder);
+      localStorage.setItem(_K+'_col_order',JSON.stringify(newOrder));
 
       /* aplica com micro-delay para o browser ter tempo de limpar estados visuais */
       setTimeout(function(){
@@ -9195,21 +9018,6 @@ function _initColDrag(){
   }
 }
 })();
-
-// Limpa grade de teste do Firebase e publica a grade real
-function clearSampleDataFromFirebase(){
-  if(!_fbReady||!_gradeRef){ showToast('Conecte-se a uma estacao primeiro'); return; }
-  get(_gradeRef).then(function(snap){
-    if(!snap.exists()){ showToast('Servidor sem grade — nada para limpar'); return; }
-    if(!_isSampleGrade(snap.val())){ showToast('Servidor nao tem dados de teste'); return; }
-    if(_isSampleGrade(grade)){ showToast('! Grade local tambem e de teste. Construa a grade real primeiro.'); return; }
-    if(!confirm('Remover dados de teste do servidor e publicar a grade atual?')) return;
-    if(typeof window._fbSaveGrade==='function'){
-      window._fbSaveGrade(grade);
-      showToast('Dados de teste removidos — grade atual publicada no servidor');
-    }
-  }).catch(function(e){ showToast('Erro: '+e.message); });
-}
 </script>
 <div id="remove-media-drawer-backdrop" onclick="_closeRemoveDrawer()"></div>
 <div id="remove-media-drawer">
