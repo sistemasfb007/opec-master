@@ -2951,10 +2951,19 @@ function renderRoteiro(){
       ?`<div class="empty-hint" style="padding:8px 14px">Sem breaks.</div>`
       :(prog.breaks||[]).map((brk,bi)=>{
         const isAB=isAP&&cur.brkIdx===bi;
+        const _visItems=(brk.items||[]).filter(it=>{
+          if(it.piDay==null) return true; // item manual — sempre visível
+          return Number(it.piDay)   === selectedDate.getDate()
+              && Number(it.piMonth) === selectedDate.getMonth()
+              && Number(it.piYear)  === selectedDate.getFullYear();
+        });
         const iHtml=!(brk.items||[]).length
           ?`<div class="empty-hint" style="padding:6px 22px">Sem materiais.</div>`
+          :!_visItems.length
+          ?`<div class="empty-hint" style="padding:6px 22px;color:var(--text3)">Sem inserções para ${selectedDate.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}.</div>`
           :(()=>{
-            return brk.items.map((item,ii)=>{
+            return _visItems.map((item)=>{
+            const ii=brk.items.indexOf(item);
             const key=mkKey(selectedDay,pi,bi,ii);
             const act=isAB&&cur.itemIdx===ii,dn=cur.doneKeys.includes(key);
             const exp=isExpired(item.dateEnd);
@@ -3009,7 +3018,12 @@ function renderRoteiro(){
           }).join('');
           })()
         // Verificar conflitos de segmento no break
-        const _brkVis=brk.items||[];
+        const _brkVis=(brk.items||[]).filter(it=>
+          it.piDay==null||
+          (Number(it.piDay)===selectedDate.getDate()&&
+           Number(it.piMonth)===selectedDate.getMonth()&&
+           Number(it.piYear)===selectedDate.getFullYear())
+        );
         const _conf = analyzeBrkConflict(_brkVis);
         const _confHtml = _conf.hasConflict
           ? `<span class="brk-conflict" title="Concorrência detectada: ${_conf.conflicts.map(s=>SEG_LABELS[s]||s).join(', ')}">! CONCORRÊNCIA: ${_conf.conflicts.map(s=>SEG_LABELS[s]||s).join(' + ')}</span>`
@@ -6583,11 +6597,24 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     if(titleM) title=titleM[1].trim();
 
     let period='';
+    // Busca 1: linha "PERÍODO: MARÇO/2026" ou "PERÍODO: MARÇO/26"
     const perM=text.match(/PER[IÍ]ODO\s*[:\-]?\s*(.+)/i);
     if(perM) period=perM[1].trim();
+    // Busca 2: "MARÇO/2026" ou "MARÇO/26" em qualquer parte do texto
     if(!period){
-      const mM=text.match(/\b(JANEIRO|FEVEREIRO|MAR[ÇC]O|ABRIL|MAIO|JUNHO|JULHO|AGOSTO|SETEMBRO|OUTUBRO|NOVEMBRO|DEZEMBRO)[^0-9]*(\d{4})\b/i);
-      if(mM) period=mM[0].toUpperCase().replace(/\s+/g,' ');
+      const mM=text.match(/\b(JANEIRO|FEVEREIRO|MAR[ÇC]O|ABRIL|MAIO|JUNHO|JULHO|AGOSTO|SETEMBRO|OUTUBRO|NOVEMBRO|DEZEMBRO)[\s\/\-]+(\d{2,4})\b/i);
+      if(mM){
+        let yr=mM[2]; if(yr.length<=2) yr=String(2000+parseInt(yr));
+        period=mM[1].toUpperCase()+'/'+yr;
+      }
+    }
+    // Busca 3: linha "VEICULAÇÃO - TV - ... - MARÇO/26"
+    if(!period){
+      const vM=text.match(/VEICULAÇ[AÃ]O[^\n]*(JANEIRO|FEVEREIRO|MAR[ÇC]O|ABRIL|MAIO|JUNHO|JULHO|AGOSTO|SETEMBRO|OUTUBRO|NOVEMBRO|DEZEMBRO)[\s\/\-]*(\d{2,4})/i);
+      if(vM){
+        let yr=vM[2]; if(yr.length<=2) yr=String(2000+parseInt(yr));
+        period=vM[1].toUpperCase()+'/'+yr;
+      }
     }
 
     let duration=30;
@@ -6718,14 +6745,15 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
     function parsePeriod(period){
     if(!period) return {monthNum:new Date().getMonth(),yearNum:new Date().getFullYear()};
-    const m=(period||'').match(/([A-ZÇÃÕÂÊÁa-záãõâêç]+)\s*[\/\s]\s*(\d{4})/i)||
-            (period||'').match(/([A-ZÇÃÕÂÊÁa-záãõâêç]+)\s+DE\s+(\d{4})/i);
+    const m=(period||'').match(/([A-ZÇÃÕÂÊÁa-záãõâêç]+)\s*[\/\s]\s*(\d{2,4})/i)||
+            (period||'').match(/([A-ZÇÃÕÂÊÁa-záãõâêç]+)\s+DE\s+(\d{2,4})/i);
     let monthNum=new Date().getMonth(), yearNum=new Date().getFullYear();
     if(m){
       const key=m[1].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
       const mn=MESES[key]; if(mn!==undefined) monthNum=mn;
       yearNum=parseInt(m[2])||yearNum;
       if(yearNum<100) yearNum+=2000;
+      if(yearNum<2000) yearNum+=2000; // segurança extra
     }
     return {monthNum,yearNum};
   }
@@ -7545,19 +7573,32 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       });
     });
     grade=g;
-    // Salvar grade — forçar mesmo se _fbPaused (PI aplicada deve persistir)
+    // Salvar grade — direto no Firebase, ignorando _fbPaused e _fbReady
     recalcBrkTotals();
     for(let i=0;i<7;i++) if(!Array.isArray(grade[i])) grade[i]=[];
     if(_isLocalFile){
       try{localStorage.setItem('roteiro_grade',JSON.stringify(grade));}catch(e){}
     } else {
-      // Salvar no Firebase diretamente (não usar saveGrade que respeita _fbPaused)
-      if(typeof window._fbSaveGrade==='function'){
-        const _pausedBak = window._fbPaused;
-        window._fbPaused = false;
-        window._fbSaveGrade(grade);
-        window._fbPaused = _pausedBak;
-      }
+      // Salvar diretamente via _gradeRef (não depende de _fbReady ou _fbPaused)
+      try{
+        if(typeof _gradeRef!=='undefined' && _gradeRef && typeof set==='function'){
+          const _ts=Date.now(); _fbLastTs=_ts; _fbIgnore=2;
+          setTimeout(()=>{_fbIgnore=0;},8000);
+          // Preservar air_logs
+          get(_gradeRef).then(function(snap){
+            const existing=snap.exists()?snap.val():{};
+            const payload={...grade,_ts:_ts};
+            if(existing.__air_logs) payload.__air_logs=existing.__air_logs;
+            set(_gradeRef,payload).then(()=>_fbDot('green')).catch(()=>_fbDot('red'));
+          }).catch(()=>{
+            set(_gradeRef,{...grade,_ts:_ts}).catch(()=>_fbDot('red'));
+          });
+        } else if(typeof window._fbSaveGrade==='function'){
+          // fallback
+          const _bak=window._fbPaused; window._fbPaused=false;
+          window._fbSaveGrade(grade); window._fbPaused=_bak;
+        }
+      }catch(e){ console.warn('piDoApply save error:',e); }
     }
     if(typeof broadcastState==='function') broadcastState();
     renderRoteiro();if(typeof renderMidList==='function')renderMidList();renderCtrl();
@@ -8123,6 +8164,13 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     'DEVOCAO SERTANEJA 3':'DEVS3','SERTANEJA DOM':'DEVS3','DEVS3':'DEVS3',
     // ── Genéricos por período (quando PI usa só período, sem nome específico) ──
     'POLITICOS':'SNRN1','POLITICO':'SNRN1',
+    // ── Variações com REPRISE / SIC TV ──
+    'BALANCO GERAL RO REPRISE':'BGRM','BALANCO GERAL REPRISE':'BGRM',
+    'BALANÇO GERAL RO REPRISE SIC TV':'BGRM','BALANCO GERAL RO REPRISE SIC TV':'BGRM',
+    'VIVER BEM REPRISE SIC TV':'VIVB','VIVER BEM REPRISE':'VIVB',
+    // ── Grade com nomes diferentes ──  
+    'ROTATIVO MANHA DOM':'DORM1','DORM1':'DORM1',
+    'ROTATIVO NOITE SEMANA':'SNRN1',
   };
 
   // Resolver nome/código para entrada do mapa
@@ -8137,7 +8185,10 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
   }
 
   function _normWord(w){
-    return (w||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+    return (w||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      // Remover palavras que atrapalham o match
+      .replace(/\b(REPRISE|SIC\s*TV|\(REPRISE[^)]*\)|SEMANA|SS\b|SAB\b|SABADO|DOM\b|DOMINGO)\b/g,'')
+      .replace(/\s+/g,' ').trim();
   }
   function _periodGroup(w){ return _PERIOD_MAP[_normWord(w)] ?? -1; }
 
