@@ -1441,126 +1441,6 @@ console.log('[MASTER Firebase] módulo carregado — banco: sistemas-fb');
 
 
 
-<div id="master-estacao-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);
-  z-index:99999;align-items:center;justify-content:center"
-  onclick="if(event.target===this)this.style.display='none'">
-  <div style="background:#14141f;border:1px solid #333;border-radius:12px;
-    width:380px;padding:28px;font-family:system-ui,sans-serif">
-
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-      <div>
-        <div style="font-size:17px;font-weight:800;color:#fff;letter-spacing:1px">☁ ESTAÇÃO</div>
-        <div style="font-size:11px;color:#666;margin-top:3px">Digite o código criado no OPEC</div>
-      </div>
-      <button onclick="document.getElementById('master-estacao-modal').style.display='none'"
-        style="background:none;border:none;color:#555;font-size:22px;cursor:pointer">✕</button>
-    </div>
-
-    <!-- Status -->
-    <div style="background:#0e0e1a;border:1px solid #222;border-radius:8px;
-      padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
-      <span id="m-estacao-dot" style="width:10px;height:10px;border-radius:50%;background:#444;flex-shrink:0"></span>
-      <span id="m-estacao-txt" style="font-size:12px;color:#888">Nenhuma estação conectada</span>
-    </div>
-
-    <!-- Campo -->
-    <div style="margin-bottom:6px">
-      <div style="font-size:10px;color:#888;letter-spacing:1px;margin-bottom:6px">CÓDIGO DA ESTAÇÃO (criado no OPEC)</div>
-      <input id="m-estacao-inp" type="text" placeholder="Ex: SISTEMASFB" maxlength="20"
-        style="width:100%;background:#0a0a15;border:2px solid #f0c040;border-radius:7px;
-               padding:10px 14px;color:#f0c040;font-family:monospace;font-size:16px;
-               font-weight:800;letter-spacing:3px;text-transform:uppercase;outline:none;
-               box-sizing:border-box"
-        oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9\-_]/g,'')"
-        onkeydown="if(event.key==='Enter')_masterConectar()">
-    </div>
-    <div style="font-size:10px;color:#555;margin-bottom:16px">
-      Use o mesmo código que está no OPEC
-    </div>
-
-    <div style="display:flex;gap:8px">
-      <button onclick="document.getElementById('master-estacao-modal').style.display='none'"
-        style="flex:1;padding:10px;background:none;border:1px solid #333;border-radius:7px;color:#666;cursor:pointer">
-        Cancelar</button>
-      <button onclick="window._masterConectar()"
-        style="flex:2;padding:10px;background:#f0c040;border:none;border-radius:7px;
-               color:#000;font-weight:800;cursor:pointer;font-size:14px">✓ CONECTAR</button>
-    </div>
-
-    <div style="text-align:center;margin-top:10px">
-      <button onclick="window._masterDesconectar()"
-        style="background:none;border:none;color:#444;font-size:10px;cursor:pointer;text-decoration:underline">
-        Desconectar estação</button>
-    </div>
-  </div>
-</div>
-
-<script>
-function _masterAbrirModal(){
-  const code = _code||'';
-  const fbOk = code && typeof window._masterSetCode==='function';
-
-  const inp = document.getElementById('m-estacao-inp');
-  if(inp) inp.value = code;
-
-  const dot = document.getElementById('m-estacao-dot');
-  const txt = document.getElementById('m-estacao-txt');
-
-  if(!code){
-    if(dot) dot.style.background='#666';
-    if(txt) txt.innerHTML='<span style="color:#888">Nenhuma estação conectada</span>';
-  } else {
-    // Checar se o ponto verde do botão está verde (indicador real do Firebase)
-    const btnDot = document.getElementById('fb-master-dot');
-    const isConnected = btnDot && btnDot.style.background==='rgb(74, 204, 122)';
-    if(isConnected){
-      if(dot) dot.style.background='#4acc7a';
-      if(txt) txt.innerHTML=
-        '<b style="color:#4acc7a;font-family:monospace;letter-spacing:2px;font-size:14px">'+code+'</b>'
-        +' <span style="color:#4acc7a;margin-left:6px">● Conectado</span>';
-    } else {
-      if(dot) dot.style.background='#f0c040';
-      if(txt) txt.innerHTML=
-        '<b style="color:#f0c040;font-family:monospace;letter-spacing:2px;font-size:14px">'+code+'</b>'
-        +' <span style="color:#f0c040;margin-left:6px">⟳ Aguardando dados...</span>';
-    }
-  }
-
-  document.getElementById('master-estacao-modal').style.display='flex';
-  setTimeout(()=>{ const i=document.getElementById('m-estacao-inp'); if(i){i.focus();i.select();} },100);
-}
-
-function _masterConectar(){
-  const inp  = document.getElementById('m-estacao-inp');
-  const code = (inp?.value||'').trim().toUpperCase().replace(/[^A-Z0-9\-_]/g,'');
-  if(!code){
-    if(inp){ inp.style.borderColor='#e07070'; setTimeout(()=>inp.style.borderColor='#f0c040',1200); }
-    return;
-  }
-  document.getElementById('master-estacao-modal').style.display='none';
-  if(typeof window._masterSetCode==='function') window._masterSetCode(code);
-}
-
-function _masterDesconectar(){
-  if(!confirm('Desconectar estação?')) return;
-  document.getElementById('master-estacao-modal').style.display='none';
-  if(typeof window._masterDisconnect==='function') window._masterDisconnect();
-}
-
-// Boot
-document.addEventListener('DOMContentLoaded',()=>{
-  // station_code agora vem do Firebase via onAuthStateChanged
-  // Sem leitura de localStorage
-  {
-    const el=document.getElementById('fb-master-panel');
-    if(el) el.innerHTML='<button onclick="window._masterAbrirModal()" '
-      +'style="font-size:11px;font-weight:800;padding:4px 12px;background:rgba(74,204,122,.12);'
-      +'border:1px solid rgba(74,204,122,.4);border-radius:5px;color:#4acc7a;cursor:pointer;letter-spacing:1px">'
-      +'☁ '+code+' <span style="font-size:8px">●</span></button>';
-  }
-});
-</script>
-
 </div><!-- /master-content -->
 </div><!-- /master-app-root -->
 </body>
@@ -1767,6 +1647,15 @@ function analyzeBrkConflict(items){
 }
 
 // ── BUILD ROTEIRO — constrói o DOM completo ──
+
+// ── Verifica se item pertence à data selecionada no calendário ──
+function _isItemToday(item){
+  if(item.piDay==null||item.piDay===undefined) return true; // item manual
+  const [y,m,d] = viewDateKey.split('-').map(Number);
+  return Number(item.piDay)===d
+      && Number(item.piMonth)===(m-1)  // piMonth é 0-indexed (JS getMonth)
+      && Number(item.piYear)===y;
+}
 function buildRoteiro(){
   snap.grade = JSON.stringify(grade);
   const area = document.getElementById('main-scroll');
@@ -1788,6 +1677,7 @@ function buildRoteiro(){
     const past  = isCurDay && pi < cur.progIdx;
     let pTot=0, pDone=0, pExp=0;
     (prog.breaks||[]).forEach((b,bi)=>(b.items||[]).forEach((it,ii)=>{
+      if(!_isItemToday(it)) return; // só contar itens do dia
       pTot++;
       if((cur.doneKeys||[]).includes(`${viewDow}-${pi}-${bi}-${ii}`)) pDone++;
       if(isExpired(it.dateEnd)) pExp++;
@@ -1804,13 +1694,17 @@ function buildRoteiro(){
           const isCB = isCP && cur.brkIdx===bi;
           let bTot=0,bDone=0,bExp=0;
           (brk.items||[]).forEach((it,ii)=>{
+            if(!_isItemToday(it)) return; // só contar itens do dia
             bTot++;
             if((cur.doneKeys||[]).includes(`${viewDow}-${pi}-${bi}-${ii}`)) bDone++;
             if(isExpired(it.dateEnd)) bExp++;
           });
+          const _visItems = (brk.items||[]).map((it,ii)=>({it,ii})).filter(({it})=>_isItemToday(it));
           const itemsHtml = !(brk.items||[]).length
             ? `<div class="no-items">Sem materiais neste break.</div>`
-            : brk.items.map((it,ii) => {
+            : !_visItems.length
+            ? `<div class="no-items" style="color:var(--text3)">Sem inserções para este dia.</div>`
+            : _visItems.map(({it,ii}) => {
                 const key = `${viewDow}-${pi}-${bi}-${ii}`;
                 const act = isCB && cur.itemIdx===ii;
                 const dn  = (cur.doneKeys||[]).includes(key);
@@ -1884,7 +1778,8 @@ function updateHighlight(){
     const isCP  = isCurDay && cur.progIdx===pi;
     const past  = isCurDay && pi < cur.progIdx;
     let pTot=0, pDone=0;
-    (prog.breaks||[]).forEach((b,bi)=>(b.items||[]).forEach((_,ii)=>{
+    (prog.breaks||[]).forEach((b,bi)=>(b.items||[]).forEach((it,ii)=>{
+      if(!_isItemToday(it)) return;
       pTot++;
       if((cur.doneKeys||[]).includes(`${viewDow}-${pi}-${bi}-${ii}`)) pDone++;
     }));
@@ -1911,6 +1806,7 @@ function updateHighlight(){
       // Garante que o break ativo nunca fique colapsado
       if(isCB && brkBlock) brkBlock.classList.remove('collapsed');
       (brk.items||[]).forEach((it,ii) => {
+        if(!_isItemToday(it)) return; // item de outro dia — sem highlight
         const el  = document.getElementById(`it-${pi}-${bi}-${ii}`);
         if(!el) return;
         const act = isCB && cur.itemIdx===ii;
