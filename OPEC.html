@@ -2528,7 +2528,26 @@ let selectedContractId=null;
 
 // ═══ BOOT ═══
 window.addEventListener('DOMContentLoaded',()=>{
-  // grade, medialib e contracts vêm do Firebase — sem localStorage
+  // Modo local (file://): carregar do localStorage
+  // Modo online (https://): tudo vem do Firebase via _fbConnect
+  if(_isLocalFile){
+    try{
+      const _g=localStorage.getItem('roteiro_grade');
+      if(_g){
+        const _p=JSON.parse(_g);
+        for(let i=0;i<7;i++){ const v=_p[i]??_p[String(i)]; grade[i]=Array.isArray(v)?v:[]; }
+      }
+    }catch(e){}
+    try{ const _s=localStorage.getItem('roteiro_medialib'); if(_s) mediaLib=JSON.parse(_s)||[]; }catch(e){}
+    try{ const _ct=localStorage.getItem('roteiro_contracts'); if(_ct) contracts=JSON.parse(_ct)||[]; }catch(e){}
+    try{ const _c=localStorage.getItem('roteiro_cur'); if(_c){const _p=JSON.parse(_c);cur={...cur,..._p};} }catch(e){}
+    try{
+      const _pl=localStorage.getItem('roteiro_pilist');
+      if(_pl && typeof window._piList!=='undefined'){
+        window._piList=JSON.parse(_pl).filter(p=>p&&p.id&&p.piNumber);
+      }
+    }catch(e){}
+  }
   applyLayout();
   buildSwatches();
   updateClocks();
@@ -4246,14 +4265,19 @@ function recalcBrkTotals(){
 }
 function saveGrade(){
   recalcBrkTotals();
-  // Garantir que todos os 7 dias existam
   for(let i=0;i<7;i++) if(!Array.isArray(grade[i])) grade[i]=[];
-  // _fbSaveGrade já verifica _isLocalFile internamente
-  if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
+  if(_isLocalFile){
+    try{ localStorage.setItem('roteiro_grade', JSON.stringify(grade)); }catch(e){}
+  } else {
+    if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
+  }
 }
 function saveLayout(){lsSet('roteiro_layout',JSON.stringify(layout));}
 function saveContracts(){
-  if(_isLocalFile) return; // arquivo local — não sincronizar
+  if(_isLocalFile){
+    try{ localStorage.setItem('roteiro_contracts', JSON.stringify(contracts)); }catch(e){}
+    return;
+  }
   if(typeof db!=='undefined'&&db&&_stationCode){
     ref(db,'estacoes/'+_stationCode+'/contracts').set({items:contracts,_ts:Date.now()}).catch(function(){});
   }
@@ -4498,7 +4522,10 @@ function loadMediaLib(){
   if(changed) saveMediaLib();
 }
 function saveMediaLib(){
-  if(_isLocalFile) return; // arquivo local — não sincronizar
+  if(_isLocalFile){
+    try{ localStorage.setItem('roteiro_medialib', JSON.stringify(mediaLib)); }catch(e){}
+    return;
+  }
   if(typeof db==='undefined'||!db||!_stationCode) return;
   try{
     const _ts=Date.now();
@@ -6464,7 +6491,9 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       }));
       // Salvar no Firebase apenas quando servido via HTTP
       try{
-        if(!_isLocalFile && typeof db!=='undefined' && db && _stationCode){
+        if(_isLocalFile){
+          localStorage.setItem('roteiro_pilist', JSON.stringify(toSave));
+        } else if(typeof db!=='undefined' && db && _stationCode){
           var _ts = Date.now();
           set(ref(db,'estacoes/'+_stationCode+'/pilist'), {data: JSON.stringify(toSave), _ts: _ts});
         }
