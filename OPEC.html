@@ -1099,11 +1099,17 @@ function _fbConnect(){
       _applyGrade(snap.val());
     }
     _fbReady=true; _fbDot('green');
-    // Carregar dados do Firebase após conectar
+    // Sempre carregar piList, medialib e contracts — independente da grade
     if(typeof _fbLoadPiList==='function') _fbLoadPiList();
-    _fbLoadMedialib();
-    _fbLoadContracts();
-  }).catch(()=>{ _fbReady=true; _fbDot('red'); });
+    if(typeof _fbLoadMedialib==='function') _fbLoadMedialib();
+    if(typeof _fbLoadContracts==='function') _fbLoadContracts();
+  }).catch(()=>{
+    _fbReady=true; _fbDot('red');
+    // Mesmo com erro na grade, tentar carregar os outros dados
+    if(typeof _fbLoadPiList==='function') _fbLoadPiList();
+    if(typeof _fbLoadMedialib==='function') _fbLoadMedialib();
+    if(typeof _fbLoadContracts==='function') _fbLoadContracts();
+  });
   if(_unsubscribe) _unsubscribe();
   _unsubscribe=onValue(_gradeRef, snap=>{
     if(!_fbReady||!snap.exists()) return;
@@ -1296,6 +1302,26 @@ window._fbEditCode = function(){
       style="font-size:10px;padding:2px 7px;background:none;border:1px solid var(--border);
              border-radius:4px;color:var(--text3);cursor:pointer;margin-left:2px">Cancelar</button>`;
   setTimeout(()=>{ const i=document.getElementById('fb-edit-inp'); if(i){i.focus();i.select();} },50);
+};
+window._fbTogglePause = function(){
+  window._fbPaused = !window._fbPaused;
+  if(window._fbPaused){
+    // Cancelar todos os listeners Firebase
+    if(typeof _unsubscribe!=='undefined'&&_unsubscribe){try{_unsubscribe();}catch(e){}_unsubscribe=null;}
+    if(typeof _unsubAirLogs!=='undefined'&&_unsubAirLogs){try{_unsubAirLogs();}catch(e){}_unsubAirLogs=null;}
+    if(typeof _unsubOpecLog!=='undefined'&&_unsubOpecLog){try{_unsubOpecLog();}catch(e){}_unsubOpecLog=null;}
+    if(typeof _unsubMedialib!=='undefined'&&_unsubMedialib){try{_unsubMedialib();}catch(e){}_unsubMedialib=null;}
+    if(typeof _unsubContracts!=='undefined'&&_unsubContracts){try{_unsubContracts();}catch(e){}_unsubContracts=null;}
+    try{if(typeof _unsubPiList!=='undefined'&&_unsubPiList){_unsubPiList();_unsubPiList=null;}}catch(e){}
+    _fbReady=false;
+    if(typeof _fbDot==='function') _fbDot('red');
+    if(typeof showToast==='function') showToast('■ Firebase OFF — alterações não sobem');
+  } else {
+    // Reconectar
+    if(typeof _fbConnect==='function') _fbConnect();
+    if(typeof showToast==='function') showToast('▶ Firebase ON — sincronizando');
+  }
+  if(typeof _renderStationUI==='function') _renderStationUI();
 };
 window._fbConfirmEdit = function(raw){
   const code=(raw||'').trim().toUpperCase().replace(/[^A-Z0-9\-_]/g,'');
@@ -6418,25 +6444,20 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     }catch(e){ return false; }
   }
   // Carregar do Firebase ao conectar
+  var _unsubPiList = null;
   function _fbLoadPiList(){
     try{
       if(typeof db==='undefined'||!db||!_stationCode) return;
+      // Cancelar listener anterior para evitar duplicatas
+      if(_unsubPiList){ try{_unsubPiList();}catch(e){} _unsubPiList=null; }
       get(ref(db,'estacoes/'+_stationCode+'/pilist')).then(function(snap){
         if(snap.exists()){
-          var d = snap.val();
-          var fbTs = d._ts||0;
-          var localTs = parseInt(localStorage.getItem('roteiro_pilist_ts')||'0');
-          if(fbTs >= 0){
-            _applyPiList(d.data||'[]', 'firebase');
-          }
+          _applyPiList(snap.val().data||'[]', 'firebase');
         }
       }).catch(function(){});
-      // Escutar mudanças em tempo real (outro navegador aplica PI)
-      onValue(ref(db,'estacoes/'+_stationCode+'/pilist'), function(snap){
+      _unsubPiList = onValue(ref(db,'estacoes/'+_stationCode+'/pilist'), function(snap){
         if(!snap.exists()) return;
-        var d = snap.val();
-        var fbTs = d._ts||0;
-        _applyPiList(d.data||'[]', 'firebase');
+        _applyPiList(snap.val().data||'[]', 'firebase');
       });
     }catch(e){}
   }
