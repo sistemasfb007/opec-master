@@ -1245,30 +1245,27 @@ function _renderStationUI(){
           style="font-size:10px;padding:2px 10px;background:var(--gold);border:none;border-radius:4px;
                  color:#000;font-weight:700;cursor:pointer;margin-left:4px">Ativar</button>`;
     } else {
-      const _paused = window._fbPaused===true;
+      const _paused=window._fbPaused===true;
       el.innerHTML=`
-        <div style="display:flex;align-items:center;gap:6px;width:100%">
-          <span
-            onclick="navigator.clipboard.writeText('${_stationCode}').then(()=>{this.textContent='✓ Copiado';setTimeout(()=>this.textContent='${_stationCode}',1200)})"
-            style="flex:1;padding:4px 10px;cursor:pointer;font-family:var(--font-m);font-size:11px;
-                   font-weight:700;letter-spacing:2px;color:${_paused?'var(--red2)':'var(--gold)'};
-                   text-transform:uppercase;background:var(--s2);border:1px solid ${_paused?'rgba(224,80,80,.3)':'rgba(212,160,23,.2)'};
-                   border-radius:5px;text-align:center;transition:all .2s"
-            title="Copiar código da estação"
-            >${_stationCode}</span>
+        <div style="display:flex;align-items:center;gap:5px;width:100%">
+          <span onclick="navigator.clipboard.writeText('${_stationCode}').then(()=>{this.textContent='✓';setTimeout(()=>this.textContent='${_stationCode}',1000)})"
+            style="flex:1;padding:4px 9px;cursor:pointer;font-family:var(--font-m);font-size:11px;font-weight:700;
+                   letter-spacing:2px;text-transform:uppercase;border-radius:5px;text-align:center;
+                   color:${_paused?'var(--red2)':'var(--gold)'};
+                   background:${_paused?'rgba(224,80,80,.08)':'rgba(212,160,23,.08)'};
+                   border:1px solid ${_paused?'rgba(224,80,80,.25)':'rgba(212,160,23,.2)'}"
+            title="Copiar código">${_stationCode}</span>
           <button onclick="window._fbTogglePause()"
-            style="padding:4px 10px;border:none;border-radius:5px;cursor:pointer;
-                   font-size:10px;font-weight:700;letter-spacing:.5px;white-space:nowrap;
-                   background:${_paused?'rgba(31,170,90,.2)':'rgba(224,80,80,.15)'};
-                   color:${_paused?'var(--green)':'var(--red2)'};
-                   border:1px solid ${_paused?'rgba(31,170,90,.4)':'rgba(224,80,80,.3)'};
-                   transition:all .2s"
-            title="${_paused?'Reconectar ao Firebase — retomar sincronização':'Desconectar do Firebase — parar sincronização'}">
-            ${_paused?'▶ LIGAR':'■ DESLIGAR'}
-          </button>
+            style="padding:4px 10px;border-radius:5px;cursor:pointer;font-size:9px;font-weight:700;
+                   letter-spacing:.8px;white-space:nowrap;border:1px solid;transition:all .2s;
+                   background:${_paused?'rgba(31,170,90,.12)':'rgba(224,80,80,.1)'};
+                   color:${_paused?'#2ddf80':'#e05050'};
+                   border-color:${_paused?'rgba(31,170,90,.35)':'rgba(224,80,80,.3)'}"
+            title="${_paused?'Reconectar Firebase':'Desconectar Firebase'}">
+            ${_paused?'▶ ON':'■ OFF'}</button>
           <button onclick="window._fbEditCode()"
-            style="padding:4px 8px;background:var(--s2);border:1px solid var(--border);border-radius:5px;
-                   color:var(--text3);cursor:pointer;font-size:11px;font-weight:700;transition:all .15s"
+            style="padding:4px 7px;background:var(--s2);border:1px solid var(--border);border-radius:5px;
+                   color:var(--text3);cursor:pointer;font-size:11px;transition:color .15s"
             onmouseover="this.style.color='var(--text)'"
             onmouseout="this.style.color='var(--text3)'"
             title="Trocar estação">✎</button>
@@ -2539,12 +2536,11 @@ let selectedContractId=null;
 
 // ═══ BOOT ═══
 window.addEventListener('DOMContentLoaded',()=>{
-  // Modo local (file://): carregar tudo do localStorage
   if(_isLocalFile){
-    try{ const g=localStorage.getItem('roteiro_grade'); if(g){ const p=JSON.parse(g); for(let i=0;i<7;i++){const v=p[i]??p[String(i)];grade[i]=Array.isArray(v)?v:[];} } }catch(e){}
-    try{ const s=localStorage.getItem('roteiro_medialib'); if(s) mediaLib=JSON.parse(s)||[]; }catch(e){}
-    try{ const ct=localStorage.getItem('roteiro_contracts'); if(ct) contracts=JSON.parse(ct)||[]; }catch(e){}
-    try{ const c=localStorage.getItem('roteiro_cur'); if(c){const p=JSON.parse(c);cur={...cur,...p};} }catch(e){}
+    try{const g=localStorage.getItem('roteiro_grade');if(g){const p=JSON.parse(g);for(let i=0;i<7;i++){const v=p[i]??p[String(i)];grade[i]=Array.isArray(v)?v:[];}}}catch(e){}
+    try{const s=localStorage.getItem('roteiro_medialib');if(s)mediaLib=JSON.parse(s)||[];}catch(e){}
+    try{const ct=localStorage.getItem('roteiro_contracts');if(ct)contracts=JSON.parse(ct)||[];}catch(e){}
+    try{const c=localStorage.getItem('roteiro_cur');if(c){const p=JSON.parse(c);cur={...cur,...p};}}catch(e){}
   }
   applyLayout();
   buildSwatches();
@@ -2919,9 +2915,9 @@ function renderRoteiro(){
           ?`<div class="empty-hint" style="padding:6px 22px">Sem materiais.</div>`
           :(()=>{
             const visibleItems = (brk.items||[]).filter(it=>{
-              if(it.piDay==null) return true; // item manual — sempre visível
+              if(it.piDay==null) return true; // item manual
               return it.piDay   === selectedDate.getDate()  &&
-                    (it.piMonth == null || it.piMonth === selectedDate.getMonth()) &&
+                    (it.piMonth == null || it.piMonth === selectedDate.getMonth())  &&
                     (it.piYear  == null || it.piYear  === selectedDate.getFullYear());
             });
             if(!visibleItems.length) return `<div class="empty-hint" style="padding:6px 22px">Sem materiais para ${selectedDate.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}.</div>`;
@@ -4265,15 +4261,12 @@ function saveGrade(){
   recalcBrkTotals();
   for(let i=0;i<7;i++) if(!Array.isArray(grade[i])) grade[i]=[];
   if(_isLocalFile){
-    try{ localStorage.setItem('roteiro_grade', JSON.stringify(grade)); }catch(e){}
+    try{localStorage.setItem('roteiro_grade',JSON.stringify(grade));}catch(e){}
   } else if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
 }
 function saveLayout(){lsSet('roteiro_layout',JSON.stringify(layout));}
 function saveContracts(){
-  if(_isLocalFile){
-    try{ localStorage.setItem('roteiro_contracts', JSON.stringify(contracts)); }catch(e){}
-    return;
-  }
+  if(_isLocalFile){try{localStorage.setItem('roteiro_contracts',JSON.stringify(contracts));}catch(e){}return;}
   if(window._fbPaused) return;
   if(typeof db!=='undefined'&&db&&_stationCode){
     ref(db,'estacoes/'+_stationCode+'/contracts').set({items:contracts,_ts:Date.now()}).catch(function(){});
@@ -4519,10 +4512,7 @@ function loadMediaLib(){
   if(changed) saveMediaLib();
 }
 function saveMediaLib(){
-  if(_isLocalFile){
-    try{ localStorage.setItem('roteiro_medialib', JSON.stringify(mediaLib)); }catch(e){}
-    return;
-  }
+  if(_isLocalFile){try{localStorage.setItem('roteiro_medialib',JSON.stringify(mediaLib));}catch(e){}return;}
   if(window._fbPaused) return;
   if(typeof db==='undefined'||!db||!_stationCode) return;
   try{
@@ -6450,13 +6440,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       });
     }catch(e){}
   }
-  // Modo local: carregar piList do localStorage
-  if(_isLocalFile){
-    try{
-      const _pl=localStorage.getItem('roteiro_pilist');
-      if(_pl){ piList=JSON.parse(_pl).filter(function(p){return p&&p.id&&p.piNumber;}); window._piList=piList; }
-    }catch(e){ piList=[]; }
-  }
+  if(_isLocalFile){try{const _pl=localStorage.getItem('roteiro_pilist');if(_pl){piList=JSON.parse(_pl).filter(function(p){return p&&p.id&&p.piNumber;});window._piList=piList;}}catch(e){piList=[];}}
   window._piList=piList;
 
   // Boot: renderizar lista assim que o DOM estiver pronto
@@ -6496,10 +6480,10 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       // Salvar no Firebase apenas quando servido via HTTP
       try{
         if(_isLocalFile){
-          localStorage.setItem('roteiro_pilist', JSON.stringify(toSave));
+          localStorage.setItem('roteiro_pilist',JSON.stringify(toSave));
         } else if(!window._fbPaused && typeof db!=='undefined' && db && _stationCode){
-          var _ts = Date.now();
-          set(ref(db,'estacoes/'+_stationCode+'/pilist'), {data: JSON.stringify(toSave), _ts: _ts});
+          var _ts=Date.now();
+          set(ref(db,'estacoes/'+_stationCode+'/pilist'),{data:JSON.stringify(toSave),_ts:_ts});
         }
       }catch(e){}
     }catch(e){}
@@ -6740,7 +6724,6 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       const pi=piParseLines(lines);
       pi.id=uid(); pi.fileName=file.name; pi.rawLines=lines; pi.applied=false;
       // Rejeitar PI de mês passado
-      // PI aceita independente do período
 
       // Verificar duplicata
       const _dup = piList.find(x => x.piNumber && pi.piNumber &&
@@ -7280,6 +7263,13 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       };
 
       // Rejeitar PI de mês passado
+      if(_piPeriodExpired(pi)){
+        const {monthNum,yearNum}=parsePeriod(pi.period||'');
+        const MNAMES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+        piHideLoading();
+        piToast(` PI ${pi.piNumber||'?'} recusada — período ${MNAMES[monthNum]||'?'}/${yearNum} já encerrado`);
+        return;
+      }
       piList.push(pi); window._piList=piList;
       _savePiList(); _piEnsureLibItem(pi);
       piRenderList(); piSelectPi(pi.id);
