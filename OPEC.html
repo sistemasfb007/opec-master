@@ -2647,18 +2647,22 @@ function isExpired(dateEndStr){if(!dateEndStr)return false;const end=parseDate(d
 function renderWeekNav(){
   const todayDate=new Date();
   const isToday=selectedDate.toDateString()===todayDate.toDateString();
+
   const meses=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const anoAtual=new Date().getFullYear();
   const anosOpts=[anoAtual-1,anoAtual,anoAtual+1,anoAtual+2].map(y=>
     `<option value="${y}" ${y===selectedDate.getFullYear()?'selected':''}>${y}</option>`).join('');
   const mesesOpts=meses.map((m,i)=>
     `<option value="${i}" ${i===selectedDate.getMonth()?'selected':''}>${m}</option>`).join('');
+
   const diasNoMes=new Date(selectedDate.getFullYear(),selectedDate.getMonth()+1,0).getDate();
   const diasOpts=Array.from({length:diasNoMes},(_,i)=>i+1).map(d=>
     `<option value="${d}" ${d===selectedDate.getDate()?'selected':''}>${String(d).padStart(2,'0')}</option>`).join('');
+
   // Domingo da semana que contém selectedDate
   const _weekBase=new Date(selectedDate);
   _weekBase.setDate(_weekBase.getDate()-_weekBase.getDay());
+
   $('week-nav').innerHTML=`
     <div class="week-nav-datebar">
       <button class="datebar-btn" onclick="_navDay(-1)">◀</button>
@@ -2678,51 +2682,68 @@ function renderWeekNav(){
       const onclick=h?`_navToDate(${_btnDate.getFullYear()},${_btnDate.getMonth()},${_btnDay})`:'';
       return `<div class="${cls}" onclick="${onclick}" title="${DAYS_FULL[i]} ${String(_btnDay).padStart(2,'0')}/${String(_btnDate.getMonth()+1).padStart(2,'0')}">${d}<span style="display:block;font-size:8px;opacity:.65;line-height:1.1;margin-top:1px">${_btnDay}</span></div>`;
     }).join('')}</div>`;
+
   $('left-title').textContent=DAYS_FULL[selectedDay]+' — '+selectedDate.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
   const h=HOURS[selectedDay];
   $('time-range').textContent=h?`${h.start} — ${h.end}`:'Sem transmissão';
 }
+
+// Navega para uma data específica (chamado pelos botões da semana)
 function _navToDate(y,m,d){
   selectedDate=new Date(y,m,d);
   selectedDay=selectedDate.getDay();
   renderWeekNav();renderRoteiro();renderMidList();
 }
+
 function selectDay(i){
+  // Navega para o dia i da semana EXIBIDA (preserva a semana atual de selectedDate)
   const _wb=new Date(selectedDate);
   _wb.setDate(_wb.getDate()-_wb.getDay());
-  const novaData=new Date(_wb); novaData.setDate(_wb.getDate()+i);
-  selectedDate=novaData; selectedDay=i;
+  const novaData=new Date(_wb);
+  novaData.setDate(_wb.getDate()+i);
+  selectedDate=novaData;
+  selectedDay=i;
   renderWeekNav();renderRoteiro();renderMidList();
 }
+
 function _navDay(delta){
   const novaData=new Date(selectedDate);
   novaData.setDate(novaData.getDate()+delta);
-  selectedDate=novaData; selectedDay=novaData.getDay();
+  selectedDate=novaData;
+  selectedDay=novaData.getDay();
   renderWeekNav();renderRoteiro();renderMidList();
 }
 function _setDia(d){
-  const novaData=new Date(selectedDate); novaData.setDate(parseInt(d));
-  selectedDate=novaData; selectedDay=novaData.getDay();
+  const novaData=new Date(selectedDate);
+  novaData.setDate(parseInt(d));
+  selectedDate=novaData;
+  selectedDay=novaData.getDay();
   renderWeekNav();renderRoteiro();renderMidList();
 }
 function _setMes(m){
-  const novaData=new Date(selectedDate); novaData.setMonth(parseInt(m));
+  const novaData=new Date(selectedDate);
+  novaData.setMonth(parseInt(m));
   const maxDia=new Date(novaData.getFullYear(),parseInt(m)+1,0).getDate();
   if(novaData.getDate()>maxDia) novaData.setDate(maxDia);
-  selectedDate=novaData; selectedDay=novaData.getDay();
+  selectedDate=novaData;
+  selectedDay=novaData.getDay();
   renderWeekNav();renderRoteiro();renderMidList();
 }
 function _setAno(a){
-  const novaData=new Date(selectedDate); novaData.setFullYear(parseInt(a));
-  selectedDate=novaData; selectedDay=novaData.getDay();
+  const novaData=new Date(selectedDate);
+  novaData.setFullYear(parseInt(a));
+  selectedDate=novaData;
+  selectedDay=novaData.getDay();
   renderWeekNav();renderRoteiro();renderMidList();
 }
 function _irHoje(){
-  selectedDate=new Date(); selectedDay=selectedDate.getDay();
+  selectedDate=new Date();
+  selectedDay=selectedDate.getDay();
   renderWeekNav();renderRoteiro();renderMidList();
 }
 
 // ═══ RENDER ROTEIRO ═══
+
 
 // ══ PAINEL CENTRAL — lista de mídias ordenada ══
 function renderMidList(){
@@ -3132,9 +3153,10 @@ function doSaveContract(){
 }
 
 // ═══ PLAYER ═══
-// Verifica se item pertence à selectedDate atual
+
+// ── Helper: verifica se item pertence à selectedDate atual ──
 function _isItemToday(item){
-  if(item.piDay==null) return true;
+  if(item.piDay==null) return true; // manual
   return Number(item.piDay)===selectedDate.getDate()
       && Number(item.piMonth)===selectedDate.getMonth()
       && Number(item.piYear)===selectedDate.getFullYear();
@@ -3166,25 +3188,31 @@ function advance(){
   const day=cur.day,progs=grade[day]||[];
   const prog=progs[cur.progIdx];if(!prog)return;
   const brk=(prog.breaks||[])[cur.brkIdx];if(!brk)return;
-  const key=mkKey(cur.day,cur.progIdx,cur.brkIdx,cur.itemIdx);
+  const key=mkKey(day,cur.progIdx,cur.brkIdx,cur.itemIdx);
   if(!cur.doneKeys.includes(key))cur.doneKeys.push(key);
-  // FIX: avança só por itens visíveis do dia atual
+
+  // Avançar apenas por itens VISÍVEIS do dia atual (ignorar outros dias)
+  // Tenta avançar item dentro do break atual
   const items=brk.items||[];
   for(let ni=cur.itemIdx+1;ni<items.length;ni++){
-    if(_isItemToday(items[ni])){cur.itemIdx=ni;cur.remaining=parseInt(items[ni].dur)||30;return;}
+    if(_isItemToday(items[ni])){
+      cur.itemIdx=ni;cur.remaining=parseInt(items[ni].dur)||30;return;
+    }
   }
+  // Avançar para próximo break
   const breaks=prog.breaks||[];
   for(let nb=cur.brkIdx+1;nb<breaks.length;nb++){
     const b=breaks[nb];if(!b)continue;
-    const vi=(b.items||[]).findIndex(it=>_isItemToday(it));
-    if(vi>=0){cur.brkIdx=nb;cur.itemIdx=vi;cur.remaining=parseInt(b.items[vi].dur)||30;return;}
+    const visIdx=(b.items||[]).findIndex(it=>_isItemToday(it));
+    if(visIdx>=0){cur.brkIdx=nb;cur.itemIdx=visIdx;cur.remaining=parseInt(b.items[visIdx].dur)||30;return;}
   }
+  // Avançar para próximo programa
   for(let np=cur.progIdx+1;np<progs.length;np++){
     const p=progs[np];if(!p)continue;
     for(let nb2=0;nb2<(p.breaks||[]).length;nb2++){
       const b2=(p.breaks||[])[nb2];if(!b2)continue;
-      const vi2=(b2.items||[]).findIndex(it=>_isItemToday(it));
-      if(vi2>=0){cur.progIdx=np;cur.brkIdx=nb2;cur.itemIdx=vi2;cur.remaining=parseInt(b2.items[vi2].dur)||30;return;}
+      const visIdx2=(b2.items||[]).findIndex(it=>_isItemToday(it));
+      if(visIdx2>=0){cur.progIdx=np;cur.brkIdx=nb2;cur.itemIdx=visIdx2;cur.remaining=parseInt(b2.items[visIdx2].dur)||30;return;}
     }
   }
   stopTimer();cur.playing=false;$('btn-play').textContent='▶';showToast('✓Roteiro concluído!');
@@ -3250,23 +3278,36 @@ function renderCtrl(){
     _lastMatName = newMatName;
   }
 
+  // "A seguir" — busca próximo item visível do dia atual
   let nxt='';
   (()=>{
-    const _bi=brk?brk.items||[]:[];
-    for(let ni=cur.itemIdx+1;ni<_bi.length;ni++){if(_isItemToday(_bi[ni])){const it=_bi[ni];nxt=`A seguir: ${it.seq||''} ${it.name} (${fmtSec(it.dur)})`;return;}}
-    if(prog){for(let nb=cur.brkIdx+1;nb<(prog.breaks||[]).length;nb++){const b=(prog.breaks||[])[nb];if(b&&(b.items||[]).some(it=>_isItemToday(it))){nxt=`Próximo break: ${b.name}`;return;}}}
+    const _brkItems=brk?brk.items||[]:[];
+    // próximo no mesmo break
+    for(let ni=cur.itemIdx+1;ni<_brkItems.length;ni++){
+      if(_isItemToday(_brkItems[ni])){const it=_brkItems[ni];nxt=`A seguir: ${it.seq||''} ${it.name} (${fmtSec(it.dur)})`;return;}
+    }
+    // próximo break
+    if(prog){for(let nb=cur.brkIdx+1;nb<(prog.breaks||[]).length;nb++){
+      const b=(prog.breaks||[])[nb];if(!b)continue;
+      if((b.items||[]).some(it=>_isItemToday(it))){nxt=`Próximo break: ${b.name}`;return;}
+    }}
+    // próximo programa
     if(progs[cur.progIdx+1]){const np=progs[cur.progIdx+1];nxt=`Próximo: ${np.time} — ${np.name}`;}
   })();
   $('e-cd-nxt').textContent=nxt;
 
+  // Progresso do break — só itens do dia atual
   if(brk){
-    const _ti=(brk.items||[]).map((it,ii)=>({it,ii})).filter(({it})=>_isItemToday(it));
-    const tot=_ti.length,dn=_ti.filter(({ii})=>cur.doneKeys.includes(mkKey(day,cur.progIdx,cur.brkIdx,ii))).length;
+    const _todayItems=(brk.items||[]).map((it,ii)=>({it,ii})).filter(({it})=>_isItemToday(it));
+    const tot=_todayItems.length;
+    const dn=_todayItems.filter(({ii})=>cur.doneKeys.includes(mkKey(day,cur.progIdx,cur.brkIdx,ii))).length;
     const pct=tot?Math.round(dn/tot*100):0;$('e-brk-pct').textContent=pct+'%';$('e-brk-fill').style.width=pct+'%';
   }
+  // Progresso do dia — só itens do dia atual
   let total=0,done=0;
   progs.forEach((p,pi)=>(p.breaks||[]).forEach((b,bi)=>(b.items||[]).forEach((it,ii)=>{
-    if(!_isItemToday(it))return;total++;if(cur.doneKeys.includes(mkKey(day,pi,bi,ii)))done++;
+    if(!_isItemToday(it)) return;
+    total++;if(cur.doneKeys.includes(mkKey(day,pi,bi,ii)))done++;
   })));
   const dpct=total?Math.round(done/total*100):0;$('e-day-done').textContent=`${done} / ${total} materiais`;$('e-day-pct').textContent=dpct+'%';$('e-day-fill').style.width=dpct+'%';
   let upHtml='',count=0;
@@ -3277,7 +3318,7 @@ function renderCtrl(){
       const b=(p.breaks||[])[bi];if(!b)continue;const startII=(pi===cur.progIdx&&bi===cur.brkIdx)?cur.itemIdx+1:0;
       for(let ii=startII;ii<(b.items||[]).length&&count<6;ii++){
         const it=b.items[ii];
-        if(!_isItemToday(it)) continue;
+        if(!_isItemToday(it)) continue; // pular items de outros dias
         upHtml+=`<div class="up-row"><span class="up-seq">${it.seq||pad(ii+1)}</span><span class="up-name">${it.name}${it.title?`<span style="color:var(--text3)"> — ${it.title}</span>`:''}</span><span class="up-ctx">${p.name} · ${b.name}</span><span class="up-dur">${fmtSec(it.dur)}</span></div>`;
         count++;
       }
@@ -6512,14 +6553,6 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
   // Boot: renderizar lista assim que o DOM estiver pronto
   function _piBootRender(){
-    // Restaurar backup localStorage se Firebase ainda não carregou
-    if(piList.length===0 && !_isLocalFile){
-      try{
-        var _bak=localStorage.getItem('roteiro_pilist_bak');
-        if(_bak){ var _bl=JSON.parse(_bak).filter(function(p){return p&&p.id&&p.piNumber;});
-          if(_bl.length>0){piList=_bl;window._piList=piList;} }
-      }catch(e){}
-    }
     piRenderList();
     // Atualizar contador
     const cnt=document.getElementById('pi-list-count');
@@ -6556,12 +6589,9 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       try{
         if(_isLocalFile){
           localStorage.setItem('roteiro_pilist',JSON.stringify(toSave));
-        } else if(typeof db!=='undefined' && db && _stationCode){
-          // piList SEMPRE salva — independente de _fbPaused
+        } else if(!window._fbPaused && typeof db!=='undefined' && db && _stationCode){
           var _ts=Date.now();
-          try{ localStorage.setItem('roteiro_pilist_bak',JSON.stringify(toSave)); }catch(e){}
-          set(ref(db,'estacoes/'+_stationCode+'/pilist'),{data:JSON.stringify(toSave),_ts:_ts})
-            .catch(function(e){ console.warn('[OPEC] piList save error:',e); });
+          set(ref(db,'estacoes/'+_stationCode+'/pilist'),{data:JSON.stringify(toSave),_ts:_ts});
         }
       }catch(e){}
     }catch(e){}
@@ -6573,11 +6603,6 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
   // Expor no window para ser chamado pelo _fbConnect (escopo global)
   window._fbLoadPiList = _fbLoadPiList;
-  // Retry: se Firebase já pronto, carregar imediatamente
-  setTimeout(function(){
-    if(window._fbReady && typeof _fbLoadPiList==='function' && piList.length===0)
-      _fbLoadPiList();
-  }, 1500);
 
   // ── PDF.js sob demanda ──
   function ensurePdfJs(cb){
@@ -6792,12 +6817,16 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         if(mAs){
           timeEnd  = mAs[1].padStart(5, '0');
           insNums  = (mAs[2].match(/\d+/g) || []).map(Number);
-          // BUGFIX RAIZ: "ás 08:00" sozinho, números na linha seguinte
+          // BUGFIX RAIZ: "ás 08:00" aparece sozinho e os números ficam
+          // na linha seguinte separada (ex: "3 3 2 8").
+          // Se não vieram números na mesma linha, pega a próxima linha
+          // desde que seja só números (não seja outra faixa/cabeçalho).
           if(!insNums.length && (j+1) < lines.length){
             const nextL = lines[j+1].trim();
-            if(/^[\d\s]+$/.test(nextL)){
+            const onlyNums = /^[\d\s]+$/.test(nextL);
+            if(onlyNums){
               insNums = (nextL.match(/\d+/g)||[]).map(Number);
-              j++;
+              j++; // consumir a linha extra de números
             }
           }
         }
@@ -6941,12 +6970,6 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         if(!progs.length){
           progs = allProgs.filter(p=>piNameOverlap(p.name, line.program));
         }
-        // ── DEBUG match ──
-        console.log('[OPEC buildDist] dia='+dayNum+' DOW='+dow+' faixa="'+line.program+'" '+line.timeStart+'-'+line.timeEnd
-          +' | allProgs='+allProgs.length+' matched='+progs.length
-          +(progs.length?' ('+progs.map(p=>p.name+'@'+p.time).join(',')+')':'')
-          +(allProgs.length&&!progs.length?' | candidatos: '+allProgs.map(p=>p.name+'@'+p.time+'->overlap:'+piProgOverlap(p,line.timeStart,line.timeEnd)).join(', '):'')
-        );
 
         if(!progs.length){
           // Tentar match flexível antes de marcar como sem programa
@@ -7598,23 +7621,6 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       piDist=piBuildDist(selPi,grade,_mn,_yn);
     }
     if(!piDist) return;
-    // ── DEBUG — abre o console do navegador (F12) para ver ──
-    console.group('[OPEC piDoApply] PI-'+selPi.piNumber);
-    console.log('piDist dias:', Object.keys(piDist).length);
-    Object.values(piDist).forEach(function(day){
-      var validos=day.inserts.filter(function(i){return !i.warn&&i.program&&i.brk;});
-      var warns=day.inserts.filter(function(i){return i.warn;});
-      console.log('  '+day.key+' DOW:'+day.dow+' validos:'+validos.length+' warns:'+warns.length,
-        validos.map(function(i){return {progId:i.program&&i.program.id,progName:i.program&&i.program.name,progTime:i.program&&i.program.time,brkId:i.brk&&i.brk.id,count:i.count};}),
-        warns.map(function(i){return i.warn;})
-      );
-    });
-    console.log('grade keys:', Object.keys(grade).filter(function(k){return !isNaN(parseInt(k));}));
-    [0,1,2,3,4,5,6].forEach(function(dow){
-      if(!grade[dow]||!grade[dow].length) return;
-      console.log('  grade['+dow+']:', grade[dow].map(function(p){return {id:p.id,name:p.name,time:p.time};}));
-    });
-    console.groupEnd();
     const g=JSON.parse(JSON.stringify(grade)); // deep clone Firebase
     let added=0,synced=0;
     // Sincronizar materiais já vinculados
@@ -7670,14 +7676,22 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
           }
         }
         if(!prog){
-          console.warn('[OPEC] prog não encontrado para progId='+progId+' dow='+day.dow+' _dayProgs=',_dayProgs.map(p=>({id:p.id,name:p.name,time:p.time})));
           return;
         }
-        console.log('[OPEC] apply prog='+prog.name+' time='+prog.time+' fallback='+_foundByFallback+' breaks='+prog.breaks?.length);
 
-        // Passo 1: remover TODOS os itens desta PI deste programa (qualquer break)
+        // Passo 1: remover apenas os itens desta PI para o dia específico sendo processado.
+        // CORREÇÃO CRÍTICA: a grade é indexada por DOW (0-6), então grade[1] contém
+        // inserções de TODAS as segundas do mês (dias 16, 23, 30...).
+        // Remover "todos os itens da PI" apagava os dias anteriores da mesma semana.
+        // Agora remove só o dia atual (day.dayNum / day.monthNum / day.yearNum).
         (prog.breaks||[]).forEach(brk=>{
-          brk.items = (brk.items||[]).filter(it=>String(it.piNumber||'').trim()!==_piNum);
+          brk.items = (brk.items||[]).filter(it=>{
+            if(String(it.piNumber||'').trim()!==_piNum) return true; // outro PI — manter
+            // mesmo PI — remover só se for exatamente este dia
+            return !(Number(it.piDay)===day.dayNum &&
+                     Number(it.piMonth)===day.monthNum &&
+                     Number(it.piYear)===day.yearNum);
+          });
         });
 
         // Passo 2: reinserir exatamente o que a PI manda para este programa
@@ -7691,7 +7705,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
             if(_refIdx >= 0 && prog.breaks[_refIdx]) brk = prog.breaks[_refIdx];
             if(!brk && prog.breaks?.length) brk = prog.breaks[0]; // último recurso: 1º break
           }
-          if(!brk){ console.warn('[OPEC] brk não encontrado brkId='+ins.brk?.id+' prog='+prog.name); return; }
+          if(!brk){ return; }
           brk.items = brk.items||[];
           // Verificar validade antes de inserir
           const _piDateEnd = selPi.dateEnd||'';
@@ -8192,15 +8206,20 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
   // (ex: programa 06:00 cobre faixa 06:30-11:00)
   function piProgOverlap(prog, faixaStart, faixaEnd){
     const t  = toMin(prog.time);
-    // FIX COMPLETO: '00:00' explicito = 1440. Sem timeEnd noturno = 1440.
+    // BUG2 FIX: '00:00' como fim de programa significa meia-noite (1440), não zero.
+    // Programa sem timeEnd às 18h+ também assume meia-noite.
     const _pEnd = prog.timeEnd;
-    const pe = (!_pEnd)          ? (t >= 1080 ? 1440 : t + 300)
-             : (_pEnd === '00:00') ? 1440
-             : toMin(_pEnd);
+    const pe = (!_pEnd)
+      ? (t >= 1080 ? 1440 : t + 300)
+      : (_pEnd === '00:00' ? 1440 : toMin(_pEnd));
     const s  = toMin(faixaStart);
     const e  = faixaEnd==='00:00' ? 1440 : toMin(faixaEnd);
+    // Sobreposição real entre janela do programa e janela da faixa
+    // Programa[t,pe] ∩ Faixa[s,e] ≠ ∅
     if(t < e && pe > s) return true;
+    // Programa sem timeEnd: inicia dentro da faixa
     if(!_pEnd && t >= s && t < e) return true;
+    // Tolerância mínima: programa começa até 30min antes da faixa
     if(t < s && (s - t) <= 30) return true;
     return false;
   }
