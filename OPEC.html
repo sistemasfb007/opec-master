@@ -6642,104 +6642,154 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       .map(m=>parseInt(m[1])).filter(d=>d>=1&&d<=31);
   }
 
-  // ── Parser de faixas ──
-  // ── Parser de faixas — formato REAL Pen6 (validado com pdfplumber) ──
-  // Estrutura real:
-  //   [A] "16 17 18 TOT 172,00..."  ← dias + valores na mesma linha
-  //   [B] '30" - Rotativo Manhã'    ← nome
-  //   [C] "S T Q INS" ou "06:30 D D INS" ← dias semana / hora início
-  //   [D] "06:00" (isolado)         ← hora início (opcional)
-  //   [E] "ás 11:00 3 3 3 36"       ← hora fim + inserções + total
+  // ── Parser de faixas — formato Pen6 Ltda (validado contra PDFs reais) ──
+  //
+  // Estrutura exata de cada faixa no PDF:
+  //   [A] "16 17 18 19 20 TOT 172,00..."  ← dias do mês + "TOT"
+  //   [B] '30" - Rotativo Manhã'           ← duração + nome do programa
+  //   [C] "S T Q Q S INS"                  ← dias da semana (ignorar)
+  //         OU "06:30 D D INS"             ← hora início junto (caso domingo)
+  //   [D] "06:00"                           ← hora início isolada (opcional)
+  //   [E] "ás 11:00 3 3 3 3 3 36"          ← hora fim + inserções por dia + total
+  //
   function parseFaixas(lines){
     const faixas = [];
 
+    // Linha [A]: contém dias do mês E "TOT"
     function isDaysLine(l){
-      if(!/\bTOT\b/i.test(l) || /^[aáà]/i.test(l.trim())) return false;
-      if(/^Total\b/i.test(l.trim())) return false;
-      const before = l.split(/\bTOT\b/i)[0];
-      return (before.match(/\b(\d{1,2})\b/g)||[]).some(n=>parseInt(n)>=1&&parseInt(n)<=31);
+      const s = l.trim();
+      if(/^Total\b/i.test(s)) return false;          // "Total TOT INS: 128" — ignorar
+      if(/^[aáà]/i.test(s))    return false;          // linha "ás HH:MM" — ignorar
+      if(!/\bTOT\b/i.test(s)) return false;          // precisa ter "TOT"
+      // precisa ter pelo menos 1 número entre 1-31 antes do TOT
+      const before = s.split(/\bTOT\b/i)[0];
+      return (before.match(/\b(\d{1,2})\b/g)||[])
+              .map(Number).some(n => n >= 1 && n <= 31);
     }
-    function extractDaysFromLine(l){
+
+    // Extrair dias do mês da linha [A]
+    function extractDays(l){
       const before = l.split(/\bTOT\b/i)[0];
-      return (before.match(/\b(\d{1,2})\b/g)||[]).map(Number).filter(d=>d>=1&&d<=31);
+      return (before.match(/\b(\d{1,2})\b/g)||[])
+              .map(Number).filter(n => n >= 1 && n <= 31);
     }
-    function isNameLine(l){ return /\d+["""''\u201c\u201d]\s*[-\u2013]/.test(l); }
-    function isTimeLine(l){ return /^\d{1,2}:\d{2}\s*$/.test(l.trim()); }
-    function isAsLine(l){ return /^[aáà]s?\s+\d{1,2}:\d{2}/i.test(l.trim()); }
-    function isDowLine(l){ return /\bINS\b/i.test(l); }
+
+    // Linha [B]: começa com número seguido de " ou '
+    function isNameLine(l){
+      return /^\d+["""''\u201c\u201d]\s*[-\u2013]/.test(l.trim());
+    }
+
+    // Linha [C]: contém "INS" (linha de dias da semana, às vezes com hora)
+    function isDowLine(l){
+      return /\bINS\b/i.test(l);
+    }
+
+    // Linha [D]: só horário "HH:MM"
+    function isTimeLine(l){
+      return /^\d{1,2}:\d{2}\s*$/.test(l.trim());
+    }
+
+    // Linha [E]: começa com "ás HH:MM"
+    function isAsLine(l){
+      return /^[aáàÀÁÃ]s?\s+\d{1,2}:\d{2}/i.test(l.trim());
+    }
 
     let i = 0;
     while(i < lines.length){
       const l = lines[i];
+
       if(!isDaysLine(l)){ i++; continue; }
 
-      const dias = extractDaysFromLine(l);
-      let nome='', timeStart='', timeEnd='', insNums=[];
+      // ── Leu linha [A] ──
+      const dias = extractDays(l);
+      let nome = '', dur = 30, timeStart = '', timeEnd = '';
+      let insNums = [];
       let j = i + 1;
 
-      // [B] Nome
+      // ── Linha [B]: nome do programa ──
       if(j < lines.length && isNameLine(lines[j])){
-        nome = lines[j].replace(/^\d+["""''\u201c\u201d]\s*[-\u2013]\s*/,'').replace(/\s+/g,' ').trim();
+        const m = lines[j].match(/^(\d+)["""''\u201c\u201d]\s*[-\u2013]\s*(.*)/);
+        if(m){
+          dur  = parseInt(m[1]) || 30;
+          nome = m[2].replace(/\*$/, '').replace(/\s+/g,' ').trim();
+        }
         j++;
       }
 
-      // [C] Linha dias semana — pode ter hora no início "06:30 D D INS"
+      // ── Linha [C]: dias da semana — pode ter hora no início (caso domingo) ──
       if(j < lines.length && isDowLine(lines[j])){
-        const mTime = lines[j].match(/^(\d{1,2}:\d{2})\s+[STQD]/i);
-        if(mTime) timeStart = mTime[1];
+        // Caso especial: "06:30 D D D INS" — hora início antes dos dias
+        const mHora = lines[j].match(/^(\d{1,2}:\d{2})\s+[STQDM]/i);
+        if(mHora) timeStart = mHora[1];
         j++;
       }
 
-      // [D] Hora início isolada
+      // ── Linha [D]: hora início isolada ──
       if(!timeStart && j < lines.length && isTimeLine(lines[j])){
         timeStart = lines[j].trim();
         j++;
       }
 
-      // [E] "ás HH:MM ins..." — tolerância até 2 linhas extras
+      // ── Linha [E]: "ás HH:MM ins ins ins... total" ──
+      // Tolerância: até 2 linhas extras entre [C/D] e [E] (quebra de página)
       let asFound = false;
-      for(let extra=0; extra<3 && j+extra<lines.length; extra++){
-        if(isAsLine(lines[j+extra])){ if(extra>0) j+=extra; asFound=true; break; }
-        if(isDaysLine(lines[j+extra])) break;
+      for(let skip = 0; skip < 3 && (j + skip) < lines.length; skip++){
+        if(isAsLine(lines[j + skip])){
+          if(skip > 0) j += skip;
+          asFound = true;
+          break;
+        }
+        if(isDaysLine(lines[j + skip])) break; // próxima faixa começou
       }
+
       if(asFound && j < lines.length && isAsLine(lines[j])){
-        const mAs = lines[j].match(/^[aáà]s?\s+(\d{1,2}:\d{2})\s*(.*)/i);
+        const mAs = lines[j].match(/^[aáàÀÁÃ]s?\s+(\d{1,2}:\d{2})\s*(.*)/i);
         if(mAs){
-          timeEnd = mAs[1].padStart(5,'0');
-          insNums = (mAs[2].match(/\d+/g)||[]).map(Number);
+          timeEnd  = mAs[1].padStart(5, '0');
+          insNums  = (mAs[2].match(/\d+/g) || []).map(Number);
         }
         j++;
       }
 
+      // Validar dados mínimos
       if(!dias.length || !insNums.length){ i++; continue; }
 
-      let insArr, total;
+      // ── Montar insertionsPerDayMap ──
+      // insNums tem: [ins_dia1, ins_dia2, ..., total]
+      // Se insNums.length > dias.length, o último é o total
+      let insArr;
       if(insNums.length > dias.length){
         insArr = insNums.slice(0, dias.length);
-        total  = insNums[insNums.length-1];
+        // total = insNums[insNums.length - 1] (ignorar, recalcular)
       } else {
         insArr = insNums.slice(0, dias.length);
-        total  = insArr.reduce((s,v)=>s+v, 0);
       }
-      if(total < insArr.reduce((s,v)=>s+v,0)) total = insArr.reduce((s,v)=>s+v,0);
 
+      // Montar mapa dia → inserções
       const insMap = {};
-      dias.forEach((d,idx)=>{ const n=insArr[idx]??0; if(n>0) insMap[d]=(insMap[d]||0)+n; });
-      if(!Object.keys(insMap).length){ i++; continue; }
-
-      faixas.push({
-        program:             nome || `Programa ${timeStart||'?'}`,
-        timeStart:           timeStart || '00:00',
-        timeEnd:             timeEnd   || '00:00',
-        insertionsPerDay:    insArr.find(v=>v>0)||1,
-        insertionsPerDayMap: insMap,
-        days:                Object.keys(insMap).map(Number),
-        totalInsertions:     total,
-        duration:            30,
+      dias.forEach((d, idx) => {
+        const n = insArr[idx] ?? 0;
+        if(n > 0) insMap[d] = (insMap[d] || 0) + n;
       });
 
-      i = j;
+      if(!Object.keys(insMap).length){ i++; continue; }
+
+      const totalIns = Object.values(insMap).reduce((s, v) => s + v, 0);
+
+      faixas.push({
+        program:             nome || `Programa ${timeStart || '?'}`,
+        timeStart:           timeStart || '00:00',
+        timeEnd:             timeEnd   || '00:00',
+        duration:            dur,
+        insertionsPerDay:    insArr.find(v => v > 0) || 1,
+        insertionsPerDayMap: insMap,
+        days:                Object.keys(insMap).map(Number),
+        totalInsertions:     totalIns,
+      });
+
+      i = j; // avançar para próxima faixa
     }
+
     return faixas;
   }
 
