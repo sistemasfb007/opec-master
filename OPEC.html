@@ -1253,42 +1253,38 @@ function _renderStationUI(){
     } else {
       const _paused=window._fbPaused===true;
       el.innerHTML=`
-        <div style="display:flex;align-items:center;gap:4px;width:100%">
-          <!-- Código da estação -->
-          <div style="flex:1;display:flex;align-items:center;gap:0;
-                      border-radius:6px;overflow:hidden;
-                      border:1px solid ${_paused?'rgba(224,80,80,.3)':'rgba(212,160,23,.25)'}">
-            <span onclick="navigator.clipboard.writeText('${_stationCode}').then(()=>{this.textContent='✓ copiado';setTimeout(()=>this.textContent='${_stationCode}',1200)})"
-              style="flex:1;padding:5px 10px;cursor:pointer;font-family:var(--font-m);font-size:10px;font-weight:700;
-                     letter-spacing:2px;text-transform:uppercase;
-                     color:${_paused?'rgba(224,80,80,.7)':'var(--gold2)'};
-                     background:${_paused?'rgba(224,80,80,.05)':'rgba(212,160,23,.06)'};"
-              title="Clique para copiar">${_stationCode}</span>
-            <!-- Indicador de status -->
-            <div style="width:6px;height:100%;min-height:28px;
-                        background:${_paused?'#e05050':'#2ddf80'};
-                        box-shadow:0 0 6px ${_paused?'rgba(224,80,80,.5)':'rgba(45,223,128,.5)'};">
-            </div>
-          </div>
-          <!-- Botão ON/OFF -->
+        <div style="display:flex;align-items:center;gap:0;width:100%;
+                    border-radius:7px;overflow:hidden;
+                    border:1px solid ${_paused?'rgba(224,80,80,.35)':'rgba(212,160,23,.3)'};
+                    background:${_paused?'rgba(224,80,80,.04)':'rgba(212,160,23,.04)'}">
+          <!-- Indicador de status à esquerda -->
+          <div style="width:4px;align-self:stretch;flex-shrink:0;
+                      background:${_paused?'#c0392b':'var(--gold)'};
+                      box-shadow:0 0 8px ${_paused?'rgba(192,57,43,.6)':'rgba(212,160,23,.5)'}"></div>
+          <!-- Nome da estação — 1 clique = desconectar/conectar -->
           <button onclick="window._fbTogglePause()"
-            style="padding:5px 11px;border-radius:6px;cursor:pointer;font-size:9px;font-weight:800;
-                   letter-spacing:1px;white-space:nowrap;border:none;
-                   transition:all .2s;
-                   background:${_paused?'linear-gradient(135deg,rgba(45,223,128,.2),rgba(45,223,128,.1))':'linear-gradient(135deg,rgba(224,80,80,.2),rgba(224,80,80,.1))'};
-                   color:${_paused?'#2ddf80':'#e05050'};
-                   box-shadow:inset 0 0 0 1px ${_paused?'rgba(45,223,128,.3)':'rgba(224,80,80,.3)'}"
-            title="${_paused?'Ligar Firebase — retomar sincronização':'Desligar Firebase — parar sincronização'}"
-            onmouseover="this.style.opacity='.8'"
-            onmouseout="this.style.opacity='1'">
-            ${_paused?'▶ LIGAR':'⏹ DESLIGAR'}</button>
-          <!-- Editar código -->
-          <button onclick="window._fbEditCode()"
-            style="padding:5px 7px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
-                   border-radius:6px;color:var(--text3);cursor:pointer;font-size:11px;transition:all .15s"
-            onmouseover="this.style.background='rgba(255,255,255,.08)';this.style.color='var(--text)'"
-            onmouseout="this.style.background='rgba(255,255,255,.04)';this.style.color='var(--text3)'"
-            title="Trocar código da estação">✎</button>
+            title="${_paused?'Clique para LIGAR o Firebase':'Clique para DESLIGAR o Firebase'}"
+            style="flex:1;padding:5px 10px;background:none;border:none;cursor:pointer;
+                   font-family:var(--font-m);font-size:11px;font-weight:700;
+                   letter-spacing:2px;text-transform:uppercase;text-align:left;
+                   color:${_paused?'rgba(224,80,80,.6)':'var(--gold)'};
+                   display:flex;align-items:center;gap:6px">
+            <span>${_stationCode}</span>
+            <span style="font-size:8px;font-weight:600;letter-spacing:.5px;
+                         padding:1px 5px;border-radius:3px;
+                         background:${_paused?'rgba(224,80,80,.15)':'rgba(45,223,128,.12)'};
+                         color:${_paused?'#e05050':'#2ddf80'};
+                         border:1px solid ${_paused?'rgba(224,80,80,.25)':'rgba(45,223,128,.25)'}"
+              >${_paused?'OFF':'ON'}</span>
+          </button>
+          <!-- Duplo clique = mudar estação -->
+          <button ondblclick="window._fbEditCode()"
+            title="Duplo clique para mudar estação"
+            style="padding:5px 8px;background:none;border:none;border-left:1px solid ${_paused?'rgba(224,80,80,.2)':'rgba(212,160,23,.15)'};
+                   color:var(--text3);cursor:pointer;font-size:10px;transition:color .15s"
+            onmouseover="this.style.color='var(--text2)'"
+            onmouseout="this.style.color='var(--text3)'"
+            >✎</button>
         </div>`;
     }
   });
@@ -2958,11 +2954,7 @@ function renderRoteiro(){
         const iHtml=!(brk.items||[]).length
           ?`<div class="empty-hint" style="padding:6px 22px">Sem materiais.</div>`
           :(()=>{
-            const visibleItems = (brk.items||[]).filter(it=>
-              it.piDay==null || Number(it.piDay)===selectedDate.getDate()
-            );
-            if(!visibleItems.length) return `<div class="empty-hint" style="padding:6px 22px">Sem materiais para ${selectedDate.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}.</div>`;
-            return visibleItems.map((item,ii)=>{
+            return brk.items.map((item,ii)=>{
             const key=mkKey(selectedDay,pi,bi,ii);
             const act=isAB&&cur.itemIdx===ii,dn=cur.doneKeys.includes(key);
             const exp=isExpired(item.dateEnd);
@@ -3017,7 +3009,7 @@ function renderRoteiro(){
           }).join('');
           })()
         // Verificar conflitos de segmento no break
-        const _brkVis=(brk.items||[]).filter(it=>it.piDay==null||Number(it.piDay)===selectedDate.getDate());
+        const _brkVis=brk.items||[];
         const _conf = analyzeBrkConflict(_brkVis);
         const _confHtml = _conf.hasConflict
           ? `<span class="brk-conflict" title="Concorrência detectada: ${_conf.conflicts.map(s=>SEG_LABELS[s]||s).join(', ')}">! CONCORRÊNCIA: ${_conf.conflicts.map(s=>SEG_LABELS[s]||s).join(' + ')}</span>`
@@ -7553,8 +7545,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       });
     });
     grade=g;
-    recalcBrkTotals();
-    // Sincronizar via Firebase e broadcast
+    saveGrade(); // salva no Firebase (ou localStorage em modo local)
     if(typeof broadcastState==='function') broadcastState();
     renderRoteiro();if(typeof renderMidList==='function')renderMidList();renderCtrl();
     selPi.applied=true;
