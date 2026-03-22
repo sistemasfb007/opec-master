@@ -2645,11 +2645,9 @@ function isExpired(dateEndStr){if(!dateEndStr)return false;const end=parseDate(d
 
 // ═══ WEEK NAV ═══
 function renderWeekNav(){
-  const todayDow=new Date().getDay();
   const todayDate=new Date();
   const isToday=selectedDate.toDateString()===todayDate.toDateString();
 
-  // Meses e anos para os selects
   const meses=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const anoAtual=new Date().getFullYear();
   const anosOpts=[anoAtual-1,anoAtual,anoAtual+1,anoAtual+2].map(y=>
@@ -2657,12 +2655,13 @@ function renderWeekNav(){
   const mesesOpts=meses.map((m,i)=>
     `<option value="${i}" ${i===selectedDate.getMonth()?'selected':''}>${m}</option>`).join('');
 
-  // Dias do mês selecionado
   const diasNoMes=new Date(selectedDate.getFullYear(),selectedDate.getMonth()+1,0).getDate();
   const diasOpts=Array.from({length:diasNoMes},(_,i)=>i+1).map(d=>
     `<option value="${d}" ${d===selectedDate.getDate()?'selected':''}>${String(d).padStart(2,'0')}</option>`).join('');
 
-  const dataFormatada=selectedDate.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
+  // Domingo da semana que contém selectedDate
+  const _weekBase=new Date(selectedDate);
+  _weekBase.setDate(_weekBase.getDate()-_weekBase.getDay());
 
   $('week-nav').innerHTML=`
     <div class="week-nav-datebar">
@@ -2675,8 +2674,13 @@ function renderWeekNav(){
     </div>
     <div class="week-nav-days">${DAYS_SHORT.map((d,i)=>{
       const h=HOURS[i];
-      const cls=['wday',i===selectedDay?'active':'',i===todayDow&&isToday?'today':'',!h?'closed':''].filter(Boolean).join(' ');
-      return `<div class="${cls}" onclick="${h?`selectDay(${i})`:''}" title="${DAYS_FULL[i]}">${d}</div>`;
+      const _btnDate=new Date(_weekBase); _btnDate.setDate(_weekBase.getDate()+i);
+      const _btnDay=_btnDate.getDate();
+      const _isActive=i===selectedDay && _btnDate.toDateString()===selectedDate.toDateString();
+      const _isToday=_btnDate.toDateString()===todayDate.toDateString();
+      const cls=['wday',_isActive?'active':'',_isToday?'today':'',!h?'closed':''].filter(Boolean).join(' ');
+      const onclick=h?`_navToDate(${_btnDate.getFullYear()},${_btnDate.getMonth()},${_btnDay})`:'';
+      return `<div class="${cls}" onclick="${onclick}" title="${DAYS_FULL[i]} ${String(_btnDay).padStart(2,'0')}/${String(_btnDate.getMonth()+1).padStart(2,'0')}">${d}<span style="display:block;font-size:8px;opacity:.65;line-height:1.1;margin-top:1px">${_btnDay}</span></div>`;
     }).join('')}</div>`;
 
   $('left-title').textContent=DAYS_FULL[selectedDay]+' — '+selectedDate.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
@@ -2684,13 +2688,21 @@ function renderWeekNav(){
   $('time-range').textContent=h?`${h.start} — ${h.end}`:'Sem transmissão';
 }
 
+// Navega para uma data específica (chamado pelos botões da semana)
+function _navToDate(y,m,d){
+  selectedDate=new Date(y,m,d);
+  selectedDay=selectedDate.getDay();
+  renderWeekNav();renderRoteiro();renderMidList();
+}
+
 function selectDay(i){
-  selectedDay=i;
-  // Atualizar selectedDate para o dia da semana correspondente na semana atual
-  const diff=i-selectedDate.getDay();
-  const novaData=new Date(selectedDate);
-  novaData.setDate(novaData.getDate()+diff);
+  // Navega para o dia i da semana EXIBIDA (preserva a semana atual de selectedDate)
+  const _wb=new Date(selectedDate);
+  _wb.setDate(_wb.getDate()-_wb.getDay());
+  const novaData=new Date(_wb);
+  novaData.setDate(_wb.getDate()+i);
   selectedDate=novaData;
+  selectedDay=i;
   renderWeekNav();renderRoteiro();renderMidList();
 }
 
@@ -2711,7 +2723,6 @@ function _setDia(d){
 function _setMes(m){
   const novaData=new Date(selectedDate);
   novaData.setMonth(parseInt(m));
-  // Ajustar dia se necessário (ex: 31 de fev não existe)
   const maxDia=new Date(novaData.getFullYear(),parseInt(m)+1,0).getDate();
   if(novaData.getDate()>maxDia) novaData.setDate(maxDia);
   selectedDate=novaData;
@@ -2732,6 +2743,7 @@ function _irHoje(){
 }
 
 // ═══ RENDER ROTEIRO ═══
+
 
 // ══ PAINEL CENTRAL — lista de mídias ordenada ══
 function renderMidList(){
@@ -3141,6 +3153,15 @@ function doSaveContract(){
 }
 
 // ═══ PLAYER ═══
+
+// ── Helper: verifica se item pertence à selectedDate atual ──
+function _isItemToday(item){
+  if(item.piDay==null) return true; // manual
+  return Number(item.piDay)===selectedDate.getDate()
+      && Number(item.piMonth)===selectedDate.getMonth()
+      && Number(item.piYear)===selectedDate.getFullYear();
+}
+
 function selectItem(pi,bi,ii){
   const prog=(grade[selectedDay]||[])[pi];if(!prog)return;
   const brk=(prog.breaks||[])[bi];if(!brk)return;
@@ -3169,9 +3190,31 @@ function advance(){
   const brk=(prog.breaks||[])[cur.brkIdx];if(!brk)return;
   const key=mkKey(day,cur.progIdx,cur.brkIdx,cur.itemIdx);
   if(!cur.doneKeys.includes(key))cur.doneKeys.push(key);
-  if(cur.itemIdx<(brk.items||[]).length-1){cur.itemIdx++;cur.remaining=parseInt(brk.items[cur.itemIdx].dur)||30;return;}
-  if(cur.brkIdx<(prog.breaks||[]).length-1){cur.brkIdx++;cur.itemIdx=0;const nb=(prog.breaks||[])[cur.brkIdx];cur.remaining=(nb.items&&nb.items.length)?(parseInt(nb.items[0].dur)||30):0;return;}
-  if(cur.progIdx<progs.length-1){cur.progIdx++;cur.brkIdx=0;cur.itemIdx=0;const np=progs[cur.progIdx];const nb=(np.breaks||[])[0];cur.remaining=(nb&&nb.items&&nb.items.length)?(parseInt(nb.items[0].dur)||30):0;return;}
+
+  // Avançar apenas por itens VISÍVEIS do dia atual (ignorar outros dias)
+  // Tenta avançar item dentro do break atual
+  const items=brk.items||[];
+  for(let ni=cur.itemIdx+1;ni<items.length;ni++){
+    if(_isItemToday(items[ni])){
+      cur.itemIdx=ni;cur.remaining=parseInt(items[ni].dur)||30;return;
+    }
+  }
+  // Avançar para próximo break
+  const breaks=prog.breaks||[];
+  for(let nb=cur.brkIdx+1;nb<breaks.length;nb++){
+    const b=breaks[nb];if(!b)continue;
+    const visIdx=(b.items||[]).findIndex(it=>_isItemToday(it));
+    if(visIdx>=0){cur.brkIdx=nb;cur.itemIdx=visIdx;cur.remaining=parseInt(b.items[visIdx].dur)||30;return;}
+  }
+  // Avançar para próximo programa
+  for(let np=cur.progIdx+1;np<progs.length;np++){
+    const p=progs[np];if(!p)continue;
+    for(let nb2=0;nb2<(p.breaks||[]).length;nb2++){
+      const b2=(p.breaks||[])[nb2];if(!b2)continue;
+      const visIdx2=(b2.items||[]).findIndex(it=>_isItemToday(it));
+      if(visIdx2>=0){cur.progIdx=np;cur.brkIdx=nb2;cur.itemIdx=visIdx2;cur.remaining=parseInt(b2.items[visIdx2].dur)||30;return;}
+    }
+  }
   stopTimer();cur.playing=false;$('btn-play').textContent='▶';showToast('✓Roteiro concluído!');
 }
 
@@ -3235,15 +3278,37 @@ function renderCtrl(){
     _lastMatName = newMatName;
   }
 
+  // "A seguir" — busca próximo item visível do dia atual
   let nxt='';
-  if(brk&&(brk.items||[])[cur.itemIdx+1]){const ni=brk.items[cur.itemIdx+1];nxt=`A seguir: ${ni.seq||''} ${ni.name} (${fmtSec(ni.dur)})`;}
-  else if(prog&&(prog.breaks||[])[cur.brkIdx+1]){nxt=`Próximo break: ${prog.breaks[cur.brkIdx+1].name}`;}
-  else if(progs[cur.progIdx+1]){const np=progs[cur.progIdx+1];nxt=`Próximo: ${np.time} — ${np.name}`;}
+  (()=>{
+    const _brkItems=brk?brk.items||[]:[];
+    // próximo no mesmo break
+    for(let ni=cur.itemIdx+1;ni<_brkItems.length;ni++){
+      if(_isItemToday(_brkItems[ni])){const it=_brkItems[ni];nxt=`A seguir: ${it.seq||''} ${it.name} (${fmtSec(it.dur)})`;return;}
+    }
+    // próximo break
+    if(prog){for(let nb=cur.brkIdx+1;nb<(prog.breaks||[]).length;nb++){
+      const b=(prog.breaks||[])[nb];if(!b)continue;
+      if((b.items||[]).some(it=>_isItemToday(it))){nxt=`Próximo break: ${b.name}`;return;}
+    }}
+    // próximo programa
+    if(progs[cur.progIdx+1]){const np=progs[cur.progIdx+1];nxt=`Próximo: ${np.time} — ${np.name}`;}
+  })();
   $('e-cd-nxt').textContent=nxt;
 
-  if(brk){const tot=(brk.items||[]).length,dn=(brk.items||[]).filter((_,ii)=>cur.doneKeys.includes(mkKey(day,cur.progIdx,cur.brkIdx,ii))).length;const pct=tot?Math.round(dn/tot*100):0;$('e-brk-pct').textContent=pct+'%';$('e-brk-fill').style.width=pct+'%';}
+  // Progresso do break — só itens do dia atual
+  if(brk){
+    const _todayItems=(brk.items||[]).map((it,ii)=>({it,ii})).filter(({it})=>_isItemToday(it));
+    const tot=_todayItems.length;
+    const dn=_todayItems.filter(({ii})=>cur.doneKeys.includes(mkKey(day,cur.progIdx,cur.brkIdx,ii))).length;
+    const pct=tot?Math.round(dn/tot*100):0;$('e-brk-pct').textContent=pct+'%';$('e-brk-fill').style.width=pct+'%';
+  }
+  // Progresso do dia — só itens do dia atual
   let total=0,done=0;
-  progs.forEach((p,pi)=>(p.breaks||[]).forEach((b,bi)=>(b.items||[]).forEach((_,ii)=>{total++;if(cur.doneKeys.includes(mkKey(day,pi,bi,ii)))done++;})));
+  progs.forEach((p,pi)=>(p.breaks||[]).forEach((b,bi)=>(b.items||[]).forEach((it,ii)=>{
+    if(!_isItemToday(it)) return;
+    total++;if(cur.doneKeys.includes(mkKey(day,pi,bi,ii)))done++;
+  })));
   const dpct=total?Math.round(done/total*100):0;$('e-day-done').textContent=`${done} / ${total} materiais`;$('e-day-pct').textContent=dpct+'%';$('e-day-fill').style.width=dpct+'%';
   let upHtml='',count=0;
   const dayProgs=grade[day]||[];
@@ -3253,6 +3318,7 @@ function renderCtrl(){
       const b=(p.breaks||[])[bi];if(!b)continue;const startII=(pi===cur.progIdx&&bi===cur.brkIdx)?cur.itemIdx+1:0;
       for(let ii=startII;ii<(b.items||[]).length&&count<6;ii++){
         const it=b.items[ii];
+        if(!_isItemToday(it)) continue; // pular items de outros dias
         upHtml+=`<div class="up-row"><span class="up-seq">${it.seq||pad(ii+1)}</span><span class="up-name">${it.name}${it.title?`<span style="color:var(--text3)"> — ${it.title}</span>`:''}</span><span class="up-ctx">${p.name} · ${b.name}</span><span class="up-dur">${fmtSec(it.dur)}</span></div>`;
         count++;
       }
@@ -6731,15 +6797,19 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       }
 
       // ── Linha [E]: "ás HH:MM ins ins ins... total" ──
-      // Tolerância: até 2 linhas extras entre [C/D] e [E] (quebra de página)
+      // BUG3 FIX: tolerância aumentada para 6 linhas (quebra de página no PDF
+      // pode inserir cabeçalho/rodapé entre a linha dos dias e a linha "ás HH:MM").
+      // Removido o break em isDaysLine: se o skip ainda não passou de 2, pode ser
+      // falso positivo de dias na página seguinte — continua buscando a linha "ás".
       let asFound = false;
-      for(let skip = 0; skip < 3 && (j + skip) < lines.length; skip++){
+      for(let skip = 0; skip < 6 && (j + skip) < lines.length; skip++){
         if(isAsLine(lines[j + skip])){
           if(skip > 0) j += skip;
           asFound = true;
           break;
         }
-        if(isDaysLine(lines[j + skip])) break; // próxima faixa começou
+        // Só aborta se encontrou nova faixa E já passou da tolerância mínima (2 linhas)
+        if(skip >= 2 && isDaysLine(lines[j + skip])) break;
       }
 
       if(asFound && j < lines.length && isAsLine(lines[j])){
@@ -6747,6 +6817,18 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         if(mAs){
           timeEnd  = mAs[1].padStart(5, '0');
           insNums  = (mAs[2].match(/\d+/g) || []).map(Number);
+          // BUGFIX RAIZ: "ás 08:00" aparece sozinho e os números ficam
+          // na linha seguinte separada (ex: "3 3 2 8").
+          // Se não vieram números na mesma linha, pega a próxima linha
+          // desde que seja só números (não seja outra faixa/cabeçalho).
+          if(!insNums.length && (j+1) < lines.length){
+            const nextL = lines[j+1].trim();
+            const onlyNums = /^[\d\s]+$/.test(nextL);
+            if(onlyNums){
+              insNums = (nextL.match(/\d+/g)||[]).map(Number);
+              j++; // consumir a linha extra de números
+            }
+          }
         }
         j++;
       }
@@ -7581,18 +7663,49 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       const _dayProgs = g[day.key] || g[day.dow] || g[String(day.dow)] || [];
 
       progIds.forEach(progId=>{
-        const prog = _dayProgs.find(p=>p.id===progId);
-        if(!prog) return;
+        // BUG1 FIX: IDs podem mudar após sync do Firebase.
+        // Busca por id; fallback por (nome+horário) ou só horário.
+        let prog = _dayProgs.find(p=>p.id===progId);
+        let _foundByFallback = false;
+        if(!prog){
+          const _refProg = insertsValidos.find(i=>i.program&&i.program.id===progId)?.program;
+          if(_refProg){
+            prog = _dayProgs.find(p=>p.time===_refProg.time && p.name===_refProg.name);
+            if(!prog) prog = _dayProgs.find(p=>p.time===_refProg.time);
+            if(prog) _foundByFallback = true;
+          }
+        }
+        if(!prog){
+          return;
+        }
 
-        // Passo 1: remover TODOS os itens desta PI deste programa (qualquer break)
+        // Passo 1: remover apenas os itens desta PI para o dia específico sendo processado.
+        // CORREÇÃO CRÍTICA: a grade é indexada por DOW (0-6), então grade[1] contém
+        // inserções de TODAS as segundas do mês (dias 16, 23, 30...).
+        // Remover "todos os itens da PI" apagava os dias anteriores da mesma semana.
+        // Agora remove só o dia atual (day.dayNum / day.monthNum / day.yearNum).
         (prog.breaks||[]).forEach(brk=>{
-          brk.items = (brk.items||[]).filter(it=>String(it.piNumber||'').trim()!==_piNum);
+          brk.items = (brk.items||[]).filter(it=>{
+            if(String(it.piNumber||'').trim()!==_piNum) return true; // outro PI — manter
+            // mesmo PI — remover só se for exatamente este dia
+            return !(Number(it.piDay)===day.dayNum &&
+                     Number(it.piMonth)===day.monthNum &&
+                     Number(it.piYear)===day.yearNum);
+          });
         });
 
         // Passo 2: reinserir exatamente o que a PI manda para este programa
         insertsValidos.filter(i=>i.program.id===progId).forEach(ins=>{
-          const brk = (prog.breaks||[]).find(b=>b.id===ins.brk.id);
-          if(!brk) return;
+          // BUG1b FIX: quando o prog foi encontrado por fallback, o brk.id do piDist
+          // pode não existir no prog atual. Remapear por posição (índice) ou por nome.
+          let brk = (prog.breaks||[]).find(b=>b.id===ins.brk.id);
+          if(!brk && _foundByFallback){
+            const _refIdx = (insertsValidos.find(i2=>i2.program.id===progId)?.program?.breaks||[])
+              .findIndex(b=>b.id===ins.brk.id);
+            if(_refIdx >= 0 && prog.breaks[_refIdx]) brk = prog.breaks[_refIdx];
+            if(!brk && prog.breaks?.length) brk = prog.breaks[0]; // último recurso: 1º break
+          }
+          if(!brk){ return; }
           brk.items = brk.items||[];
           // Verificar validade antes de inserir
           const _piDateEnd = selPi.dateEnd||'';
@@ -8093,14 +8206,19 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
   // (ex: programa 06:00 cobre faixa 06:30-11:00)
   function piProgOverlap(prog, faixaStart, faixaEnd){
     const t  = toMin(prog.time);
-    const pe = prog.timeEnd ? toMin(prog.timeEnd) : (t + 300); // assume 5h se sem fim
+    // BUG2 FIX: '00:00' como fim de programa significa meia-noite (1440), não zero.
+    // Programa sem timeEnd às 18h+ também assume meia-noite.
+    const _pEnd = prog.timeEnd;
+    const pe = (!_pEnd)
+      ? (t >= 1080 ? 1440 : t + 300)
+      : (_pEnd === '00:00' ? 1440 : toMin(_pEnd));
     const s  = toMin(faixaStart);
     const e  = faixaEnd==='00:00' ? 1440 : toMin(faixaEnd);
     // Sobreposição real entre janela do programa e janela da faixa
     // Programa[t,pe] ∩ Faixa[s,e] ≠ ∅
     if(t < e && pe > s) return true;
     // Programa sem timeEnd: inicia dentro da faixa
-    if(!prog.timeEnd && t >= s && t < e) return true;
+    if(!_pEnd && t >= s && t < e) return true;
     // Tolerância mínima: programa começa até 30min antes da faixa
     if(t < s && (s - t) <= 30) return true;
     return false;
