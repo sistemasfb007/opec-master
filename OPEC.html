@@ -7545,7 +7545,20 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       });
     });
     grade=g;
-    saveGrade(); // salva no Firebase (ou localStorage em modo local)
+    // Salvar grade — forçar mesmo se _fbPaused (PI aplicada deve persistir)
+    recalcBrkTotals();
+    for(let i=0;i<7;i++) if(!Array.isArray(grade[i])) grade[i]=[];
+    if(_isLocalFile){
+      try{localStorage.setItem('roteiro_grade',JSON.stringify(grade));}catch(e){}
+    } else {
+      // Salvar no Firebase diretamente (não usar saveGrade que respeita _fbPaused)
+      if(typeof window._fbSaveGrade==='function'){
+        const _pausedBak = window._fbPaused;
+        window._fbPaused = false;
+        window._fbSaveGrade(grade);
+        window._fbPaused = _pausedBak;
+      }
+    }
     if(typeof broadcastState==='function') broadcastState();
     renderRoteiro();if(typeof renderMidList==='function')renderMidList();renderCtrl();
     selPi.applied=true;
@@ -7988,18 +8001,17 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
   // Aceita também programas que começam até 90min ANTES do início da faixa
   // (ex: programa 06:00 cobre faixa 06:30-11:00)
   function piProgOverlap(prog, faixaStart, faixaEnd){
-    const t = toMin(prog.time);
-    const s = toMin(faixaStart);
-    const e = faixaEnd==='00:00' ? 1440 : toMin(faixaEnd);
-    // 1.Programa inicia dentro da faixa
-    if(t >= s && t < e) return true;
-    // 2.Programa tem timeEnd e há sobreposição real
-    if(prog.timeEnd){
-      const pe = toMin(prog.timeEnd) || (t + 180);
-      if(t < e && pe > s) return true;
-    }
-    // 3.Programa começa até 90min antes do início da faixa
-    if(t < s && (s - t) <= 90) return true;
+    const t  = toMin(prog.time);
+    const pe = prog.timeEnd ? toMin(prog.timeEnd) : (t + 300); // assume 5h se sem fim
+    const s  = toMin(faixaStart);
+    const e  = faixaEnd==='00:00' ? 1440 : toMin(faixaEnd);
+    // Sobreposição real entre janela do programa e janela da faixa
+    // Programa[t,pe] ∩ Faixa[s,e] ≠ ∅
+    if(t < e && pe > s) return true;
+    // Programa sem timeEnd: inicia dentro da faixa
+    if(!prog.timeEnd && t >= s && t < e) return true;
+    // Tolerância mínima: programa começa até 30min antes da faixa
+    if(t < s && (s - t) <= 30) return true;
     return false;
   }
 
@@ -8053,6 +8065,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
   // ── Tabela de programas do MAPA DE DISTRIBUIÇÃO (Record News) ──
   // Código → {nome, timeStart, timeEnd, dias}
   const _MAPA_PROGS = {
+    // ── Semana (seg-sex) ──
     'SMRM':  {nome:'ROTATIVO MANHÃ SS',      timeStart:'06:00',timeEnd:'11:00',dias:[1,2,3,4,5]},
     'BGRM':  {nome:'BALANÇO GERAL RO MANHÃ', timeStart:'11:00',timeEnd:'12:30',dias:[1,2,3,4,5]},
     'SVRT':  {nome:'ROTATIVO TARDE SS',      timeStart:'12:30',timeEnd:'18:00',dias:[1,2,3,4,5]},
@@ -8060,53 +8073,55 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     'SICR':  {nome:'SIC RURAL',              timeStart:'18:00',timeEnd:'19:00',dias:[3]},
     'SNRN2': {nome:'ROTATIVO NOITE 2',       timeStart:'19:00',timeEnd:'00:00',dias:[3,4,5]},
     'DEVS1': {nome:'DEVOÇÃO SERTANEJA 1',    timeStart:'18:00',timeEnd:'19:00',dias:[5]},
-    'SARM':  {nome:'ROTATIVO MANHÃ SÁB',     timeStart:'09:30',timeEnd:'11:30',dias:[6]},
+    // ── Sábado ──
+    'SARM':  {nome:'ROTATIVO MANHÃ SÁB',     timeStart:'09:00',timeEnd:'12:00',dias:[6]},
     'DEVS2': {nome:'DEVOÇÃO SERTANEJA 2',    timeStart:'11:30',timeEnd:'12:00',dias:[6]},
-    'SART':  {nome:'ROTATIVO TARDE SÁB',     timeStart:'12:30',timeEnd:'18:00',dias:[6]},
+    'SART':  {nome:'ROTATIVO TARDE SÁB',     timeStart:'12:00',timeEnd:'18:00',dias:[6]},
     'SARN':  {nome:'ROTATIVO NOITE SÁB',     timeStart:'18:00',timeEnd:'21:00',dias:[6]},
-    'DORM1': {nome:'ROTATIVO MANHÃ DOM 1',   timeStart:'06:30',timeEnd:'08:00',dias:[0]},
-    'VIVB':  {nome:'VIVER BEM',              timeStart:'08:00',timeEnd:'08:30',dias:[0]},
-    'DORM2': {nome:'ROTATIVO MANHÃ DOM 2',   timeStart:'09:00',timeEnd:'11:30',dias:[0]},
+    // ── Domingo ──
+    'DORM1': {nome:'ROTATIVO MANHÃ DOM 1',   timeStart:'06:00',timeEnd:'09:00',dias:[0]},
+    'VIVB':  {nome:'VIVER BEM',              timeStart:'08:00',timeEnd:'09:00',dias:[0]},
+    'DORM2': {nome:'ROTATIVO MANHÃ DOM 2',   timeStart:'09:00',timeEnd:'12:00',dias:[0]},
     'DEVS3': {nome:'DEVOÇÃO SERTANEJA 3',    timeStart:'12:00',timeEnd:'12:30',dias:[0]},
   };
 
   // Sinônimos diretos: nome no mapa/PI → código do mapa
   const _MAPA_SINONIMOS = {
-    // Manhã semana
-    'ROTATIVO MATUTINO':'SMRM','ROTATIVO MANHA':'SMRM','ROT MANHA':'SMRM',
-    'ROTATIVO MANHA SS':'SMRM','SMRM':'SMRM',
-    // Balanço
+    // ── Manhã semana (seg-sex 06:00-11:00) ──
+    // "Rotativo Manhã" e todas variações → SMRM
+    'ROTATIVO MANHA':'SMRM','ROTATIVO MANHA SS':'SMRM','SMRM':'SMRM',
+    'ROTATIVO MATUTINO':'SMRM','MATUTINO':'SMRM','ROT MATUTINO':'SMRM',
+    'ROT MANHA':'SMRM','MANHA SEMANA':'SMRM','ROTATIVO MANHA SEMANA':'SMRM',
+    'MANHA':'SMRM','MANHÃ':'SMRM',
+    // ── Balanço Geral Manhã (11:00-12:30) → BGRM ──
     'BALANCO GERAL':'BGRM','BALANCO GERAL MANHA':'BGRM','BG MANHA':'BGRM','BGRM':'BGRM',
-    'BALANCO GERAL RO':'BGRM','BALANCO GERAL RO MANHA':'BGRM',
-    // Tarde semana
-    'ROTATIVO TARDE':'SVRT','ROT TARDE':'SVRT','ROTATIVO SS TARDE':'SVRT','SVRT':'SVRT',
-    'ROTATIVO TARDE SS':'SVRT','VESPERTINO':'SVRT',
-    // Noite semana
-    'ROTATIVO NOITE':'SNRN1','ROTATIVO NOTURNO':'SNRN1','SNRN1':'SNRN1',
-    'ROTATIVO NOITE 1':'SNRN1','NOTURNO':'SNRN1',
+    'BALANCO GERAL RO':'BGRM','BALANCO GERAL RO MANHA':'BGRM','BALANCO GERAL RO MANHA*':'BGRM',
+    'BALANÇO GERAL':'BGRM','BALANÇO GERAL MANHÃ':'BGRM','BALANÇO GERAL RO MANHÃ':'BGRM',
+    // ── Tarde semana (12:30-18:00) → SVRT ──
+    'ROTATIVO TARDE':'SVRT','ROT TARDE':'SVRT','ROTATIVO TARDE SS':'SVRT','SVRT':'SVRT',
+    'ROTATIVO SS TARDE':'SVRT','VESPERTINO':'SVRT','ROTATIVO VESPERTINO':'SVRT',
+    'ROT VESPERTINO':'SVRT','TARDE SEMANA':'SVRT','ROTATIVO TARDE SEMANA':'SVRT',
+    'TARDE':'SVRT',
+    // ── Noite semana 1 (18:00-00:00 seg/ter/qui) → SNRN1 ──
+    'ROTATIVO NOITE':'SNRN1','ROTATIVO NOITE 1':'SNRN1','SNRN1':'SNRN1',
+    'ROTATIVO NOTURNO':'SNRN1','NOTURNO':'SNRN1','ROT NOTURNO':'SNRN1','NOITE':'SNRN1',
+    // ── Noite semana 2 (19:00-00:00 qua/qui/sex) → SNRN2 ──
     'ROTATIVO NOITE 2':'SNRN2','ROTATIVO NOTURNO 2':'SNRN2','SNRN2':'SNRN2',
-    // Especiais semana
+    // ── Especiais semana ──
     'SIC RURAL':'SICR','RURAL':'SICR','SICR':'SICR',
-    'DEVOCAO SERTANEJA':'DEVS1','SERTANEJA':'DEVS1','DEVS1':'DEVS1',
-    'DEVOCAO SERTANEJA 1':'DEVS1',
-    // Sábado
+    'DEVOCAO SERTANEJA':'DEVS1','DEVOCAO SERTANEJA 1':'DEVS1','SERTANEJA':'DEVS1','DEVS1':'DEVS1',
+    // ── Sábado ──
     'ROTATIVO MANHA SAB':'SARM','SARM':'SARM','ROTATIVO MANHA SABADO':'SARM',
     'DEVOCAO SERTANEJA 2':'DEVS2','SERTANEJA SAB':'DEVS2','DEVS2':'DEVS2',
     'ROTATIVO TARDE SAB':'SART','SART':'SART','TARDE SABADO':'SART',
     'ROTATIVO NOITE SAB':'SARN','SARN':'SARN','NOITE SABADO':'SARN',
     'ROTATIVO NOTURNO SAB':'SARN',
-    // Domingo
+    // ── Domingo ──
     'ROTATIVO MANHA DOM':'DORM1','DORM1':'DORM1','ROTATIVO MANHA DOM 1':'DORM1',
-    'VIVER BEM':'VIVB','VIVB':'VIVB',
+    'VIVER BEM':'VIVB','VIVB':'VIVB','VIVER BEM REPRISE':'VIVB','VIVER BEM REPRISE SIC TV':'VIVB',
     'ROTATIVO MANHA DOM 2':'DORM2','DORM2':'DORM2',
     'DEVOCAO SERTANEJA 3':'DEVS3','SERTANEJA DOM':'DEVS3','DEVS3':'DEVS3',
-    // Variações adicionais de nomes usados nas grades
-    'ROTATIVO VESPERTINO':'SVRT','VESPERTINO':'SVRT','ROT VESPERTINO':'SVRT',
-    'ROTATIVO MATUTINO':'SMRM','MATUTINO':'SMRM','ROT MATUTINO':'SMRM',
-    'ROTATIVO NOTURNO':'SNRN1','NOTURNO':'SNRN1','ROT NOTURNO':'SNRN1',
-    'ROTATIVO NOTURNO SAB':'SARN','NOTURNO SAB':'SARN',
-    'ROTATIVO MANHA SEMANA':'SMRM','MANHA SEMANA':'SMRM',
-    'ROTATIVO TARDE SEMANA':'SVRT','TARDE SEMANA':'SVRT',
+    // ── Genéricos por período (quando PI usa só período, sem nome específico) ──
     'POLITICOS':'SNRN1','POLITICO':'SNRN1',
   };
 
