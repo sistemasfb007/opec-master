@@ -1208,6 +1208,7 @@ const _isLocalFile = (location.protocol === 'file:');
 
 window._fbSaveGrade = function(g){
   if(_isLocalFile) return; // arquivo local — não sincronizar com Firebase
+  if(window._fbPaused) return; // Firebase pausado pelo operador
   if(!_fbReady||!_gradeRef) return;
   const ts=Date.now(); _fbLastTs=ts; _fbIgnore=2;
   setTimeout(()=>{ _fbIgnore=0; }, 8000);
@@ -1244,16 +1245,23 @@ function _renderStationUI(){
           style="font-size:10px;padding:2px 10px;background:var(--gold);border:none;border-radius:4px;
                  color:#000;font-weight:700;cursor:pointer;margin-left:4px">Ativar</button>`;
     } else {
+      const _isPaused = window._fbPaused===true;
       el.innerHTML=`
         <span id="fb-code-display"
           style="display:flex;align-items:center;width:100%;
-                 background:transparent;border:1px solid var(--border);border-radius:6px;
+                 background:transparent;border:1px solid ${_isPaused?'rgba(224,80,80,.4)':'var(--border)'};border-radius:6px;
                  overflow:hidden;cursor:default;color:var(--text2);">
           <span onclick="navigator.clipboard.writeText('${_stationCode}').then(()=>{this.textContent='Copiado';setTimeout(()=>this.textContent='${_stationCode}',1200)})"
             style="flex:1;padding:5px 11px;cursor:pointer;
                    font-family:var(--font-m);font-size:11px;font-weight:700;
-                   letter-spacing:2px;color:var(--gold);text-transform:uppercase"
-            title="Copiar código">${_stationCode}</span>
+                   letter-spacing:2px;color:${_isPaused?'var(--red2)':'var(--gold)'};text-transform:uppercase"
+            title="Copiar código">${_stationCode}${_isPaused?' ⊘':''}</span>
+          <button onclick="window._fbTogglePause()"
+            style="padding:5px 9px;background:${_isPaused?'rgba(31,170,90,.15)':'rgba(224,80,80,.1)'};border:none;border-left:1px solid var(--border);
+                   color:${_isPaused?'var(--green)':'var(--red2)'};cursor:pointer;font-size:9px;font-weight:700;line-height:1;
+                   letter-spacing:.5px;transition:all .15s;white-space:nowrap"
+            title="${_isPaused?'Reconectar ao Firebase':'Desconectar do Firebase (parar sincronização)'}"
+            >${_isPaused?'▶ ON':'⊘ OFF'}</button>
           <button onclick="window._fbEditCode()"
             style="padding:5px 10px;background:transparent;border:none;border-left:1px solid var(--border);
                    color:var(--text3);cursor:pointer;font-size:12px;font-weight:700;line-height:1;
@@ -1288,6 +1296,25 @@ window._fbEditCode = function(){
       style="font-size:10px;padding:2px 7px;background:none;border:1px solid var(--border);
              border-radius:4px;color:var(--text3);cursor:pointer;margin-left:2px">Cancelar</button>`;
   setTimeout(()=>{ const i=document.getElementById('fb-edit-inp'); if(i){i.focus();i.select();} },50);
+};
+window._fbTogglePause = function(){
+  window._fbPaused = !window._fbPaused;
+  if(window._fbPaused){
+    // Desconectar — cancelar todos os listeners
+    if(_unsubscribe){ try{_unsubscribe();}catch(e){} _unsubscribe=null; }
+    if(_unsubAirLogs){ try{_unsubAirLogs();}catch(e){} _unsubAirLogs=null; }
+    if(_unsubOpecLog){ try{_unsubOpecLog();}catch(e){} _unsubOpecLog=null; }
+    if(_unsubMedialib){ try{_unsubMedialib();}catch(e){} _unsubMedialib=null; }
+    if(_unsubContracts){ try{_unsubContracts();}catch(e){} _unsubContracts=null; }
+    try{ if(typeof _unsubPiList!=='undefined'&&_unsubPiList){ _unsubPiList(); } }catch(e){}
+    _fbDot('red');
+    showToast('⊘ Firebase desconectado — alterações não serão sincronizadas');
+  } else {
+    // Reconectar
+    _fbConnect();
+    showToast('▶ Firebase reconectado');
+  }
+  _renderStationUI();
 };
 window._fbConfirmEdit = function(raw){
   const code=(raw||'').trim().toUpperCase().replace(/[^A-Z0-9\-_]/g,'');
@@ -2921,10 +2948,11 @@ function renderRoteiro(){
           ?`<div class="empty-hint" style="padding:6px 22px">Sem materiais.</div>`
           :(()=>{
             const visibleItems = (brk.items||[]).filter(it=>{
-              if(!it.piDay) return true;
-              return it.piDay===selectedDate.getDate() &&
-                     it.piMonth===selectedDate.getMonth() &&
-                     (it.piYear==null||it.piYear===selectedDate.getFullYear());
+              if(!it.piDay && it.piDay!==0) return true; // item manual — sempre visível
+              const dayOk  = it.piDay   === selectedDate.getDate();
+              const monOk  = it.piMonth == null || it.piMonth === selectedDate.getMonth();
+              const yearOk = it.piYear  == null || it.piYear  === selectedDate.getFullYear();
+              return dayOk && monOk && yearOk;
             });
             if(!visibleItems.length) return `<div class="empty-hint" style="padding:6px 22px">Sem materiais para ${selectedDate.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}.</div>`;
             return visibleItems.map((item,ii)=>{
@@ -2982,7 +3010,7 @@ function renderRoteiro(){
           }).join('');
           })()
         // Verificar conflitos de segmento no break
-        const _brkVis=(brk.items||[]).filter(it=>!it.piDay||( it.piDay===selectedDate.getDate()&&it.piMonth===selectedDate.getMonth()&&(it.piYear==null||it.piYear===selectedDate.getFullYear())));
+        const _brkVis=(brk.items||[]).filter(it=>{ if(!it.piDay && it.piDay!==0) return true; const dayOk=it.piDay===selectedDate.getDate(); const monOk=it.piMonth==null||it.piMonth===selectedDate.getMonth(); const yearOk=it.piYear==null||it.piYear===selectedDate.getFullYear(); return dayOk&&monOk&&yearOk; });
         const _conf = analyzeBrkConflict(_brkVis);
         const _confHtml = _conf.hasConflict
           ? `<span class="brk-conflict" title="Concorrência detectada: ${_conf.conflicts.map(s=>SEG_LABELS[s]||s).join(', ')}">! CONCORRÊNCIA: ${_conf.conflicts.map(s=>SEG_LABELS[s]||s).join(' + ')}</span>`
@@ -4526,6 +4554,7 @@ function saveMediaLib(){
     try{ localStorage.setItem('roteiro_medialib', JSON.stringify(mediaLib)); }catch(e){}
     return;
   }
+  if(window._fbPaused) return;
   if(typeof db==='undefined'||!db||!_stationCode) return;
   try{
     const _ts=Date.now();
@@ -6493,7 +6522,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       try{
         if(_isLocalFile){
           localStorage.setItem('roteiro_pilist', JSON.stringify(toSave));
-        } else if(typeof db!=='undefined' && db && _stationCode){
+        } else if(!window._fbPaused && typeof db!=='undefined' && db && _stationCode){
           var _ts = Date.now();
           set(ref(db,'estacoes/'+_stationCode+'/pilist'), {data: JSON.stringify(toSave), _ts: _ts});
         }
