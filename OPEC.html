@@ -907,18 +907,7 @@ const DOMINIO = '@sistemasfb.com';
 
 let app, db, auth;
 let _gradeRef, _fbReady=false, _fbLastTs=0, _fbIgnore=0, _unsubscribe=null;
-let _stationCode = (function(){
-  // 1ª prioridade: parâmetro ?station= na URL (nunca some)
-  try{
-    const _urlCode = new URLSearchParams(window.location.search).get('station');
-    if(_urlCode){
-      const _c = _urlCode.trim().toUpperCase().replace(/[^A-Z0-9\-_]/g,'');
-      if(_c){ localStorage.setItem('opec_station_code',_c); return _c; }
-    }
-  }catch(e){}
-  // 2ª prioridade: localStorage (sessão anterior)
-  return localStorage.getItem('opec_station_code')||'';
-})();
+let _stationCode = localStorage.getItem('opec_station_code')||'';
 let _currentUser = null;
 
 // ── Salvar stationCode no Firebase (por usuário) ──
@@ -1239,7 +1228,17 @@ function _applyGrade(d){
       window._airLogsCache = logs;
     }
   }
-  const raw={...d}; delete raw._ts; delete raw.__air_logs;
+  // Extrair mediaLib e piList embutidos na grade
+  if(d.__medialib && Array.isArray(d.__medialib)){
+    if(typeof mediaLib!=='undefined') mediaLib=d.__medialib;
+  }
+  if(d.__pilist){
+    try{
+      const _pl = typeof d.__pilist==='string' ? JSON.parse(d.__pilist) : d.__pilist;
+      if(Array.isArray(_pl) && typeof window._applyPiList==='function') window._applyPiList(_pl,'grade');
+    }catch(e){}
+  }
+  const raw={...d}; delete raw._ts; delete raw.__air_logs; delete raw.__medialib; delete raw.__pilist;
   // Normalizar: garantir que todos os 7 dias existam como arrays
   const g={};
   for(let i=0;i<7;i++){
@@ -1265,15 +1264,21 @@ window._fbSaveGrade = function(g){
   if(!_fbReady||!_gradeRef) return;
   const ts=Date.now(); _fbLastTs=ts; _fbIgnore=2;
   setTimeout(()=>{ _fbIgnore=0; }, 8000);
-  // Preservar __air_logs publicado pelo MASTER
+  // Preservar __air_logs publicado pelo MASTER + embutir mediaLib e piList
   get(_gradeRef).then(snap=>{
     const existing = snap.exists() ? snap.val() : {};
     const airLogs = existing.__air_logs || null;
     const payload = {...g, _ts:ts};
     if(airLogs) payload.__air_logs = airLogs;
+    // Embutir mediaLib e piList na grade — mesma fonte, mesmo ciclo de vida
+    try{ if(typeof mediaLib!=='undefined' && mediaLib.length) payload.__medialib = mediaLib; }catch(e){}
+    try{ if(typeof piList!=='undefined' && piList.length) payload.__pilist = JSON.stringify(piList); }catch(e){}
     set(_gradeRef, payload).then(()=>_fbDot('green')).catch(()=>_fbDot('red'));
   }).catch(()=>{
-    set(_gradeRef,{...g,_ts:ts}).then(()=>_fbDot('green')).catch(()=>_fbDot('red'));
+    const payload={...g,_ts:ts};
+    try{ if(typeof mediaLib!=='undefined' && mediaLib.length) payload.__medialib = mediaLib; }catch(e){}
+    try{ if(typeof piList!=='undefined' && piList.length) payload.__pilist = JSON.stringify(piList); }catch(e){}
+    set(_gradeRef,payload).then(()=>_fbDot('green')).catch(()=>_fbDot('red'));
   });
 };
 
@@ -1324,14 +1329,6 @@ function _renderStationUI(){
                          border:1px solid ${_paused?'rgba(224,80,80,.25)':'rgba(45,223,128,.25)'}"
               >${_paused?'OFF':'ON'}</span>
           </button>
-          <!-- Copiar link com station code -->
-          <button onclick="(function(){ const u=new URL(window.location.href); u.searchParams.set('station','${_stationCode}'); navigator.clipboard.writeText(u.toString()).then(()=>showToast('✓ Link copiado — salve nos favoritos!')).catch(()=>{ prompt('Copie este link:', u.toString()); }); })()"
-            title="Copiar link com estação — salve nos favoritos para nunca perder a conexão"
-            style="padding:5px 8px;background:none;border:none;border-left:1px solid ${_paused?'rgba(224,80,80,.2)':'rgba(212,160,23,.15)'};
-                   color:var(--text3);cursor:pointer;font-size:10px;transition:color .15s"
-            onmouseover="this.style.color='var(--gold2)'"
-            onmouseout="this.style.color='var(--text3)'"
-            title="Copiar link permanente">🔗</button>
           <!-- Duplo clique = mudar estação -->
           <button ondblclick="window._fbEditCode()"
             title="Duplo clique para mudar estação"
@@ -4681,13 +4678,8 @@ function loadMediaLib(){
 }
 function saveMediaLib(){
   if(_isLocalFile){try{localStorage.setItem('roteiro_medialib',JSON.stringify(mediaLib));}catch(e){}return;}
-  if(window._fbPaused) return;
-  if(typeof db==='undefined'||!db||!_stationCode) return;
-  try{
-    const _ts=Date.now();
-    window._mediaLibFbTs=_ts;
-    ref(db,'estacoes/'+_stationCode+'/medialib').set({items:mediaLib,_ts:_ts}).catch(function(){});
-  }catch(e){}
+  // mediaLib viaja embutida na grade — mesma fonte, mesmo ciclo de vida
+  if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
 }
 
 function getAllMidias(){
@@ -6633,22 +6625,18 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
   function _savePiList(){
     try{
-      const toSave = piList.map(p=>({
-        id:p.id, piNumber:p.piNumber, status:p.status, client:p.client,
-        campaign:p.campaign, title:p.title, period:p.period, duration:p.duration,
-        totalInsertions:p.totalInsertions, dateStart:p.dateStart, dateEnd:p.dateEnd,
-        materialSeq:p.materialSeq, lines:p.lines, applied:p.applied||false,
-        appliedCount:p.appliedCount||0
-      }));
-      // Salvar no Firebase apenas quando servido via HTTP
-      try{
-        if(_isLocalFile){
-          localStorage.setItem('roteiro_pilist',JSON.stringify(toSave));
-        } else if(!window._fbPaused && typeof db!=='undefined' && db && _stationCode){
-          var _ts=Date.now();
-          set(ref(db,'estacoes/'+_stationCode+'/pilist'),{data:JSON.stringify(toSave),_ts:_ts});
-        }
-      }catch(e){}
+      // piList viaja embutida na grade — mesma fonte, mesmo ciclo de vida
+      if(_isLocalFile){
+        const toSave=piList.map(p=>({
+          id:p.id,piNumber:p.piNumber,status:p.status,client:p.client,
+          campaign:p.campaign,title:p.title,period:p.period,duration:p.duration,
+          totalInsertions:p.totalInsertions,dateStart:p.dateStart,dateEnd:p.dateEnd,
+          materialSeq:p.materialSeq,lines:p.lines,applied:p.applied||false,appliedCount:p.appliedCount||0
+        }));
+        localStorage.setItem('roteiro_pilist',JSON.stringify(toSave));
+      } else {
+        if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
+      }
     }catch(e){}
   }
 
@@ -6658,6 +6646,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
   // Expor no window para ser chamado pelo _fbConnect (escopo global)
   window._fbLoadPiList = _fbLoadPiList;
+  window._applyPiList  = _applyPiList;
 
   // ── PDF.js sob demanda ──
   function ensurePdfJs(cb){
@@ -7807,9 +7796,14 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
             const existing=snap.exists()?snap.val():{};
             const payload={...grade,_ts:_ts};
             if(existing.__air_logs) payload.__air_logs=existing.__air_logs;
+            try{ if(typeof mediaLib!=='undefined'&&mediaLib.length) payload.__medialib=mediaLib; }catch(e){}
+            try{ if(typeof piList!=='undefined'&&piList.length) payload.__pilist=JSON.stringify(piList); }catch(e){}
             set(_gradeRef,payload).then(()=>_fbDot('green')).catch(()=>_fbDot('red'));
           }).catch(()=>{
-            set(_gradeRef,{...grade,_ts:_ts}).catch(()=>_fbDot('red'));
+            const _p={...grade,_ts:_ts};
+            try{ if(typeof mediaLib!=='undefined'&&mediaLib.length) _p.__medialib=mediaLib; }catch(e){}
+            try{ if(typeof piList!=='undefined'&&piList.length) _p.__pilist=JSON.stringify(piList); }catch(e){}
+            set(_gradeRef,_p).catch(()=>_fbDot('red'));
           });
         } else if(typeof window._fbSaveGrade==='function'){
           // fallback
