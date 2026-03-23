@@ -2654,32 +2654,9 @@ function hasData(){return Object.values(grade).some(d=>d.length>0);}
 function goHome(){setView('landing');stopTimer();}
 function startEmissor(){setView('emissor');loadMediaLib();renderWeekNav();renderRoteiro();renderMidList();renderCtrl();initPanels();renderContractList();loadProdLog();renderProdLog();_initProdTime();setTimeout(function(){if(typeof _im==='function')_im();},50);}
 function _initProdTime(){const now=new Date();const hh=String(now.getHours()).padStart(2,'0');const mm=String(now.getMinutes()).padStart(2,'0');const el=$('prod-time');if(el)el.value=`${hh}:${mm}`;}
-function startExibidorExt(){
-  var code=_stationCode||'--';
-  var el=document.getElementById('master-modal-code');
-  if(el) el.textContent=code;
-  // Preencher links salvos
-  var savedUrl=localStorage.getItem('master_saved_url')||'';
-  var ghUrl=localStorage.getItem('master_gh_url')||'';
-  var li=document.getElementById('master-link-inp');
-  var gi=document.getElementById('master-gh-inp');
-  var gh=document.getElementById('master-gh-saved-hint');
-  if(li&&savedUrl) li.value=savedUrl;
-  if(gi&&ghUrl){ gi.value=ghUrl; if(gh) gh.textContent='Link salvo'; }
-  document.getElementById('master-open-modal').style.display='flex';
-}
-function _masterAbrirPasta(){
-  document.getElementById('master-open-modal').style.display='none';
-  window.open('MASTER.html','_blank');
-}
-function _masterAbrirLink(){
-  var inp=document.getElementById('master-link-inp');
-  var v=(inp?inp.value:'').trim();
-  if(!v){if(inp)inp.style.borderColor='#e07070';return;}
-  document.getElementById('master-open-modal').style.display='none';
-  var url=v.indexOf('http')===0?v:('file:///'+v.split('\\').join('/'));
-  window.open(url,'_blank');
-}
+
+
+
 function setView(v){document.querySelectorAll('.view').forEach(e=>e.classList.remove('active'));document.getElementById(v).classList.add('active');}
 
 // ═══ CLOCK ═══
@@ -8696,28 +8673,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 
-function _masterSalvarURL(){
-  var v=(document.getElementById('master-save-url-inp').value||'').trim();
-  if(!v) return;
-  localStorage.setItem('master_saved_url', v);
-  document.getElementById('master-link-inp').value = v;
-  document.getElementById('master-save-url-inp').value = '';
-  showToast('✓ Link salvo!');
-}
-function _masterAbrirGH(){
-  var v=(document.getElementById('master-gh-inp').value||'').trim();
-  if(v){ localStorage.setItem('master_gh_url', v); window.open(v,'_blank'); }
-}
-function _masterCopiarGH(){
-  var v=(document.getElementById('master-gh-inp').value||'').trim();
-  if(!v){ showToast('Cole o link primeiro'); return; }
-  navigator.clipboard.writeText(v).then(function(){
-    showToast('✓ Link copiado! Cole no celular ou outro PC');
-    localStorage.setItem('master_gh_url', v);
-    var el=document.getElementById('master-gh-saved-hint');
-    if(el) el.textContent='Link salvo para uso futuro';
-  });
-}
+
 
 
 // Logo do veículo para comprovante
@@ -8799,88 +8755,6 @@ document.addEventListener('DOMContentLoaded',()=>{
   </div>
 </div>
 
-<div id="master-open-modal" onclick="if(event.target===this)this.style.display='none'" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.88);z-index:99999;align-items:center;justify-content:center">
-<div style="background:#14141f;border:1px solid #333;border-radius:14px;width:460px;padding:28px;max-height:90vh;overflow-y:auto">
-
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-    <b style="font-size:17px;color:#f0c040;letter-spacing:1px">ROTEIRO MASTER</b>
-    <button onclick="document.getElementById('master-open-modal').style.display='none'"
-      style="background:none;border:none;color:#555;font-size:22px;cursor:pointer">&#10005;</button>
-  </div>
-
-  <!-- Opção 1: mesma pasta -->
-  <div onclick="_masterAbrirPasta()"
-    style="display:flex;align-items:center;gap:12px;background:#0a0a15;border:2px solid #222;border-radius:10px;padding:14px;margin-bottom:10px;cursor:pointer"
-    onmouseover="this.style.borderColor='#f0c040'" onmouseout="this.style.borderColor='#222'">
-    <span style="font-size:26px">&#128193;</span>
-    <div>
-      <b style="color:#fff">Abrir da mesma pasta</b>
-      <div style="font-size:11px;color:#666;margin-top:2px">Abre MASTER.html que esta na mesma pasta — mesmo PC ou rede local</div>
-    </div>
-  </div>
-
-  <!-- Opção 2: link salvo -->
-  <div style="background:#0a0a15;border:1px solid #222;border-radius:10px;padding:14px;margin-bottom:10px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-      <span style="font-size:26px">&#128279;</span>
-      <div>
-        <b style="color:#fff">Abrir por URL salvo</b>
-        <div style="font-size:11px;color:#666;margin-top:2px">Se ja hospedou o MASTER online, cole o link aqui</div>
-      </div>
-    </div>
-    <div style="display:flex;gap:6px;margin-bottom:8px">
-      <input id="master-link-inp" placeholder="https://seu-site.com/MASTER.html"
-        style="flex:1;background:#111;border:1px solid #333;border-radius:5px;padding:7px 10px;color:#fff;font-size:11px;outline:none;box-sizing:border-box"
-        onkeydown="if(event.key=='Enter')_masterAbrirLink()">
-      <button onclick="_masterAbrirLink()"
-        style="padding:7px 14px;background:#5aaaf0;border:none;border-radius:5px;color:#000;font-weight:700;cursor:pointer;white-space:nowrap">Abrir</button>
-    </div>
-    <div style="display:flex;gap:6px">
-      <input id="master-save-url-inp" placeholder="Cole e salve o link para usar sempre"
-        style="flex:1;background:#111;border:1px solid #222;border-radius:5px;padding:6px 10px;color:#aaa;font-size:10px;outline:none;box-sizing:border-box">
-      <button onclick="_masterSalvarURL()"
-        style="padding:6px 10px;background:#333;border:none;border-radius:5px;color:#aaa;font-size:10px;cursor:pointer;white-space:nowrap">Salvar link</button>
-    </div>
-  </div>
-
-  <!-- Opção 3: GitHub Pages (link de qualquer lugar) -->
-  <div style="background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.25);border-radius:10px;padding:14px;margin-bottom:12px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-      <span style="font-size:26px">&#127760;</span>
-      <div>
-        <b style="color:#5aaaf0">Acessar de qualquer lugar (celular, outro PC)</b>
-        <div style="font-size:11px;color:#666;margin-top:2px">Hospede o MASTER.html no GitHub Pages — gratis e permanente</div>
-      </div>
-    </div>
-    <div style="font-size:11px;color:#aaa;line-height:1.9;margin-bottom:10px">
-      <b style="color:#fff">Como fazer (1 vez):</b><br>
-      1.Acesse <a href="https://github.com" target="_blank" style="color:#5aaaf0">github.com</a> — crie conta gratuita<br>
-      2. Crie um repositorio com o nome <b style="color:#fff">master-tv</b><br>
-      3. Envie o arquivo <b style="color:#f0c040">MASTER.html</b> para o repositorio<br>
-      4. Va em <b style="color:#fff">Settings → Pages → Branch: main</b> → Save<br>
-      5. O link gerado sera:<br>
-      <code style="background:#111;padding:3px 8px;border-radius:4px;color:#4acc7a;display:block;margin-top:4px">https://SEU-USUARIO.github.io/master-tv/MASTER.html</code>
-    </div>
-    <div style="display:flex;gap:6px">
-      <input id="master-gh-inp" placeholder="https://SEU-USUARIO.github.io/master-tv/MASTER.html"
-        style="flex:1;background:#111;border:1px solid #333;border-radius:5px;padding:7px 10px;color:#fff;font-size:11px;outline:none;box-sizing:border-box"
-        onkeydown="if(event.key=='Enter')_masterAbrirGH()">
-      <button onclick="_masterAbrirGH()"
-        style="padding:7px 12px;background:#4acc7a;border:none;border-radius:5px;color:#000;font-weight:700;cursor:pointer;white-space:nowrap">Abrir</button>
-      <button onclick="_masterCopiarGH()"
-        style="padding:7px 12px;background:#333;border:none;border-radius:5px;color:#fff;font-size:11px;cursor:pointer;white-space:nowrap">&#128203;Copiar</button>
-    </div>
-    <div id="master-gh-saved-hint" style="font-size:10px;color:#555;margin-top:6px"></div>
-  </div>
-
-  <!-- Info Firebase -->
-  <div style="background:rgba(74,204,122,.07);border:1px solid rgba(74,204,122,.2);border-radius:8px;padding:10px;font-size:11px;color:#4acc7a;line-height:1.7">
-    &#9729; Qualquer link acima sincroniza automaticamente via nuvem com o codigo:
-    <b id="master-modal-code" style="font-family:monospace;color:#f0c040;letter-spacing:1px">--</b>
-  </div>
-
-</div>
-</div>
 
 </div><!-- /opec-app-root -->
 
