@@ -907,7 +907,18 @@ const DOMINIO = '@sistemasfb.com';
 
 let app, db, auth;
 let _gradeRef, _fbReady=false, _fbLastTs=0, _fbIgnore=0, _unsubscribe=null;
-let _stationCode = localStorage.getItem('opec_station_code')||'';
+let _stationCode = (function(){
+  // 1ª prioridade: parâmetro ?station= na URL (nunca some)
+  try{
+    const _urlCode = new URLSearchParams(window.location.search).get('station');
+    if(_urlCode){
+      const _c = _urlCode.trim().toUpperCase().replace(/[^A-Z0-9\-_]/g,'');
+      if(_c){ localStorage.setItem('opec_station_code',_c); return _c; }
+    }
+  }catch(e){}
+  // 2ª prioridade: localStorage (sessão anterior)
+  return localStorage.getItem('opec_station_code')||'';
+})();
 let _currentUser = null;
 
 // ── Salvar stationCode no Firebase (por usuário) ──
@@ -1313,6 +1324,14 @@ function _renderStationUI(){
                          border:1px solid ${_paused?'rgba(224,80,80,.25)':'rgba(45,223,128,.25)'}"
               >${_paused?'OFF':'ON'}</span>
           </button>
+          <!-- Copiar link com station code -->
+          <button onclick="(function(){ const u=new URL(window.location.href); u.searchParams.set('station','${_stationCode}'); navigator.clipboard.writeText(u.toString()).then(()=>showToast('✓ Link copiado — salve nos favoritos!')).catch(()=>{ prompt('Copie este link:', u.toString()); }); })()"
+            title="Copiar link com estação — salve nos favoritos para nunca perder a conexão"
+            style="padding:5px 8px;background:none;border:none;border-left:1px solid ${_paused?'rgba(224,80,80,.2)':'rgba(212,160,23,.15)'};
+                   color:var(--text3);cursor:pointer;font-size:10px;transition:color .15s"
+            onmouseover="this.style.color='var(--gold2)'"
+            onmouseout="this.style.color='var(--text3)'"
+            title="Copiar link permanente">🔗</button>
           <!-- Duplo clique = mudar estação -->
           <button ondblclick="window._fbEditCode()"
             title="Duplo clique para mudar estação"
