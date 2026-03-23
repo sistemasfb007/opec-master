@@ -1272,12 +1272,12 @@ window._fbSaveGrade = function(g){
     if(airLogs) payload.__air_logs = airLogs;
     // Embutir mediaLib e piList na grade — mesma fonte, mesmo ciclo de vida
     try{ if(typeof mediaLib!=='undefined' && mediaLib.length) payload.__medialib = mediaLib; }catch(e){}
-    try{ if(typeof piList!=='undefined' && piList.length) payload.__pilist = JSON.stringify(piList); }catch(e){}
+    try{ if(window._piList && window._piList.length) payload.__pilist = JSON.stringify(window._piList); }catch(e){}
     set(_gradeRef, payload).then(()=>_fbDot('green')).catch(()=>_fbDot('red'));
   }).catch(()=>{
     const payload={...g,_ts:ts};
     try{ if(typeof mediaLib!=='undefined' && mediaLib.length) payload.__medialib = mediaLib; }catch(e){}
-    try{ if(typeof piList!=='undefined' && piList.length) payload.__pilist = JSON.stringify(piList); }catch(e){}
+    try{ if(window._piList && window._piList.length) payload.__pilist = JSON.stringify(window._piList); }catch(e){}
     set(_gradeRef,payload).then(()=>_fbDot('green')).catch(()=>_fbDot('red'));
   });
 };
@@ -7797,12 +7797,12 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
             const payload={...grade,_ts:_ts};
             if(existing.__air_logs) payload.__air_logs=existing.__air_logs;
             try{ if(typeof mediaLib!=='undefined'&&mediaLib.length) payload.__medialib=mediaLib; }catch(e){}
-            try{ if(typeof piList!=='undefined'&&piList.length) payload.__pilist=JSON.stringify(piList); }catch(e){}
+            try{ if(window._piList&&window._piList.length) payload.__pilist=JSON.stringify(window._piList); }catch(e){}
             set(_gradeRef,payload).then(()=>_fbDot('green')).catch(()=>_fbDot('red'));
           }).catch(()=>{
             const _p={...grade,_ts:_ts};
             try{ if(typeof mediaLib!=='undefined'&&mediaLib.length) _p.__medialib=mediaLib; }catch(e){}
-            try{ if(typeof piList!=='undefined'&&piList.length) _p.__pilist=JSON.stringify(piList); }catch(e){}
+            try{ if(window._piList&&window._piList.length) _p.__pilist=JSON.stringify(window._piList); }catch(e){}
             set(_gradeRef,_p).catch(()=>_fbDot('red'));
           });
         } else if(typeof window._fbSaveGrade==='function'){
