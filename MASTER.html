@@ -363,26 +363,7 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 }
 .opec-q-confirm-btn:hover{background:var(--green);color:#000}
 
-/* ══ TOPBAR ══ */
-.topbar{
-  display:flex;align-items:center;justify-content:space-between;
-  height:52px;padding:0 18px;flex-shrink:0;
-  background:var(--s1);border-bottom:2px solid var(--gold)
-}
-.tb-left{display:flex;align-items:center;gap:12px}
-.tb-logo{font-family:var(--font-d);font-size:20px;font-weight:700;letter-spacing:4px;color:var(--gold);text-transform:uppercase}
 
-
-
-.tb-right{display:flex;align-items:center;gap:10px}
-.tb-clock{font-family:var(--font-m);font-size:22px;color:var(--gold2);letter-spacing:3px}
-.ip-pill{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:4px;display:flex;align-items:center;gap:5px;cursor:pointer;border:1px solid var(--border)}
-.ip-pill.connected{background:rgba(31,170,90,.12);color:var(--green);border-color:rgba(31,170,90,.25)}
-.ip-pill.polling{background:var(--blue-dim);color:var(--blue2);border-color:rgba(58,154,224,.25)}
-.ip-pill.disconnected{color:var(--text3)}
-.ip-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
-.ip-dot.blink{animation:blink 1s infinite}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.1}}
 
 /* ══ ON AIR BANNER ══ */
 .banner{
@@ -651,28 +632,7 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 .opec-mat-dur.warn{color:var(--red2);animation:blk .5s infinite}
 .opec-mat-dur.caution{color:var(--gold2)} /* [UX #9.3] aviso intermediário */
 
-.opec-confirm-btn{
-  width:100%;padding:10px 14px;margin-top:10px;flex-shrink:0;
-  font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
-  border-radius:7px;cursor:pointer;transition:all .18s;
-  background:rgba(31,170,90,.1);
-  border:1px solid rgba(31,170,90,.3);
-  color:var(--green,#1faa5a);
-}
-.opec-confirm-btn:hover{
-  background:rgba(31,170,90,.2);
-  border-color:var(--green);
-  box-shadow:0 0 10px rgba(31,170,90,.15);
-}
-.opec-confirm-btn:hover{filter:brightness(1.15);transform:translateY(-1px)}
-.opec-confirm-btn:active{transform:translateY(0)}
-.opec-confirm-btn.confirmed{
-  background:rgba(31,170,90,.15);
-  border-color:var(--green,#1faa5a);
-  color:var(--green,#1faa5a);
-  opacity:.7;
-  cursor:default;
-}
+
 .opec-queue-head{
   padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0;
   font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:3px;
@@ -935,7 +895,6 @@ try{
           if(prefs.collapsed){
             window._masterCollapsedCache = prefs.collapsed;
           }
-          // Carregar IP do Firebase (migrado do localStorage)
           if(prefs.ip){
             ipConfig={...ipConfig,...prefs.ip};
             setIpStatus();
@@ -1126,7 +1085,7 @@ function _applyAirLogs(data){
   if(ts && ts <= _lastAirLogsTs) return;
   _lastAirLogsTs = ts||Date.now();
   const logs = {...data}; delete logs._ts;
-  window._airLogsCache = logs; // em memoria — sem localStorage
+  window._airLogsCache = logs;
   if(typeof buildRoteiro==='function') buildRoteiro();
   if(typeof renderOpec==='function' && opecState.open) renderOpec();
 }
@@ -1136,7 +1095,7 @@ function _applyOpecLog(data){
   if(ts && ts <= _lastOpecLogTs) return;
   _lastOpecLogTs = ts||Date.now();
   const logs = data.entries||[];
-  window._opecLogCache = logs; // em memoria — sem localStorage
+  window._opecLogCache = logs;
   if(typeof renderOpec==='function' && opecState.open) renderOpec();
 }
 
@@ -1189,6 +1148,48 @@ function _renderBtn(code){
 document.addEventListener('DOMContentLoaded',()=>{
   setTimeout(()=>{ _renderBtn(_code); },300);
 });
+
+
+// ── Modal de Estação ──
+let _masterCodeModal = null;
+window._masterAbrirModal = function(){
+  if(_masterCodeModal){ document.body.removeChild(_masterCodeModal); _masterCodeModal=null; return; }
+  const ov = document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:99999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)';
+  ov.innerHTML=`<div style="background:var(--s2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:320px;max-width:95vw">
+    <div style="font-family:var(--font-d);font-size:16px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;color:var(--gold2)">☁ Estação Firebase</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:12px;line-height:1.7">Código da estação do <b>Operação Comercial</b> para sincronizar a grade em tempo real.</div>
+    <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:14px">
+      <div style="font-size:10px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--text2)">Código da Estação</div>
+      <input id="_mc-inp" type="text" value="${_code||''}" placeholder="Ex: RO001"
+        style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:14px;color:var(--text);font-family:var(--font-m);outline:none;width:100%;text-transform:uppercase;letter-spacing:2px"
+        onfocus="this.style.borderColor='var(--gold)'" onblur="this.style.borderColor='var(--border)'"
+        onkeydown="if(event.key==='Enter')window._masterSalvarCodigo()">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="window._masterFecharModal()"
+        style="font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer">Cancelar</button>
+      ${_code?`<button onclick="window._masterDisconnect();window._masterFecharModal()"
+        style="font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:7px 14px;border-radius:6px;border:none;background:rgba(192,57,43,.2);color:var(--red2);cursor:pointer;border:1px solid rgba(192,57,43,.3)">Desconectar</button>`:''}
+      <button onclick="window._masterSalvarCodigo()"
+        style="font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:7px 16px;border-radius:6px;border:none;background:var(--gold);color:#000;cursor:pointer">Conectar</button>
+    </div>
+  </div>`;
+  ov.addEventListener('click', e=>{ if(e.target===ov) window._masterFecharModal(); });
+  document.body.appendChild(ov);
+  _masterCodeModal = ov;
+  setTimeout(()=>{ const i=document.getElementById('_mc-inp'); if(i){i.focus();i.select();} },80);
+};
+window._masterFecharModal = function(){
+  if(_masterCodeModal){ document.body.removeChild(_masterCodeModal); _masterCodeModal=null; }
+};
+window._masterSalvarCodigo = function(){
+  const inp = document.getElementById('_mc-inp');
+  if(!inp) return;
+  const code = inp.value.trim().toUpperCase().replace(/[^A-Z0-9\-_]/g,'');
+  window._masterFecharModal();
+  if(code) window._masterSetCode(code);
+};
 
 console.log('[MASTER Firebase] módulo carregado — banco: sistemas-fb');
 </script>
@@ -1443,11 +1444,6 @@ console.log('[MASTER Firebase] módulo carregado — banco: sistemas-fb');
 
 </div><!-- /master-content -->
 </div><!-- /master-app-root -->
-</body>
-</html>
-  </div>
-
-</div>
 
 <!-- IP MODAL -->
 <div class="overlay" id="ip-overlay" onclick="if(event.target===this)closeIpModal()">
@@ -1560,7 +1556,6 @@ window.addEventListener('DOMContentLoaded', () => {
     setTimeout(_tickClock, 1000 - n.getMilliseconds());
   })();
 
-  setInterval(syncFromStorage, 500);
 
   const p = new URLSearchParams(location.search);
   if(p.get('ip')){ ipConfig.ip=p.get('ip'); ipConfig.port=parseInt(p.get('port')||'8765'); saveIpLocal(); startIpPoll(); }
@@ -1608,8 +1603,6 @@ function setSidebarHeight(){
 }
 window.addEventListener('resize', setSidebarHeight);
 
-// ── SYNC — Firebase onValue callbacks cuidam da sincronização em tempo real ──
-function syncFromStorage(){ /* grade vem do Firebase via _apply() */ }
 
 // ── AUTO SCROLL — só chamado quando item muda ──
 function doAutoScroll(){
@@ -1729,7 +1722,7 @@ function buildRoteiro(){
                   ${tip}
                 </div>`;
               }).join('');
-          const _brkConflict = analyzeBrkConflict(brk.items||[]);
+          const _brkConflict = analyzeBrkConflict(_visItems.map(({it})=>it));
           const _conflictHtml = _brkConflict.hasConflict ? `<span class="bh-conflict">! CONCORRÊNCIA: ${_brkConflict.conflicts.map(s=>SEG_LABELS[s]||s).join(' + ')}</span>` : '';
           return `<div class="brk-block" id="bb-${pi}-${bi}">
             <div class="brk-hdr${isCB?' cur':''}">
@@ -2052,12 +2045,7 @@ function setIpStatus(s){
   lbl.textContent=st==='connected'?ipConfig.ip:(st==='polling'?'Conectando...':'IP');
 }
 
-// ── Cache de Emergência — lê apenas se Firebase E WS falharem ──
-// Stubs silenciosos — sem localStorage, sem warn no console.
-// Para ativar um cache real de emergência, implemente o corpo destas funções.
-function lsGet(k){ return null; }
-function lsSet(k,v){ /* descartado */ }
-function lsRemove(k){ /* descartado */ }
+
 function pad(n){ return String(n).padStart(2,'0'); }
 // Rastreia o último elemento clicado para ancorar o toast
 let _lastClickedEl = null;
@@ -2645,3 +2633,5 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
 </script>
 
+</body>
+</html>
