@@ -910,6 +910,41 @@ let _gradeRef, _fbReady=false, _fbLastTs=0, _fbIgnore=0, _unsubscribe=null;
 let _stationCode = localStorage.getItem('opec_station_code')||'';
 let _currentUser = null;
 
+// ── Salvar stationCode no Firebase (por usuário) ──
+function _fbSaveStationCode(code){
+  localStorage.setItem('opec_station_code', code);
+  if(!db || !_currentUser) return;
+  const nome = _currentUser.email.replace(DOMINIO,'');
+  try{ ref(db, '_usuarios/'+nome+'/opec_station_code').set(code); }catch(e){}
+}
+
+// ── Carregar stationCode do Firebase (por usuário) ──
+function _fbLoadStationCode(){
+  if(!db || !_currentUser) return Promise.resolve();
+  const nome = _currentUser.email.replace(DOMINIO,'');
+  return new Promise(function(resolve){
+    try{
+      ref(db,'_usuarios/'+nome+'/opec_station_code').once('value', function(snap){
+        const fbCode = snap.val();
+        if(fbCode && fbCode !== _stationCode){
+          _stationCode = fbCode;
+          localStorage.setItem('opec_station_code', fbCode);
+          console.log('[OPEC] stationCode carregado do Firebase:', fbCode);
+          if(typeof _renderStationUI==='function') _renderStationUI();
+          if(typeof _estacaoAtualizarBotoes==='function') _estacaoAtualizarBotoes(fbCode);
+        }
+        resolve();
+      }, function(e){
+        console.warn('[OPEC] stationCode do Firebase nao carregado:', e.message);
+        resolve();
+      });
+    }catch(e){
+      console.warn('[OPEC] _fbLoadStationCode erro:', e.message);
+      resolve();
+    }
+  });
+}
+
 // ── Inicializar (mesmo padrão do MASTER) ──
 try{
   app  = initializeApp(FB_FIXED, 'opec-app');
@@ -939,6 +974,7 @@ try{
       loginScreen.style.display = 'none';
       _renderUserTopbar(nome);
       _renderStationUI();
+      await _fbLoadStationCode();
       if(_stationCode && !window._fbPaused) _fbConnect();
     } else {
       loginScreen.style.display = 'flex';
@@ -1294,7 +1330,7 @@ window._renderStationUI = _renderStationUI;
 window._fbSetCode = function(raw){
   const code=(raw||'').trim().toUpperCase().replace(/[^A-Z0-9\-_]/g,'');
   if(!code){ alert('Digite um código (letras e números)'); return; }
-  _stationCode=code; localStorage.setItem('opec_station_code',code);
+  _stationCode=code; _fbSaveStationCode(code);
   _renderStationUI(); _fbConnect();
 };
 window._fbEditCode = function(){
@@ -1344,7 +1380,7 @@ window._fbConfirmEdit = function(raw){
   if(!confirm(`Trocar o código de "${_stationCode}" para "${code}"?`)) return;
   if(_unsubscribe){ _unsubscribe(); _unsubscribe=null; }
   _fbReady=false; _stationCode=code;
-  localStorage.setItem('opec_station_code',code);
+  _fbSaveStationCode(code);
   _renderStationUI(); _fbConnect();
 };
 
@@ -2603,7 +2639,7 @@ function goHome(){setView('landing');stopTimer();}
 function startEmissor(){setView('emissor');loadMediaLib();renderWeekNav();renderRoteiro();renderMidList();renderCtrl();initPanels();renderContractList();loadProdLog();renderProdLog();_initProdTime();setTimeout(function(){if(typeof _im==='function')_im();},50);}
 function _initProdTime(){const now=new Date();const hh=String(now.getHours()).padStart(2,'0');const mm=String(now.getMinutes()).padStart(2,'0');const el=$('prod-time');if(el)el.value=`${hh}:${mm}`;}
 function startExibidorExt(){
-  var code=localStorage.getItem('opec_station_code')||'--';
+  var code=_stationCode||'--';
   var el=document.getElementById('master-modal-code');
   if(el) el.textContent=code;
   // Preencher links salvos
@@ -8514,7 +8550,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 <script>
 // ── Lógica do modal de estação (script normal, não módulo) ──
 function _estacaoAtualizarStatus(){
-  const code = localStorage.getItem('opec_station_code')||'';
+  const code = (typeof _stationCode!=='undefined' ? _stationCode : localStorage.getItem('opec_station_code'))||'';
   const dot  = document.getElementById('estacao-status-dot');
   const txt  = document.getElementById('estacao-status-txt');
   const inp  = document.getElementById('estacao-inp');
@@ -8534,7 +8570,8 @@ function _estacaoSalvar(){
   const inp = document.getElementById('estacao-inp');
   const code = (inp?.value||'').trim().toUpperCase().replace(/[^A-Z0-9\-_]/g,'');
   if(!code){ inp.style.borderColor='#e07070'; setTimeout(()=>inp.style.borderColor='#f0c040',1000); return; }
-  localStorage.setItem('opec_station_code', code);
+  if(typeof _fbSaveStationCode==='function') _fbSaveStationCode(code);
+  else localStorage.setItem('opec_station_code', code);
   _estacaoAtualizarStatus();
   // Chamar a função do módulo Firebase se já tiver carregado
   if(typeof window._fbSetCode === 'function') window._fbSetCode(code);
@@ -8547,6 +8584,7 @@ function _estacaoSalvar(){
 
 function _estacaoLimpar(){
   if(!confirm('Desconectar estação atual?')) return;
+  if(typeof _stationCode!=='undefined') window._stationCode='';
   localStorage.removeItem('opec_station_code');
   _estacaoAtualizarStatus();
   _estacaoAtualizarBotoes('');
@@ -8574,7 +8612,7 @@ function _estacaoAtualizarBotoes(code){
 
 // Boot — atualizar ao carregar
 document.addEventListener('DOMContentLoaded',()=>{
-  const code = localStorage.getItem('opec_station_code')||'';
+  const code = (typeof _stationCode!=='undefined' ? _stationCode : localStorage.getItem('opec_station_code'))||'';
   _estacaoAtualizarBotoes(code);
   // Abrir modal ao clicar no botão do setup overlay
   const over = document.getElementById('estacao-modal');
@@ -8585,7 +8623,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 // ═══ ESTAÇÃO — modal de configuração ═══
 function _estacaoAbrirModal(){
-  const code = localStorage.getItem('opec_station_code')||'';
+  const code = (typeof _stationCode!=='undefined' ? _stationCode : localStorage.getItem('opec_station_code'))||'';
   const inp  = document.getElementById('estacao-inp');
   const dot  = document.getElementById('estacao-dot');
   const txt  = document.getElementById('estacao-txt');
@@ -8605,7 +8643,8 @@ function _estacaoSalvar(){
     if(inp){ inp.style.borderColor='#e07070'; setTimeout(()=>inp.style.borderColor='#f0c040',1200); }
     return;
   }
-  localStorage.setItem('opec_station_code', code);
+  if(typeof _fbSaveStationCode==='function') _fbSaveStationCode(code);
+  else localStorage.setItem('opec_station_code', code);
   document.getElementById('estacao-modal').style.display='none';
   _estacaoAtualizarBotoes(code);
   // Chamar módulo Firebase se já carregou
@@ -8615,6 +8654,7 @@ function _estacaoSalvar(){
 
 function _estacaoLimpar(){
   if(!confirm('Desconectar estação atual?')) return;
+  if(typeof _stationCode!=='undefined') window._stationCode='';
   localStorage.removeItem('opec_station_code');
   document.getElementById('estacao-modal').style.display='none';
   _estacaoAtualizarBotoes('');
@@ -8637,7 +8677,7 @@ function _estacaoAtualizarBotoes(code){
 // Inicializar botões ao carregar
 document.addEventListener('DOMContentLoaded',()=>{
   setTimeout(()=>{
-    const code = localStorage.getItem('opec_station_code')||'';
+    const code = (typeof _stationCode!=='undefined' ? _stationCode : localStorage.getItem('opec_station_code'))||'';
     _estacaoAtualizarBotoes(code);
   }, 100);
 });
