@@ -2993,17 +2993,9 @@ function renderRoteiro(){
       :(prog.breaks||[]).map((brk,bi)=>{
         const isAB=isAP&&cur.brkIdx===bi;
         const _visItems=(brk.items||[]).filter(it=>{
-          // Checar dateStart: não mostrar item antes da data de início
-          if(it.dateStart){
-            const _start=parseDate(it.dateStart);
-            if(_start){
-              _start.setHours(0,0,0,0);
-              const _selDay=new Date(selectedDate); _selDay.setHours(0,0,0,0);
-              if(_selDay < _start) return false; // ainda não começou
-            }
-          }
-          // Checar dateEnd: não mostrar item vencido
-          if(it.dateEnd && isExpired(it.dateEnd)) return false;
+          // Não mostrar item fora do seu período de validade
+          if(it.dateStart){const _s=parseDate(it.dateStart);if(_s){_s.setHours(0,0,0,0);const _sd=new Date(selectedDate);_sd.setHours(0,0,0,0);if(_sd<_s) return false;}}
+          if(it.dateEnd){const _e=parseDate(it.dateEnd);if(_e){_e.setHours(23,59,59,999);const _sd2=new Date(selectedDate);_sd2.setHours(23,59,59,999);if(_sd2>_e) return false;}}
           if(it.piDay==null) return true; // item manual — sempre visível
           return Number(it.piDay)   === selectedDate.getDate()
               && Number(it.piMonth) === selectedDate.getMonth()
@@ -3196,13 +3188,8 @@ function doSaveContract(){
 
 // ── Helper: verifica se item pertence à selectedDate atual ──
 function _isItemToday(item){
-  // Checar dateStart: não exibir/avançar para item antes do início
-  if(item.dateStart){
-    const _s=parseDate(item.dateStart);
-    if(_s){ _s.setHours(0,0,0,0); const _sd=new Date(selectedDate); _sd.setHours(0,0,0,0); if(_sd<_s) return false; }
-  }
-  // Checar dateEnd: não exibir item vencido
-  if(item.dateEnd && isExpired(item.dateEnd)) return false;
+  if(item.dateStart){const _s=parseDate(item.dateStart);if(_s){_s.setHours(0,0,0,0);const _sd=new Date(selectedDate);_sd.setHours(0,0,0,0);if(_sd<_s) return false;}}
+  if(item.dateEnd){const _e=parseDate(item.dateEnd);if(_e){_e.setHours(23,59,59,999);const _sd2=new Date(selectedDate);_sd2.setHours(23,59,59,999);if(_sd2>_e) return false;}}
   if(item.piDay==null) return true; // manual
   return Number(item.piDay)===selectedDate.getDate()
       && Number(item.piMonth)===selectedDate.getMonth()
@@ -3911,24 +3898,14 @@ function doSaveMidia(realIdx){
       _gradeChanged = true;
     });
   })));
-  // Propagar dateStart/dateEnd atualizado para todos os itens desta mídia na grade
-  if(updated.dateStart !== undefined || updated.dateEnd !== undefined){
-    let _gradeUpdated = false;
-    for(let d=0;d<7;d++){
-      (grade[d]||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>{
-        (brk.items||[]).forEach(it=>{
-          const _match = (updated.seq && it.seq===updated.seq && it.name===updated.name) ||
-                         (updated.piNumber && it.piNumber===updated.piNumber && it.name===updated.name) ||
-                         (it.libId && it.libId===updated.id);
-          if(_match){
-            if(updated.dateStart!==undefined) it.dateStart=updated.dateStart;
-            if(updated.dateEnd!==undefined)   it.dateEnd=updated.dateEnd;
-            _gradeUpdated=true;
-          }
-        });
-      }));
-    }
-    if(_gradeUpdated) _gradeChanged=true;
+  // Propagar dateStart/dateEnd editados para itens já na grade
+  if(updated.dateStart!==undefined||updated.dateEnd!==undefined){
+    let _gup=false;
+    for(let _d=0;_d<7;_d++){(grade[_d]||[]).forEach(p=>(p.breaks||[]).forEach(b=>{(b.items||[]).forEach(it=>{
+      const _m=(it.libId&&it.libId===updated.id)||(it.seq&&it.seq===updated.seq&&it.name===updated.name);
+      if(_m){if(updated.dateStart!==undefined)it.dateStart=updated.dateStart;if(updated.dateEnd!==undefined)it.dateEnd=updated.dateEnd;_gup=true;}
+    });}));}
+    if(_gup)_gradeChanged=true;
   }
   if(_gradeChanged){ recalcBrkTotals(); saveGrade(); renderRoteiro(); }
 
@@ -4437,39 +4414,19 @@ function recalcBrkTotals(){
   });
 }
 
-// ═══ AUTO-PURGE E WATCHER DE VALIDADE ══════════════════════
-// Remove itens vencidos da grade e monitora virada de dia.
+// ── Remover vencidos da grade automaticamente ──────────────
 function purgeExpiredItems(silent){
-  let removed=0, names=[];
-  for(let d=0;d<7;d++){
-    (grade[d]||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>{
-      brk.items=(brk.items||[]).filter(it=>{
-        if(it.dateEnd&&isExpired(it.dateEnd)){
-          removed++;
-          if(names.length<5) names.push(it.title||it.name||'—');
-          return false;
-        }
-        return true;
-      });
-    }));
-  }
-  if(removed>0){
-    recalcBrkTotals(); saveGrade(); renderRoteiro();
-    if(typeof renderMidList==='function') renderMidList();
-    broadcastState();
-    if(!silent) showToast(`✓ ${removed} material(is) vencido(s) removido(s): ${names.join(', ')}${removed>5?' e mais '+(removed-5):''}`);
-  }
+  let removed=0,names=[];
+  for(let d=0;d<7;d++){(grade[d]||[]).forEach(p=>(p.breaks||[]).forEach(b=>{
+    b.items=(b.items||[]).filter(it=>{
+      if(it.dateEnd&&isExpired(it.dateEnd)){removed++;if(names.length<5)names.push(it.title||it.name||'—');return false;}
+      return true;
+    });
+  }));}
+  if(removed>0){recalcBrkTotals();saveGrade();renderRoteiro();if(typeof renderMidList==='function')renderMidList();broadcastState();if(!silent)showToast('✓ '+removed+' vencido(s) removido(s): '+names.join(', ')+(removed>5?' +more':''));}
   return removed;
 }
-(function _expWatcher(){
-  // Boot: purga silenciosa após grade carregar
-  setTimeout(()=>purgeExpiredItems(true),3000);
-  // Checa a cada 60s; na virada da meia-noite purga
-  setInterval(()=>{
-    const n=new Date();
-    if(n.getHours()===0&&n.getMinutes()<2) purgeExpiredItems(true);
-  },60000);
-})();
+(function(){setTimeout(()=>purgeExpiredItems(true),3000);setInterval(()=>{const n=new Date();if(n.getHours()===0&&n.getMinutes()<2)purgeExpiredItems(true);},60000);})();
 function saveGrade(){
   recalcBrkTotals();
   for(let i=0;i<7;i++) if(!Array.isArray(grade[i])) grade[i]=[];
@@ -7734,7 +7691,35 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     // ── DISTRIBUIR — estratégia limpa ──
     // Para cada dia: remover TODOS os itens desta PI do programa e reinserir a quantidade exata
     const _piNum = String(selPi.piNumber).trim();
-    const _libItem = (typeof mediaLib!=='undefined') ? mediaLib.find(m=>m.piNumber===selPi.piNumber) : null;
+    // Encontrar TODOS os materiais da biblioteca vinculados a esta PI
+    // (por piNumber direto OU por piLinks — cobre materiais criados manualmente)
+    const _piNum_str = String(selPi.piNumber).trim();
+    const _libItems = (typeof mediaLib!=='undefined') ? mediaLib.filter(m=>{
+      if(String(m.piNumber||'').trim()===_piNum_str) return true;
+      if(m.piLinks && m.piLinks.some(lk=>String(lk.piNumber||'').trim()===_piNum_str)) return true;
+      return false;
+    }) : [];
+    // Fallback: item único (comportamento anterior)
+    const _libItem = _libItems[0]||null;
+
+    // Função: escolher o item correto para um dia específico (por dateStart/dateEnd)
+    function _libItemForDay(dayNum, monthNum, yearNum){
+      if(!_libItems.length) return null;
+      if(_libItems.length===1) return _libItems[0];
+      const dayDate = new Date(yearNum, monthNum, dayNum);
+      dayDate.setHours(12,0,0,0);
+      // Procurar item cujo período cobre este dia
+      const match = _libItems.find(m=>{
+        const s = m.dateStart ? new Date(m.dateStart) : null;
+        const e = m.dateEnd   ? new Date(m.dateEnd)   : null;
+        if(s) s.setHours(0,0,0,0);
+        if(e) e.setHours(23,59,59,999);
+        const afterStart = !s || dayDate >= s;
+        const beforeEnd  = !e || dayDate <= e;
+        return afterStart && beforeEnd;
+      });
+      return match || _libItems[0];
+    }
     const _titleClean = (selPi.title||'').replace(/^VT\s+/i,'').trim();
     // Nome no roteiro: PRIMEIRO NOME DO CLIENTE — TÍTULO DO VT (ex: PREFEITURA — LIMPEZA)
     const _firstWord  = (selPi.client||'').split(/\s+/)[0]||'';
@@ -7805,27 +7790,27 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
             // PI vencida — não inserir
             return;
           }
+          // Escolher o material correto para este dia específico
+          const _li = _libItemForDay(day.dayNum, day.monthNum, day.yearNum);
+          // Nome: usar do libItem se disponível; fallback para nome gerado da PI
+          const _liName  = _li?.title || _li?.name || _itemName;
+          const _liTitle = (_li?.title && _li.title !== _liName) ? _li.title : _itemTitle;
           for(let n=0;n<ins.count;n++){
-            // FIX: usar dateStart/dateEnd do item da biblioteca quando disponível.
-            // Se o operador definiu datas específicas no material (ex: 24/03–31/03),
-            // essas prevalecem sobre o período genérico da PI (01/03–31/03).
-            const _itemDateStart = _libItem?.dateStart || selPi.dateStart||'';
-            const _itemDateEnd   = _libItem?.dateEnd   || selPi.dateEnd||'';
             brk.items.push({
               id:uid(),
-              seq:       _libItem?.seq||'',
-              name:      _itemName,
-              title:     _itemTitle,
-              dur:       parseInt(selPi.duration)||30,
+              seq:       _li?.seq||_libItem?.seq||'',
+              name:      _liName,
+              title:     _liTitle,
+              dur:       parseInt(_li?.dur||selPi.duration)||30,
               piNumber:  selPi.piNumber,
               piDay:     day.dayNum,
               piMonth:   day.monthNum,
               piYear:    day.yearNum,
               piClient:  selPi.client,
-              dateStart: _itemDateStart,
-              dateEnd:   _itemDateEnd,
-              segment:   _libItem?.segment||guessSegment(selPi.client||''),
-              libId:     _libItem?.id||'',
+              dateStart: _li?.dateStart || selPi.dateStart||'',
+              dateEnd:   _li?.dateEnd   || selPi.dateEnd||'',
+              segment:   _li?.segment||guessSegment(selPi.client||''),
+              libId:     _li?.id||'',
             });
             added++;
           }
