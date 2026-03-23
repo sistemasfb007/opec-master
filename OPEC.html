@@ -2993,6 +2993,17 @@ function renderRoteiro(){
       :(prog.breaks||[]).map((brk,bi)=>{
         const isAB=isAP&&cur.brkIdx===bi;
         const _visItems=(brk.items||[]).filter(it=>{
+          // Checar dateStart: não mostrar item antes da data de início
+          if(it.dateStart){
+            const _start=parseDate(it.dateStart);
+            if(_start){
+              _start.setHours(0,0,0,0);
+              const _selDay=new Date(selectedDate); _selDay.setHours(0,0,0,0);
+              if(_selDay < _start) return false; // ainda não começou
+            }
+          }
+          // Checar dateEnd: não mostrar item vencido
+          if(it.dateEnd && isExpired(it.dateEnd)) return false;
           if(it.piDay==null) return true; // item manual — sempre visível
           return Number(it.piDay)   === selectedDate.getDate()
               && Number(it.piMonth) === selectedDate.getMonth()
@@ -3185,6 +3196,13 @@ function doSaveContract(){
 
 // ── Helper: verifica se item pertence à selectedDate atual ──
 function _isItemToday(item){
+  // Checar dateStart: não exibir/avançar para item antes do início
+  if(item.dateStart){
+    const _s=parseDate(item.dateStart);
+    if(_s){ _s.setHours(0,0,0,0); const _sd=new Date(selectedDate); _sd.setHours(0,0,0,0); if(_sd<_s) return false; }
+  }
+  // Checar dateEnd: não exibir item vencido
+  if(item.dateEnd && isExpired(item.dateEnd)) return false;
   if(item.piDay==null) return true; // manual
   return Number(item.piDay)===selectedDate.getDate()
       && Number(item.piMonth)===selectedDate.getMonth()
@@ -3893,6 +3911,25 @@ function doSaveMidia(realIdx){
       _gradeChanged = true;
     });
   })));
+  // Propagar dateStart/dateEnd atualizado para todos os itens desta mídia na grade
+  if(updated.dateStart !== undefined || updated.dateEnd !== undefined){
+    let _gradeUpdated = false;
+    for(let d=0;d<7;d++){
+      (grade[d]||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>{
+        (brk.items||[]).forEach(it=>{
+          const _match = (updated.seq && it.seq===updated.seq && it.name===updated.name) ||
+                         (updated.piNumber && it.piNumber===updated.piNumber && it.name===updated.name) ||
+                         (it.libId && it.libId===updated.id);
+          if(_match){
+            if(updated.dateStart!==undefined) it.dateStart=updated.dateStart;
+            if(updated.dateEnd!==undefined)   it.dateEnd=updated.dateEnd;
+            _gradeUpdated=true;
+          }
+        });
+      }));
+    }
+    if(_gradeUpdated) _gradeChanged=true;
+  }
   if(_gradeChanged){ recalcBrkTotals(); saveGrade(); renderRoteiro(); }
 
   closeModal('m-item');
@@ -4399,6 +4436,40 @@ function recalcBrkTotals(){
     });
   });
 }
+
+// ═══ AUTO-PURGE E WATCHER DE VALIDADE ══════════════════════
+// Remove itens vencidos da grade e monitora virada de dia.
+function purgeExpiredItems(silent){
+  let removed=0, names=[];
+  for(let d=0;d<7;d++){
+    (grade[d]||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>{
+      brk.items=(brk.items||[]).filter(it=>{
+        if(it.dateEnd&&isExpired(it.dateEnd)){
+          removed++;
+          if(names.length<5) names.push(it.title||it.name||'—');
+          return false;
+        }
+        return true;
+      });
+    }));
+  }
+  if(removed>0){
+    recalcBrkTotals(); saveGrade(); renderRoteiro();
+    if(typeof renderMidList==='function') renderMidList();
+    broadcastState();
+    if(!silent) showToast(`✓ ${removed} material(is) vencido(s) removido(s): ${names.join(', ')}${removed>5?' e mais '+(removed-5):''}`);
+  }
+  return removed;
+}
+(function _expWatcher(){
+  // Boot: purga silenciosa após grade carregar
+  setTimeout(()=>purgeExpiredItems(true),3000);
+  // Checa a cada 60s; na virada da meia-noite purga
+  setInterval(()=>{
+    const n=new Date();
+    if(n.getHours()===0&&n.getMinutes()<2) purgeExpiredItems(true);
+  },60000);
+})();
 function saveGrade(){
   recalcBrkTotals();
   for(let i=0;i<7;i++) if(!Array.isArray(grade[i])) grade[i]=[];
@@ -7735,6 +7806,11 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
             return;
           }
           for(let n=0;n<ins.count;n++){
+            // FIX: usar dateStart/dateEnd do item da biblioteca quando disponível.
+            // Se o operador definiu datas específicas no material (ex: 24/03–31/03),
+            // essas prevalecem sobre o período genérico da PI (01/03–31/03).
+            const _itemDateStart = _libItem?.dateStart || selPi.dateStart||'';
+            const _itemDateEnd   = _libItem?.dateEnd   || selPi.dateEnd||'';
             brk.items.push({
               id:uid(),
               seq:       _libItem?.seq||'',
@@ -7746,8 +7822,8 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
               piMonth:   day.monthNum,
               piYear:    day.yearNum,
               piClient:  selPi.client,
-              dateStart: selPi.dateStart||'',
-              dateEnd:   selPi.dateEnd||'',
+              dateStart: _itemDateStart,
+              dateEnd:   _itemDateEnd,
               segment:   _libItem?.segment||guessSegment(selPi.client||''),
               libId:     _libItem?.id||'',
             });
