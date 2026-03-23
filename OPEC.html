@@ -7706,12 +7706,16 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     function _libItemForDay(dayNum, monthNum, yearNum){
       if(!_libItems.length) return null;
       if(_libItems.length===1) return _libItems[0];
+      // monthNum é 0-indexed (vem de parsePeriod/getMonth); dayDate em horário local
       const dayDate = new Date(yearNum, monthNum, dayNum);
       dayDate.setHours(12,0,0,0);
       // Procurar item cujo período cobre este dia
+      // IMPORTANTE: usar parseDate() e não new Date(string) — strings ISO são lidas
+      // como UTC midnight, o que em fusos negativos (ex: UTC-4 Rondônia) desloca o
+      // dia um dia para trás e quebra a comparação.
       const match = _libItems.find(m=>{
-        const s = m.dateStart ? new Date(m.dateStart) : null;
-        const e = m.dateEnd   ? new Date(m.dateEnd)   : null;
+        const s = m.dateStart ? parseDate(m.dateStart) : null;
+        const e = m.dateEnd   ? parseDate(m.dateEnd)   : null;
         if(s) s.setHours(0,0,0,0);
         if(e) e.setHours(23,59,59,999);
         const afterStart = !s || dayDate >= s;
