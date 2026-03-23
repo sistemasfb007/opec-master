@@ -7699,6 +7699,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       if(m.piLinks && m.piLinks.some(lk=>String(lk.piNumber||'').trim()===_piNum_str)) return true;
       return false;
     }) : [];
+    console.log('[PI-DEBUG] _libItems para PI', _piNum_str, JSON.stringify(_libItems.map(m=>({seq:m.seq,name:m.name,piNumber:m.piNumber,piLinks:m.piLinks,dateStart:m.dateStart,dateEnd:m.dateEnd}))));
     // Fallback: item único (comportamento anterior)
     const _libItem = _libItems[0]||null;
 
@@ -7706,13 +7707,8 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     function _libItemForDay(dayNum, monthNum, yearNum){
       if(!_libItems.length) return null;
       if(_libItems.length===1) return _libItems[0];
-      // monthNum é 0-indexed (vem de parsePeriod). Criar dayDate em horário local.
       const dayDate = new Date(yearNum, monthNum, dayNum);
       dayDate.setHours(12,0,0,0);
-      // IMPORTANTE: usar parseDate() e não new Date(string).
-      // Strings ISO "YYYY-MM-DD" são lidas como UTC midnight — em fusos negativos
-      // (ex: UTC-4 Rondônia) isso desloca o dia -1, quebrando a comparação.
-      // parseDate() usa new Date(y, m-1, d) que é sempre horário local.
       const match = _libItems.find(m=>{
         const s = m.dateStart ? parseDate(m.dateStart) : null;
         const e = m.dateEnd   ? parseDate(m.dateEnd)   : null;
@@ -7720,8 +7716,10 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         if(e) e.setHours(23,59,59,999);
         const afterStart = !s || dayDate >= s;
         const beforeEnd  = !e || dayDate <= e;
+        console.log('[PI-DEBUG] dia '+dayNum+'/'+(monthNum+1)+'/'+yearNum+' | item '+(m.seq||m.name)+' ds='+m.dateStart+' de='+m.dateEnd+' | afterStart='+afterStart+' beforeEnd='+beforeEnd);
         return afterStart && beforeEnd;
       });
+      console.log('[PI-DEBUG] resultado dia '+dayNum+'/'+(monthNum+1)+' -> '+(match ? (match.seq||match.name) : 'null->fallback '+(_libItems[0]?.seq||_libItems[0]?.name)));
       return match || _libItems[0];
     }
     const _titleClean = (selPi.title||'').replace(/^VT\s+/i,'').trim();
