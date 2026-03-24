@@ -2993,10 +2993,13 @@ function renderRoteiro(){
       :(prog.breaks||[]).map((brk,bi)=>{
         const isAB=isAP&&cur.brkIdx===bi;
         const _visItems=(brk.items||[]).filter(it=>{
-          // Não mostrar item fora do seu período de validade
-          if(it.dateStart){const _s=parseDate(it.dateStart);if(_s){_s.setHours(0,0,0,0);const _sd=new Date(selectedDate);_sd.setHours(0,0,0,0);if(_sd<_s) return false;}}
-          if(it.dateEnd){const _e=parseDate(it.dateEnd);if(_e){_e.setHours(23,59,59,999);const _sd2=new Date(selectedDate);_sd2.setHours(23,59,59,999);if(_sd2>_e) return false;}}
-          if(it.piDay==null) return true; // item manual — sempre visível
+          if(it.piDay==null){
+            // Item manual — filtrar pelo período de vigência (dateStart/dateEnd)
+            if(it.dateStart){const _s=parseDate(it.dateStart);if(_s){_s.setHours(0,0,0,0);const _sd=new Date(selectedDate);_sd.setHours(0,0,0,0);if(_sd<_s) return false;}}
+            if(it.dateEnd){const _e=parseDate(it.dateEnd);if(_e){_e.setHours(23,59,59,999);const _sd2=new Date(selectedDate);_sd2.setHours(23,59,59,999);if(_sd2>_e) return false;}}
+            return true;
+          }
+          // Item de PI — exibir apenas no dia exato da inserção
           return Number(it.piDay)   === selectedDate.getDate()
               && Number(it.piMonth) === selectedDate.getMonth()
               && Number(it.piYear)  === selectedDate.getFullYear();
@@ -7699,28 +7702,52 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       if(m.piLinks && m.piLinks.some(lk=>String(lk.piNumber||'').trim()===_piNum_str)) return true;
       return false;
     }) : [];
-    console.log('[PI-DEBUG] _libItems para PI', _piNum_str, JSON.stringify(_libItems.map(m=>({seq:m.seq,name:m.name,piNumber:m.piNumber,piLinks:m.piLinks,dateStart:m.dateStart,dateEnd:m.dateEnd}))));
     // Fallback: item único (comportamento anterior)
     const _libItem = _libItems[0]||null;
 
-    // Função: escolher o item correto para um dia específico (por dateStart/dateEnd)
+    // Função: escolher o material correto para um dia específico pelo período dateStart–dateEnd
+    // monthNum é 0-indexed (vem de parsePeriod/getMonth)
     function _libItemForDay(dayNum, monthNum, yearNum){
       if(!_libItems.length) return null;
       if(_libItems.length===1) return _libItems[0];
+
+      // dayDate em horário local (monthNum já é 0-indexed)
       const dayDate = new Date(yearNum, monthNum, dayNum);
       dayDate.setHours(12,0,0,0);
-      const match = _libItems.find(m=>{
-        const s = m.dateStart ? parseDate(m.dateStart) : null;
-        const e = m.dateEnd   ? parseDate(m.dateEnd)   : null;
-        if(s) s.setHours(0,0,0,0);
-        if(e) e.setHours(23,59,59,999);
-        const afterStart = !s || dayDate >= s;
-        const beforeEnd  = !e || dayDate <= e;
-        console.log('[PI-DEBUG] dia '+dayNum+'/'+(monthNum+1)+'/'+yearNum+' | item '+(m.seq||m.name)+' ds='+m.dateStart+' de='+m.dateEnd+' | afterStart='+afterStart+' beforeEnd='+beforeEnd);
-        return afterStart && beforeEnd;
+
+      // Converter datas dos materiais usando parseDate() — CRÍTICO para fusos negativos:
+      // new Date("2026-03-24") = UTC midnight = 23/03 20:00 em UTC-4 (Rondônia)
+      // parseDate() usa new Date(y, m-1, d) = sempre horário local, sem deslocamento
+      const withDates = _libItems.map(m => ({
+        m,
+        s: m.dateStart ? parseDate(m.dateStart) : null,
+        e: m.dateEnd   ? parseDate(m.dateEnd)   : null,
+      }));
+      withDates.forEach(x => {
+        if(x.s) x.s.setHours(0,0,0,0);
+        if(x.e) x.e.setHours(23,59,59,999);
       });
-      console.log('[PI-DEBUG] resultado dia '+dayNum+'/'+(monthNum+1)+' -> '+(match ? (match.seq||match.name) : 'null->fallback '+(_libItems[0]?.seq||_libItems[0]?.name)));
-      return match || _libItems[0];
+
+      // 1ª prioridade: material cujo período EXATO cobre este dia
+      // Ordenar por especificidade: quem tem dateStart definido e mais recente vem primeiro
+      const candidates = withDates
+        .filter(x => (!x.s || dayDate >= x.s) && (!x.e || dayDate <= x.e))
+        .sort((a, b) => {
+          // Prefere quem tem dateStart (mais específico)
+          if(a.s && !b.s) return -1;
+          if(!a.s && b.s) return 1;
+          // Entre dois com dateStart, prefere o mais recente (período mais próximo do dia)
+          if(a.s && b.s) return b.s - a.s;
+          // Entre dois sem dateStart, prefere quem tem dateEnd mais próximo (mais restrito)
+          if(a.e && b.e) return a.e - b.e;
+          return 0;
+        });
+
+      if(candidates.length > 0) return candidates[0].m;
+
+      // 2ª prioridade: nenhum material cobre exatamente — retornar null (não inserir)
+      // Isso evita inserir material errado em dias fora de qualquer período
+      return null;
     }
     const _titleClean = (selPi.title||'').replace(/^VT\s+/i,'').trim();
     // Nome no roteiro: PRIMEIRO NOME DO CLIENTE — TÍTULO DO VT (ex: PREFEITURA — LIMPEZA)
@@ -7794,6 +7821,8 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
           }
           // Escolher o material correto para este dia específico
           const _li = _libItemForDay(day.dayNum, day.monthNum, day.yearNum);
+          // Se múltiplos materiais vinculados e nenhum cobre este dia: não inserir
+          if(!_li && _libItems.length > 1) return;
           // Nome: usar do libItem se disponível; fallback para nome gerado da PI
           const _liName  = _li?.title || _li?.name || _itemName;
           const _liTitle = (_li?.title && _li.title !== _liName) ? _li.title : _itemTitle;
