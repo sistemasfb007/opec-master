@@ -115,6 +115,7 @@ body.light .land-h1{background:linear-gradient(135deg,#1a2030,#4a6080);-webkit-b
 .mid-item.mi-active{background:rgba(212,160,23,.12);border-left:3px solid var(--gold)}
 .mid-item.mi-done{opacity:.3}
 .mid-item.mi-expired{background:var(--red-dim)}
+.mid-item.mi-pending{background:rgba(212,160,23,.07)}
 .mi-seq{font-family:var(--font-m);font-size:10px;color:var(--text3);text-align:right;flex-shrink:0}
 .mi-active .mi-seq{color:var(--gold2)}
 .mi-expired .mi-seq{color:var(--red2)}
@@ -2722,6 +2723,7 @@ function _navToDate(y,m,d){
   selectedDate=new Date(y,m,d);
   selectedDay=selectedDate.getDay();
   renderWeekNav();renderRoteiro();renderMidList();
+  try{if(typeof window.piRenderPreview==='function')window.piRenderPreview();if(typeof window.piRenderList==='function')window.piRenderList();}catch(e){}
 }
 
 function selectDay(i){
@@ -2733,6 +2735,7 @@ function selectDay(i){
   selectedDate=novaData;
   selectedDay=i;
   renderWeekNav();renderRoteiro();renderMidList();
+  try{if(typeof window.piRenderPreview==='function')window.piRenderPreview();if(typeof window.piRenderList==='function')window.piRenderList();}catch(e){}
 }
 
 function _navDay(delta){
@@ -2741,6 +2744,7 @@ function _navDay(delta){
   selectedDate=novaData;
   selectedDay=novaData.getDay();
   renderWeekNav();renderRoteiro();renderMidList();
+  try{if(typeof window.piRenderPreview==='function')window.piRenderPreview();if(typeof window.piRenderList==='function')window.piRenderList();}catch(e){}
 }
 function _setDia(d){
   const novaData=new Date(selectedDate);
@@ -2748,6 +2752,7 @@ function _setDia(d){
   selectedDate=novaData;
   selectedDay=novaData.getDay();
   renderWeekNav();renderRoteiro();renderMidList();
+  try{if(typeof window.piRenderPreview==='function')window.piRenderPreview();if(typeof window.piRenderList==='function')window.piRenderList();}catch(e){}
 }
 function _setMes(m){
   const novaData=new Date(selectedDate);
@@ -2757,6 +2762,7 @@ function _setMes(m){
   selectedDate=novaData;
   selectedDay=novaData.getDay();
   renderWeekNav();renderRoteiro();renderMidList();
+  try{if(typeof window.piRenderPreview==='function')window.piRenderPreview();if(typeof window.piRenderList==='function')window.piRenderList();}catch(e){}
 }
 function _setAno(a){
   const novaData=new Date(selectedDate);
@@ -2764,11 +2770,13 @@ function _setAno(a){
   selectedDate=novaData;
   selectedDay=novaData.getDay();
   renderWeekNav();renderRoteiro();renderMidList();
+  try{if(typeof window.piRenderPreview==='function')window.piRenderPreview();if(typeof window.piRenderList==='function')window.piRenderList();}catch(e){}
 }
 function _irHoje(){
   selectedDate=new Date();
   selectedDay=selectedDate.getDay();
   renderWeekNav();renderRoteiro();renderMidList();
+  try{if(typeof window.piRenderPreview==='function')window.piRenderPreview();if(typeof window.piRenderList==='function')window.piRenderList();}catch(e){}
 }
 
 // ═══ RENDER ROTEIRO ═══
@@ -2809,7 +2817,9 @@ function renderMidList(){
 
   list.innerHTML = items.map((m, idx) => {
     const exp     = isExpired(m.dateEnd);
-    const cls     = 'mid-item' + (exp ? ' mi-expired' : '');
+    const _dsObj  = m.dateStart ? parseDate(m.dateStart) : null;
+    const pending = !exp && _dsObj && (()=>{_dsObj.setHours(0,0,0,0);const _n=new Date();_n.setHours(0,0,0,0);return _n<_dsObj;})(); // Bug#3: vigência futura
+    const cls     = 'mid-item' + (exp ? ' mi-expired' : '') + (pending ? ' mi-pending' : '');
     const label   = (m.title || m.name || '').toUpperCase();
     const dateFmt = m.dateEnd ? fmtDate(m.dateEnd) : '—';
     const seqFmt  = m.seq || '—';
@@ -2827,7 +2837,8 @@ function renderMidList(){
       <span style="color:var(--border2);flex-shrink:0;font-size:10px">—</span>
       <span style="flex:1;font-size:10px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">${label}</span>
       <span style="color:var(--border2);flex-shrink:0;font-size:10px">—</span>
-      <span style="font-size:9px;color:${exp?'var(--red2)':'var(--text3)'};flex-shrink:0;white-space:nowrap">${dateFmt}</span>
+      <span style="font-size:9px;color:${exp?'var(--red2)':pending?'var(--gold2)':'var(--text3)'};flex-shrink:0;white-space:nowrap">${pending?'→ '+fmtDate(m.dateStart):dateFmt}</span>
+      ${pending?`<span style="font-size:8px;font-family:var(--font-m);color:var(--gold);background:rgba(212,160,23,.12);border:1px solid rgba(212,160,23,.3);border-radius:3px;padding:1px 4px;flex-shrink:0;white-space:nowrap">pendente</span>`:''}
       ${piBadge}
       <button class="btn btn-xs" style="padding:1px 4px;font-size:8px;flex-shrink:0;margin-left:2px;background:var(--blue-dim);border:1px solid var(--blue2);color:var(--blue2);border-radius:3px;cursor:pointer"
         onclick="event.stopPropagation();openEditMidia(${idx})" title="Editar material">✏</button>
@@ -2996,7 +3007,7 @@ function renderRoteiro(){
           if(it.piDay==null){
             // Item manual — filtrar pelo período de vigência (dateStart/dateEnd)
             if(it.dateStart){const _s=parseDate(it.dateStart);if(_s){_s.setHours(0,0,0,0);const _sd=new Date(selectedDate);_sd.setHours(0,0,0,0);if(_sd<_s) return false;}}
-            if(it.dateEnd){const _e=parseDate(it.dateEnd);if(_e){_e.setHours(23,59,59,999);const _sd2=new Date(selectedDate);_sd2.setHours(23,59,59,999);if(_sd2>_e) return false;}}
+            if(it.dateEnd){const _e=parseDate(it.dateEnd);if(_e){_e.setHours(23,59,59,999);const _sd2=new Date(selectedDate);_sd2.setHours(23,59,59,999);if(_sd2>_e) return false;}} // Bug#1: expirado fora do roteiro
             return true;
           }
           // Item de PI — exibir apenas no dia exato da inserção
@@ -3877,7 +3888,7 @@ function doSaveMidia(realIdx){
   };
   saveMediaLib();
 
-  // Propagar alterações para itens da grade vinculados a este material
+  // Propagar alterações para itens da grade vinculados a este material (loop único — Bug#5 corrigido)
   const updated   = mediaLib[realIdx];
   const _oldId    = m.id;
   const _oldPiNum = String(m.piNumber||'').trim();
@@ -3887,7 +3898,9 @@ function doSaveMidia(realIdx){
       const match =
         (_oldId    && it.libId === _oldId) ||
         (_oldPiNum && String(it.piNumber||'').trim() === _oldPiNum && it.name === m.name) ||
-        (!_oldId && !_oldPiNum && it.name === m.name && (it.seq||'') === (m.seq||''));
+        (!_oldId && !_oldPiNum && it.name === m.name && (it.seq||'') === (m.seq||'')) ||
+        (updated.id && it.libId === updated.id) ||
+        (it.seq && it.seq === updated.seq && it.name === updated.name);
       if(!match) return;
       it.seq       = updated.seq;
       it.name      = updated.name;
@@ -3901,15 +3914,6 @@ function doSaveMidia(realIdx){
       _gradeChanged = true;
     });
   })));
-  // Propagar dateStart/dateEnd editados para itens já na grade
-  if(updated.dateStart!==undefined||updated.dateEnd!==undefined){
-    let _gup=false;
-    for(let _d=0;_d<7;_d++){(grade[_d]||[]).forEach(p=>(p.breaks||[]).forEach(b=>{(b.items||[]).forEach(it=>{
-      const _m=(it.libId&&it.libId===updated.id)||(it.seq&&it.seq===updated.seq&&it.name===updated.name);
-      if(_m){if(updated.dateStart!==undefined)it.dateStart=updated.dateStart;if(updated.dateEnd!==undefined)it.dateEnd=updated.dateEnd;_gup=true;}
-    });}));}
-    if(_gup)_gradeChanged=true;
-  }
   if(_gradeChanged){ recalcBrkTotals(); saveGrade(); renderRoteiro(); }
 
   closeModal('m-item');
@@ -6462,6 +6466,8 @@ function initPanels(){
             _drag = null;
             return;
           }
+          // Bug#2: Bloquear material cuja vigência ainda não começou
+          if(_drag.item.dateStart){const _ds=parseDate(_drag.item.dateStart);if(_ds){_ds.setHours(0,0,0,0);const _now=new Date();_now.setHours(0,0,0,0);if(_now<_ds){showToast(`! Material ainda não vigente — início em ${fmtDate(_drag.item.dateStart)}`,'err');_drag=null;return;}}}
           const newItem = {
             id:uid(), seq:_drag.item.seq||'', name:_drag.item.name||'',
             title:_drag.item.title||'', dur:_drag.item.dur||30,
