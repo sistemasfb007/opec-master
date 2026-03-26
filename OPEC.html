@@ -613,6 +613,7 @@ body.light .land-h1{background:linear-gradient(135deg,#1a2030,#4a6080);-webkit-b
 .td-status.ok{background:rgba(31,170,90,.12);color:var(--green);border:1px solid rgba(31,170,90,.2)}
 .td-status.exp{background:rgba(192,57,43,.12);color:var(--red2);border:1px solid rgba(192,57,43,.2)}
 .td-status.nd{background:var(--s3);color:var(--text3);border:1px solid var(--border)}
+.td-status.pend{background:rgba(212,160,23,.12);color:var(--gold2);border:1px solid rgba(212,160,23,.25)}
 .opc-foot{padding:7px 12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text3);flex-shrink:0}
 /* contract edit */
 .ctr-form{display:flex;flex-direction:column;gap:9px}
@@ -2671,7 +2672,60 @@ function updateClocks(){
 function today(){const d=new Date();d.setHours(0,0,0,0);return d;}
 function parseDate(s){if(!s)return null;const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);}
 function fmtDate(s){if(!s)return '—';const d=parseDate(s);return d?d.toLocaleDateString('pt-BR'):'—';}
-function isExpired(dateEndStr){if(!dateEndStr)return false;const end=parseDate(dateEndStr);if(!end)return false;end.setHours(23,59,59,999);return end<new Date();}
+
+// ═══ SISTEMA DE VALIDADE UNIFICADO ═══
+// Retorna: 'expired' | 'active' | 'pending' | 'no-date'
+// referenceDate: Date opcional — padrão = hoje (útil para validar contra dia do roteiro)
+function getItemStatus(item, referenceDate){
+  if(!item) return 'no-date';
+  const refDate = referenceDate ? new Date(referenceDate) : new Date();
+  const refStart = new Date(refDate); refStart.setHours(0,0,0,0);
+  const refEnd   = new Date(refDate); refEnd.setHours(23,59,59,999);
+
+  const dateStart = item.dateStart ? parseDate(item.dateStart) : null;
+  const dateEnd   = item.dateEnd   ? parseDate(item.dateEnd)   : null;
+
+  if(dateEnd){ dateEnd.setHours(23,59,59,999); }
+  if(dateStart){ dateStart.setHours(0,0,0,0); }
+
+  if(dateEnd && refEnd > dateEnd) return 'expired';   // vencido
+  if(dateStart && refStart < dateStart) return 'pending'; // ainda não vigente
+  if(!dateEnd && !dateStart) return 'no-date';         // sem datas definidas
+  return 'active';                                     // dentro do período
+}
+
+// Atalhos mantidos para retrocompatibilidade
+function isExpired(dateEndStr){
+  if(!dateEndStr) return false;
+  const end=parseDate(dateEndStr);
+  if(!end) return false;
+  end.setHours(23,59,59,999);
+  return end < new Date();
+}
+
+// Verifica se um item está vigente para uma data específica (ex: dia do roteiro)
+function isItemValidForDate(item, referenceDate){
+  const status = getItemStatus(item, referenceDate);
+  return status === 'active' || status === 'no-date';
+}
+
+// Retorna label de status para exibição
+function getStatusLabel(item){
+  const s = getItemStatus(item);
+  if(s === 'expired')  return 'Vencido';
+  if(s === 'pending')  return 'Pendente';
+  if(s === 'no-date')  return 'Sem data';
+  return 'Ativo';
+}
+
+// Retorna classe CSS correspondente ao status
+function getStatusClass(item){
+  const s = getItemStatus(item);
+  if(s === 'expired')  return 'exp';
+  if(s === 'pending')  return 'pend';
+  if(s === 'no-date')  return 'nd';
+  return 'ok';
+}
 
 // ═══ WEEK NAV ═══
 function renderWeekNav(){
@@ -2816,9 +2870,9 @@ function renderMidList(){
   });
 
   list.innerHTML = items.map((m, idx) => {
-    const exp     = isExpired(m.dateEnd);
-    const _dsObj  = m.dateStart ? parseDate(m.dateStart) : null;
-    const pending = !exp && _dsObj && (()=>{_dsObj.setHours(0,0,0,0);const _n=new Date();_n.setHours(0,0,0,0);return _n<_dsObj;})(); // Bug#3: vigência futura
+    const _mStatus = getItemStatus(m);
+    const exp     = _mStatus === 'expired';
+    const pending = _mStatus === 'pending';
     const cls     = 'mid-item' + (exp ? ' mi-expired' : '') + (pending ? ' mi-pending' : '');
     const label   = (m.title || m.name || '').toUpperCase();
     const dateFmt = m.dateEnd ? fmtDate(m.dateEnd) : '—';
@@ -3005,10 +3059,8 @@ function renderRoteiro(){
         const isAB=isAP&&cur.brkIdx===bi;
         const _visItems=(brk.items||[]).filter(it=>{
           if(it.piDay==null){
-            // Item manual — filtrar pelo período de vigência (dateStart/dateEnd)
-            if(it.dateStart){const _s=parseDate(it.dateStart);if(_s){_s.setHours(0,0,0,0);const _sd=new Date(selectedDate);_sd.setHours(0,0,0,0);if(_sd<_s) return false;}}
-            if(it.dateEnd){const _e=parseDate(it.dateEnd);if(_e){_e.setHours(23,59,59,999);const _sd2=new Date(selectedDate);_sd2.setHours(23,59,59,999);if(_sd2>_e) return false;}} // Bug#1: expirado fora do roteiro
-            return true;
+            // Item manual — filtrar pelo período de vigência (função centralizada)
+            return isItemValidForDate(it, selectedDate);
           }
           // Item de PI — exibir apenas no dia exato da inserção
           return Number(it.piDay)   === selectedDate.getDate()
@@ -3202,8 +3254,7 @@ function doSaveContract(){
 
 // ── Helper: verifica se item pertence à selectedDate atual ──
 function _isItemToday(item){
-  if(item.dateStart){const _s=parseDate(item.dateStart);if(_s){_s.setHours(0,0,0,0);const _sd=new Date(selectedDate);_sd.setHours(0,0,0,0);if(_sd<_s) return false;}}
-  if(item.dateEnd){const _e=parseDate(item.dateEnd);if(_e){_e.setHours(23,59,59,999);const _sd2=new Date(selectedDate);_sd2.setHours(23,59,59,999);if(_sd2>_e) return false;}}
+  if(!isItemValidForDate(item, selectedDate)) return false;
   if(item.piDay==null) return true; // manual
   return Number(item.piDay)===selectedDate.getDate()
       && Number(item.piMonth)===selectedDate.getMonth()
@@ -4426,7 +4477,8 @@ function purgeExpiredItems(silent){
   let removed=0,names=[];
   for(let d=0;d<7;d++){(grade[d]||[]).forEach(p=>(p.breaks||[]).forEach(b=>{
     b.items=(b.items||[]).filter(it=>{
-      if(it.dateEnd&&isExpired(it.dateEnd)){removed++;if(names.length<5)names.push(it.title||it.name||'—');return false;}
+      // Remove materiais vencidos da grade (dateEnd ultrapassado)
+      if(getItemStatus(it)==='expired'){removed++;if(names.length<5)names.push(it.title||it.name||'—');return false;}
       return true;
     });
   }));}
@@ -4736,7 +4788,13 @@ function renderMidias(){
       <div class="mp2-meta">
         ${item.segment?`<span class="mp2-tag" style="background:${sb};color:${sc};border:1px solid ${sc}44">${SEG_LABELS[item.segment]||item.segment}</span>`:''}
         <span class="mp2-tag" style="background:var(--blue-dim);color:var(--blue2);border:1px solid rgba(58,154,224,.2)">${item.progTime} ${item.progName}</span>
-        ${exp?`<span class="mp2-tag" style="background:rgba(192,57,43,.12);color:var(--red2);border:1px solid rgba(192,57,43,.2)">! Vencido</span>`:item.dateEnd?`<span class="mp2-tag" style="background:rgba(31,170,90,.12);color:var(--green);border:1px solid rgba(31,170,90,.2)">Ativo</span>`:''}
+        ${(()=>{
+          const _st=getItemStatus(item);
+          if(_st==='expired')  return `<span class="mp2-tag" style="background:rgba(192,57,43,.12);color:var(--red2);border:1px solid rgba(192,57,43,.2)">! Vencido</span>`;
+          if(_st==='pending')  return `<span class="mp2-tag" style="background:rgba(212,160,23,.12);color:var(--gold2);border:1px solid rgba(212,160,23,.2)">Pendente</span>`;
+          if(_st==='active')   return `<span class="mp2-tag" style="background:rgba(31,170,90,.12);color:var(--green);border:1px solid rgba(31,170,90,.2)">Ativo</span>`;
+          return '';
+        })()}
       </div>
     </div>`;
   }).join('');
@@ -4880,7 +4938,7 @@ function renderOpcMidias(){
       <td><span class="td-dur">${fmtSec(item.dur)}</span></td>
       <td style="font-size:10px;color:var(--gold)">${item.piNumber?'PI '+item.piNumber:item.piClient||'—'}</td>
       <td><span class="td-seg" style="background:${sb};color:${sc};border:1px solid ${sc}33">${SEG_LABELS[item.segment]||item.segment||'—'}</span></td>
-      <td><span class="td-status ${exp?'exp':nd?'nd':'ok'}">${exp?'Vencido':nd?'Sem data':'Ativo'}</span></td>
+      <td><span class="td-status ${getStatusClass(item)}">${getStatusLabel(item)}</span></td>
       <td style="display:flex;gap:4px;align-items:center">
         <button class="btn btn-ghost btn-xs" onclick="opcEditSeq('${item.id}','${item.seq||''}')">✏</button>
         <button class="btn btn-red btn-xs" onclick="opcRemoveMidia('${item.id}')">✕</button>
@@ -4979,7 +5037,7 @@ function opcRemoveMidia(id){
 function opcSort(k){if(opcSortKey===k)opcSortDir*=-1;else{opcSortKey=k;opcSortDir=1;}renderOpcMidias();}
 function exportMidiasCSV(){
   const rows=[['Nº Mídia','Nome','Título','Duração (s)','Cliente','Segmento','Programa','Status']];
-  (mediaLib||[]).forEach(i=>rows.push([i.seq||'',i.name||'',i.title||'',i.dur||0,i.piNumber?'PI '+i.piNumber:(i.piClient||''),SEG_LABELS[i.segment]||'',isExpired(i.dateEnd)?'Vencido':i.dateEnd?'Ativo':'Sem data']));
+  (mediaLib||[]).forEach(i=>rows.push([i.seq||'',i.name||'',i.title||'',i.dur||0,i.piNumber?'PI '+i.piNumber:(i.piClient||''),SEG_LABELS[i.segment]||'',getStatusLabel(i)]));
   const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));a.download=`midias_${new Date().toISOString().slice(0,10)}.csv`;a.click();
 }
@@ -6466,8 +6524,9 @@ function initPanels(){
             _drag = null;
             return;
           }
-          // Bug#2: Bloquear material cuja vigência ainda não começou
-          if(_drag.item.dateStart){const _ds=parseDate(_drag.item.dateStart);if(_ds){_ds.setHours(0,0,0,0);const _now=new Date();_now.setHours(0,0,0,0);if(_now<_ds){showToast(`! Material ainda não vigente — início em ${fmtDate(_drag.item.dateStart)}`,'err');_drag=null;return;}}}
+          // Bloquear material cuja vigência ainda não começou (usando função centralizada)
+          const _dragStatus = getItemStatus(_drag.item);
+          if(_dragStatus === 'pending'){showToast(`! Material ainda não vigente — início em ${fmtDate(_drag.item.dateStart)}`,'err');_drag=null;return;}
           const newItem = {
             id:uid(), seq:_drag.item.seq||'', name:_drag.item.name||'',
             title:_drag.item.title||'', dur:_drag.item.dur||30,
@@ -6808,14 +6867,21 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       return /\bINS\b/i.test(l);
     }
 
-    // Linha [D]: só horário "HH:MM"
+    // Linha [D]: só horário "HH:MM" (aceita também "HH:MM " com espaços)
     function isTimeLine(l){
       return /^\d{1,2}:\d{2}\s*$/.test(l.trim());
     }
 
-    // Linha [E]: começa com "ás HH:MM"
+    // Extrai horário HH:MM isolado de uma linha (para timeStart)
+    function extractTime(l){
+      const m = l.trim().match(/^(\d{1,2}:\d{2})\s*$/);
+      return m ? m[1] : null;
+    }
+
+    // Linha [E]: começa com "ás"/"às"/"as" + HH:MM
+    // BUGFIX: aceita crase ("às"), variações de acento e "00:00" explicitamente
     function isAsLine(l){
-      return /^[aáàÀÁÃ]s?\s+\d{1,2}:\d{2}/i.test(l.trim());
+      return /^[aáàÀÁÃ][sS]?\s+\d{1,2}:\d{2}/i.test(l.trim());
     }
 
     let i = 0;
@@ -6849,18 +6915,25 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       }
 
       // ── Linha [D]: hora início isolada ──
-      if(!timeStart && j < lines.length && isTimeLine(lines[j])){
-        timeStart = lines[j].trim();
-        j++;
+      // BUGFIX: busca até 2 linhas à frente para cobrir casos onde
+      // há uma linha intermediária entre [C] e [D]
+      if(!timeStart){
+        for(let k = 0; k < 2 && (j + k) < lines.length; k++){
+          const candidate = lines[j + k];
+          if(isAsLine(candidate)) break; // chegou na linha [E], para
+          if(isDaysLine(candidate)) break; // nova faixa, para
+          const t = extractTime(candidate);
+          if(t){ timeStart = t; j += k + 1; break; }
+        }
       }
 
       // ── Linha [E]: "ás HH:MM ins ins ins... total" ──
-      // BUG3 FIX: tolerância aumentada para 6 linhas (quebra de página no PDF
+      // BUG3 FIX: tolerância aumentada para 8 linhas (quebra de página no PDF
       // pode inserir cabeçalho/rodapé entre a linha dos dias e a linha "ás HH:MM").
       // Removido o break em isDaysLine: se o skip ainda não passou de 2, pode ser
       // falso positivo de dias na página seguinte — continua buscando a linha "ás".
       let asFound = false;
-      for(let skip = 0; skip < 6 && (j + skip) < lines.length; skip++){
+      for(let skip = 0; skip < 8 && (j + skip) < lines.length; skip++){
         if(isAsLine(lines[j + skip])){
           if(skip > 0) j += skip;
           asFound = true;
@@ -6871,11 +6944,11 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       }
 
       if(asFound && j < lines.length && isAsLine(lines[j])){
-        const mAs = lines[j].match(/^[aáàÀÁÃ]s?\s+(\d{1,2}:\d{2})\s*(.*)/i);
+        const mAs = lines[j].match(/^[aáàÀÁÃ][sS]?\s+(\d{1,2}:\d{2})\s*(.*)/i);
         if(mAs){
           timeEnd  = mAs[1].padStart(5, '0');
           insNums  = (mAs[2].match(/\d+/g) || []).map(Number);
-          // BUGFIX RAIZ: "ás 08:00" aparece sozinho e os números ficam
+          // BUGFIX RAIZ: "ás 08:00" (ou "ás 00:00") aparece sozinho e os números ficam
           // na linha seguinte separada (ex: "3 3 2 8").
           // Se não vieram números na mesma linha, pega a próxima linha
           // desde que seja só números (não seja outra faixa/cabeçalho).
