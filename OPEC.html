@@ -173,6 +173,9 @@ body.light .land-h1{background:linear-gradient(135deg,#1a2030,#4a6080);-webkit-b
 .item-row.active{background:rgba(212,160,23,.1);border-left:2px solid var(--gold)}.item-row.done{opacity:.3}
 /* Expired items - red highlight */
 .item-row.expired{background:var(--red-dim)!important;border-left:2px solid var(--red2)!important}
+.item-row.expired-override{background:rgba(212,100,0,.12)!important;border-left:2px solid #e07020!important}
+.item-row.expired-override .ir-name{color:#e07020!important}
+.item-row.expired-override .ir-seq{color:#e07020!important}
 .item-row.manual{outline:1px solid rgba(160,100,240,.45);outline-offset:-1px;}
 .item-row.manual:hover{outline-color:rgba(180,120,255,.7);}
 .item-row.manual.active{outline:none;}
@@ -1418,6 +1421,27 @@ function _segConflictResp(ok){
   if(_segConflictCallback) _segConflictCallback(ok);
   _segConflictCallback = null;
 }
+
+// ── Modal de confirmação de material vencido ──
+let _expiredCallback = null;
+function _showExpiredConfirm(item, callback) {
+  _expiredCallback = callback;
+  const name = item.name || item.title || 'Material';
+  const dateStr = typeof fmtDate === 'function' ? fmtDate(item.dateEnd) : item.dateEnd;
+  document.getElementById('expired-modal-msg').innerHTML =
+    '<strong style="color:#d8e0ea">' + name + '</strong> est&#225; com a data de veiculação vencida.';
+  document.getElementById('expired-modal-date').innerHTML =
+    'Data de vencimento: <strong>' + dateStr + '</strong>';
+  const modal = document.getElementById('expired-confirm-modal');
+  modal.style.display = 'flex';
+}
+function _expiredModalResp(ok) {
+  const modal = document.getElementById('expired-confirm-modal');
+  if (modal) modal.style.display = 'none';
+  if (_expiredCallback) _expiredCallback(ok);
+  _expiredCallback = null;
+}
+
 
 </script>
 
@@ -3078,8 +3102,8 @@ function renderRoteiro(){
             const act=isAB&&cur.itemIdx===ii,dn=cur.doneKeys.includes(key);
             const exp=isExpired(item.dateEnd);
             let cls='item-row';
-            if(act)cls+=' active'; if(dn)cls+=' done'; if(exp)cls+=' expired'; if(item.manual)cls+=' manual';
-            const expLabel=item.dateEnd?`<span class="ir-expire${exp?' expired':''}">${exp?'! ':''}${fmtDate(item.dateEnd)}</span>`:'';
+            if(act)cls+=' active'; if(dn)cls+=' done'; if(exp && !item.expiredOverride)cls+=' expired'; if(exp && item.expiredOverride)cls+=' expired expired-override'; if(item.manual)cls+=' manual';
+            const expLabel=item.dateEnd?`<span class="ir-expire${exp?' expired':''}">${exp?(item.expiredOverride?'⚠ ':'! '):''}${fmtDate(item.dateEnd)}</span>`:'';
             // Cor do segmento
             const _sc  = SEG_TEXT[item.segment]  || 'transparent';
             const _sb  = SEG_BG[item.segment]    || 'transparent';
@@ -4478,7 +4502,8 @@ function purgeExpiredItems(silent){
   for(let d=0;d<7;d++){(grade[d]||[]).forEach(p=>(p.breaks||[]).forEach(b=>{
     b.items=(b.items||[]).filter(it=>{
       // Remove materiais vencidos da grade (dateEnd ultrapassado)
-      if(getItemStatus(it)==='expired'){removed++;if(names.length<5)names.push(it.title||it.name||'—');return false;}
+      // Respeita expiredOverride: material inserido manualmente mesmo vencido não é removido automaticamente
+      if(getItemStatus(it)==='expired' && !it.expiredOverride){removed++;if(names.length<5)names.push(it.title||it.name||'—');return false;}
       return true;
     });
   }));}
@@ -6520,8 +6545,29 @@ function initPanels(){
         if(_drag.type === 'mid'){
           // Bloquear material vencido
           if(_drag.item.dateEnd && isExpired(_drag.item.dateEnd)){
-            showToast(`! Material vencido desde ${fmtDate(_drag.item.dateEnd)} — não pode ser inserido no roteiro`,'err');
-            _drag = null;
+            // Captura estado do drag antes de limpar (modal é assíncrono)
+            const _capturedDragItem = _drag.item;
+            const _capturedBrk2    = tgtBrk;
+            const _capturedAt2     = insertAt;
+            const _capturedTgtPi   = tgtPi;
+            const _capturedTgtBi   = tgtBi;
+            _drag = null; // Limpa drag ANTES do modal para evitar duplicação
+            _showExpiredConfirm(_capturedDragItem, function(ok) {
+              if (!ok) return;
+              // Usuário confirmou — inserir mesmo vencido
+              const newItemExp = {
+                id:uid(), seq:_capturedDragItem.seq||'', name:_capturedDragItem.name||'',
+                title:_capturedDragItem.title||'', dur:_capturedDragItem.dur||30,
+                dateStart:_capturedDragItem.dateStart||'', dateEnd:_capturedDragItem.dateEnd||'',
+                segment:_capturedDragItem.segment||'',
+                piNumber:_capturedDragItem.piNumber||'', piClient:_capturedDragItem.piClient||'',
+                manual:true, expiredOverride:true,
+              };
+              _capturedBrk2.items = _capturedBrk2.items || [];
+              _capturedBrk2.items.splice(_capturedAt2, 0, newItemExp);
+              showToast('! ' + (newItemExp.name) + ' inserido (vencido)');
+              saveGrade(); renderRoteiro(); renderMidList(); broadcastState();
+            });
             return;
           }
           // Bloquear material cuja vigência ainda não começou (usando função centralizada)
@@ -9407,6 +9453,31 @@ function _initColDrag(){
     <div class="rmd-warn" id="rmd-warn"></div>
     <button class="rmd-btn-del" id="rmd-btn-del">Confirmar remoção</button>
     <button class="rmd-btn-cancel" onclick="_closeRemoveDrawer()">Cancelar</button>
+  </div>
+</div>
+
+<!-- ═══ MODAL MATERIAL VENCIDO ═══ -->
+<div id="expired-confirm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99999;align-items:center;justify-content:center">
+  <div style="background:#14141f;border:1px solid rgba(192,57,43,.5);border-radius:12px;width:420px;max-width:94vw;padding:28px;font-family:system-ui,sans-serif;box-shadow:0 0 40px rgba(192,57,43,.2)">
+    <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:18px">
+      <div style="font-size:30px;line-height:1;flex-shrink:0">&#9888;</div>
+      <div>
+        <div style="font-size:16px;font-weight:800;color:#e05050;letter-spacing:.5px;margin-bottom:4px">Material Vencido</div>
+        <div id="expired-modal-msg" style="font-size:12px;color:#7a8fa8;line-height:1.6"></div>
+      </div>
+    </div>
+    <div style="background:rgba(192,57,43,.1);border:1px solid rgba(192,57,43,.3);border-radius:7px;padding:10px 14px;margin-bottom:20px;font-size:11px;color:#e05050;display:flex;align-items:center;gap:8px">
+      <span>&#128197;</span>
+      <span id="expired-modal-date"></span>
+    </div>
+    <div style="font-size:12px;color:#d8e0ea;margin-bottom:20px;line-height:1.6">
+      Materiais vencidos normalmente <strong style="color:#e05050">n&#227;o entram no roteiro</strong>.<br>
+      Deseja encaixar este material mesmo assim?
+    </div>
+    <div style="display:flex;gap:10px">
+      <button onclick="_expiredModalResp(false)" style="flex:1;padding:10px 14px;background:none;border:1px solid #333;border-radius:7px;color:#888;cursor:pointer;font-size:13px">N&#227;o encaixar</button>
+      <button onclick="_expiredModalResp(true)" style="flex:2;padding:10px 14px;background:rgba(192,57,43,.2);border:1px solid rgba(192,57,43,.5);border-radius:7px;color:#e05050;font-weight:700;cursor:pointer;font-size:13px;letter-spacing:.5px">&#9888; Encaixar mesmo vencido</button>
+    </div>
   </div>
 </div>
 </body>
