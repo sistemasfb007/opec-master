@@ -6822,9 +6822,21 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     if(campM) campaign=campM[1].trim();
 
     let title='';
-    const _titleAll=[...text.matchAll(/T[IÍ]TULO\s*\d*\s*[:\-]?\s*(.+)/gi)].map(m=>m[1].trim()).filter(Boolean);
-    const titles=_titleAll.length?_titleAll:[];
-    if(titles.length) title=titles[0];
+    // Capturar apenas linhas onde TÍTULO está no início (campo de formulário),
+    // excluindo linhas de OBS, observações e frases onde "títulos" aparece no meio do texto
+    const _titleAll = lines
+      .map(l => l.trim())
+      .filter(l => {
+        // Rejeitar linhas de observação
+        if (/^OBS\b/i.test(l)) return false;
+        if (/^OBSERVA/i.test(l)) return false;
+        // Aceitar apenas linhas que COMEÇAM com TÍTULO (campo do formulário)
+        return /^T[IÍ]TULO\s*\d*\s*[:\-]/i.test(l);
+      })
+      .map(l => l.replace(/^T[IÍ]TULO\s*\d*\s*[:\-]?\s*/i, '').trim())
+      .filter(Boolean);
+    const titles = _titleAll.length ? _titleAll : [];
+    if (titles.length) title = titles[0];
 
     let period='';
     // Busca 1: linha "PERÍODO: MARÇO/2026" ou "PERÍODO: MARÇO/26"
@@ -7263,6 +7275,24 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       : (selPi.title || selPi.campaign || 'VT');
     const _rdVT = _rdActiveTitle.replace(/^VT\s+/i,'');
 
+    // Resolver materiais vinculados para o preview intercalado
+    const _rdPiNum = String(selPi.piNumber||'').trim();
+    const _rdLibAll = (typeof mediaLib!=='undefined') ? mediaLib.filter(m=>{
+      if(String(m.piNumber||'').trim()===_rdPiNum) return true;
+      if(m.piLinks && m.piLinks.some(lk=>String(lk.piNumber||'').trim()===_rdPiNum)) return true;
+      return false;
+    }) : [];
+    const _rdSelMatId = window._piSelectedMatId;
+    const _rdLibItems = (_rdSelMatId && _rdLibAll.length > 1)
+      ? _rdLibAll.filter(m=>m.id===_rdSelMatId)
+      : _rdLibAll;
+    const _rdDistMode = window._piDistributeMode || 'por-data';
+    const _rdIsInterleaved = _rdDistMode==='intercalado' && _rdLibItems.length > 1;
+    // Cores para identificar cada material no modo intercalado
+    const _rdMatColors = ['#3a9ae0','#1faa5a','#d4a017','#9b59b6','#e67e22'];
+    // Contador round-robin para preview (espelha piDoApply)
+    let _rdRRIdx = 0;
+
     const days=Object.values(dist).sort((a,b)=>a.key.localeCompare(b.key));
     let matched=0,unmatched=0,flexed=0;
     days.forEach(d=>d.inserts.forEach(i=>{
@@ -7322,6 +7352,27 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
             <span class="pi-di-brk">${esc(_brkf)}</span>
             <span class="pi-di-cnt">${ins.count}×</span>
           </div>`;}
+        // No modo intercalado, expandir cada inserção mostrando qual material cai em qual slot
+        if(_rdIsInterleaved && ins.count > 0){
+          const _prog2 = ins.program.name;
+          const _brk2  = ins.brk.name.replace(/º\s+BREAK/i,'ºB').replace(/°\s+BREAK/i,'°B');
+          let rows = '';
+          for(let n=0;n<ins.count;n++){
+            const _mat = _rdLibItems[_rdRRIdx % _rdLibItems.length];
+            const _matColor = _rdMatColors[(_rdRRIdx % _rdLibItems.length) % _rdMatColors.length];
+            const _matLabel = (_mat?.title||_mat?.name||'?').replace(/^VT\s+/i,'');
+            _rdRRIdx++;
+            rows += `<div class="pi-dist-item" title="${esc(_prog2)} / ${esc(ins.brk.name)}"
+              style="border-left:3px solid ${_matColor}">
+              <span class="pi-di-num" style="color:${_matColor}">${String(idx+n+1).padStart(2,'0')}</span>
+              <span class="pi-di-vt" style="color:${_matColor};font-weight:700">${esc(_matLabel)}</span>
+              <span class="pi-di-prog">${esc(_prog2)}</span>
+              <span class="pi-di-brk">${esc(_brk2)}</span>
+              <span class="pi-di-cnt">1×</span>
+            </div>`;
+          }
+          return rows;
+        }
         const _vt = _rdVT;
         const _prog = ins.program.name;
         const _brk  = ins.brk.name.replace(/º\s+BREAK/i,'ºB').replace(/°\s+BREAK/i,'°B');
@@ -7358,7 +7409,11 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
           <div><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:3px">Dias</div><div style="font-family:var(--font-d);font-size:15px;font-weight:700;color:var(--gold2)">${days.length}</div></div>
           <div><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:3px">Distribuídas</div><div style="font-family:var(--font-d);font-size:15px;font-weight:700;color:var(--green)">${matched}</div></div>
           <div><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:3px">Pendentes</div><div style="font-family:var(--font-d);font-size:15px;font-weight:700;color:${unmatched?'var(--red2)':'var(--text3)'}">${unmatched||0}</div></div>
-          <div><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:3px">VT</div><div style="font-size:12px;color:var(--text)">${esc(_rdVT||'—')}</div></div>
+          <div><div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:3px">${_rdIsInterleaved?'Materiais':'VT'}</div><div style="font-size:12px;color:var(--text)">${
+            _rdIsInterleaved
+              ? _rdLibItems.map((m,i)=>`<span style="display:inline-block;border-left:3px solid ${_rdMatColors[i%_rdMatColors.length]};padding-left:5px;margin-bottom:2px">${esc((m.title||m.name||'?').replace(/^VT\s+/i,''))}</span>`).join('<br>')
+              : esc(_rdVT||'—')
+          }</div></div>
         </div>
       </div>
       ${daysWarn.length ? `
@@ -7371,6 +7426,12 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       </div>` : ''}
       <div class="card" data-panel-id="calendario" draggable="true">
         <div class="card-head"><div class="panel-drag-handle" title="Arrastar"><svg width="10" height="16" viewBox="0 0 10 16" fill="none"><circle cx="2.5" cy="2.5" r="1.5" fill="currentColor" opacity=".5"/><circle cx="7.5" cy="2.5" r="1.5" fill="currentColor" opacity=".5"/><circle cx="2.5" cy="8" r="1.5" fill="currentColor" opacity=".5"/><circle cx="7.5" cy="8" r="1.5" fill="currentColor" opacity=".5"/><circle cx="2.5" cy="13.5" r="1.5" fill="currentColor" opacity=".5"/><circle cx="7.5" cy="13.5" r="1.5" fill="currentColor" opacity=".5"/></svg></div>Calendário completo</div>
+        ${_rdIsInterleaved ? `<div style="display:flex;flex-wrap:wrap;gap:8px;padding:6px 14px 8px;border-bottom:1px solid var(--border)">
+          ${_rdLibItems.map((m,i)=>`<span style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text2)">
+            <span style="width:10px;height:10px;border-radius:2px;background:${_rdMatColors[i%_rdMatColors.length]};flex-shrink:0"></span>
+            ${esc((m.title||m.name||'?').replace(/^VT\s+/i,''))}
+          </span>`).join('')}
+        </div>` : ''}
         <div style="padding:0 16px 14px;display:flex;flex-direction:column;gap:6px">${html}</div>
       </div>`);
   }
@@ -7488,6 +7549,24 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
             ${it.piNumber?`<span style="font-family:var(--font-m);font-size:10px;color:var(--gold);background:rgba(212,160,23,.12);border:1px solid rgba(212,160,23,.3);border-radius:4px;padding:3px 9px;font-weight:800;letter-spacing:1px">PI-${it.piNumber}</span>`:''}
             <span style="font-size:9px;padding:3px 8px;border-radius:4px;background:rgba(31,170,90,.12);color:var(--green);border:1px solid rgba(31,170,90,.25);font-weight:700;letter-spacing:1px">✓ VINCULADO</span>
+            <button title="Desvincular este material da PI"
+              onclick="(function(){
+                const m=mediaLib.find(x=>x.id==='${it.id}');
+                if(!m) return;
+                if(!confirm('Desvincular \\\"'+( m.title||m.name)+'\\\" da PI ${esc(selPi.piNumber)}?')) return;
+                // Remover piNumber direto se for desta PI
+                if(m.piNumber===String(selPi.piNumber)) m.piNumber='';
+                // Remover do array piLinks se existir
+                if(m.piLinks) m.piLinks=m.piLinks.filter(lk=>String(lk.piNumber||'').trim()!==String(selPi.piNumber));
+                if(typeof saveMediaLib==='function') saveMediaLib();
+                if(typeof renderMidList==='function') renderMidList();
+                if(typeof window.piRenderPreview==='function') window.piRenderPreview();
+              })()"
+              style="background:rgba(192,57,43,.12);border:1px solid rgba(192,57,43,.35);border-radius:4px;color:var(--red2);font-size:9px;font-weight:700;letter-spacing:1px;padding:3px 8px;cursor:pointer;transition:all .15s;text-transform:uppercase;white-space:nowrap"
+              onmouseover="this.style.background='rgba(192,57,43,.28)'"
+              onmouseout="this.style.background='rgba(192,57,43,.12)'">
+              ✕ Desvincular
+            </button>
           </div>
 
         </div>`}).join('')
@@ -7553,14 +7632,17 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
           const _hasMultiMat = linked.length > 1;
           const _hasMultiTitle = _piTitles.length > 1;
           if(_hasMultiMat || _hasMultiTitle){
-            const _stored = window._piSelectedMatId || (linked[0]&&linked[0].id) || '';
+            // null = operador escolheu "Todos", undefined = nunca tocou (default: Todos)
+            const _storedMatId = window._piSelectedMatId; // null ou id específico
+            const _isAllMode = (_storedMatId === null || _storedMatId === undefined);
             // Opções: materiais da biblioteca vinculados
             const _matOpts = linked.map(m=>{
               const _lbl = [m.seq, m.title||m.name].filter(Boolean).join(' — ');
-              return `<option value="${m.id}" ${m.id===_stored?'selected':''}>${esc(_lbl)}</option>`;
+              return `<option value="${m.id}" ${(!_isAllMode && m.id===_storedMatId)?'selected':''}>${esc(_lbl)}</option>`;
             }).join('');
             // Opções: títulos da PI (para apontar qual VT será distribuído)
-            const _titOpts = _piTitles.length>1 ? _piTitles.map((t,i)=>`<option value="__title_${i}" ${(!_stored&&i===0)||(window._piSelectedTitleIdx===i)?'selected':''}>${esc(t)}</option>`).join('') : '';
+            const _titOpts = _piTitles.length>1 ? _piTitles.map((t,i)=>`<option value="__title_${i}" ${(window._piSelectedTitleIdx===i)||(window._piSelectedTitleIdx===null&&i===0)?'selected':''}>${esc(t)}</option>`).join('') : '';
+            const _curMode = window._piDistributeMode || 'por-data';
             return `
             <div style="background:rgba(212,160,23,.07);border-bottom:1px solid rgba(212,160,23,.2);padding:10px 14px;display:flex;flex-direction:column;gap:8px">
               <div style="font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);display:flex;align-items:center;gap:6px">
@@ -7569,10 +7651,27 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
               ${_hasMultiMat ? `
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                 <span style="font-size:10px;color:var(--text3);min-width:80px">Material ativo:</span>
-                <select id="pi-mat-sel" onchange="window._piSelectedMatId=this.value;window._piSelectedTitleIdx=null;piRenderPreview();"
+                <select id="pi-mat-sel" onchange="(function(v){window._piSelectedMatId=v==='__todos'?null:v;window._piSelectedTitleIdx=null;if(v==='__todos')window._piDistributeMode='intercalado';else window._piDistributeMode='por-data';piRenderPreview();})(this.value)"
                   style="flex:1;min-width:160px;background:var(--bg);border:1px solid var(--gold);border-radius:5px;padding:5px 9px;font-size:11px;color:var(--text);outline:none;cursor:pointer">
+                  <option value="__todos" ${_isAllMode?'selected':''}>— Todos (intercalados) —</option>
                   ${_matOpts}
                 </select>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span style="font-size:10px;color:var(--text3);min-width:80px">Distribuição:</span>
+                <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:5px;overflow:hidden">
+                  <button onclick="window._piDistributeMode='intercalado';piRenderPreview();"
+                    style="padding:4px 12px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border:none;cursor:pointer;transition:all .15s;
+                    ${_curMode==='intercalado'?'background:rgba(212,160,23,.3);color:var(--gold2)':'background:var(--s3);color:var(--text3)'}">
+                    ⇄ Intercalado
+                  </button>
+                  <button onclick="window._piDistributeMode='por-data';piRenderPreview();"
+                    style="padding:4px 12px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border:none;border-left:1px solid var(--border);cursor:pointer;transition:all .15s;
+                    ${_curMode==='por-data'?'background:rgba(30,111,181,.3);color:var(--blue2)':'background:var(--s3);color:var(--text3)'}">
+                    📅 Por data
+                  </button>
+                </div>
+                <span style="font-size:9px;color:var(--text3)">${_curMode==='intercalado'?'Alterna materiais a cada inserção':'Usa o material cujo período cobre cada dia'}</span>
               </div>` : ''}
               ${_hasMultiTitle ? `
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -7590,7 +7689,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
                   ${_titOpts}
                 </select>
               </div>` : ''}
-              ${_hasMultiMat ? `<div style="font-size:10px;color:var(--text3);padding-top:2px"> O material selecionado será usado na distribuição automática.</div>` : ''}
+              ${_hasMultiMat ? `<div style="font-size:10px;color:var(--text3);padding-top:2px">💡 Use "Todos (intercalados)" para alternar os materiais automaticamente a cada inserção.</div>` : ''}
             </div>`;
           }
           return '';
@@ -7729,6 +7828,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
   window.piClearSel=function(){
     selPi=null;piDist=null;
     window._piSelectedMatId=null; window._piSelectedTitleIdx=null;
+    window._piDistributeMode='por-data';
     window._piSelId=null;
     piRenderList();
     piShowRight('<div style="padding:48px 24px;text-align:center;color:var(--text3);line-height:2.2"><div style="font-size:44px;margin-bottom:14px;opacity:.5"></div>Selecione um PI da lista.</div>');
@@ -7762,11 +7862,30 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     }));
     document.getElementById('pi-modal-sub').innerHTML=
       (()=>{
+        const _mPiNum = String(selPi.piNumber||'').trim();
+        const _mLibAll = typeof mediaLib!=='undefined' ? mediaLib.filter(m=>{
+          if(String(m.piNumber||'').trim()===_mPiNum) return true;
+          if(m.piLinks&&m.piLinks.some(lk=>String(lk.piNumber||'').trim()===_mPiNum)) return true;
+          return false;
+        }) : [];
+        const _mSelId = window._piSelectedMatId;
+        const _mLibItems = (_mSelId && _mLibAll.length>1) ? _mLibAll.filter(m=>m.id===_mSelId) : _mLibAll;
+        const _mMode = window._piDistributeMode||'por-data';
+        const _mIsInt = _mMode==='intercalado' && _mLibItems.length>1;
+        const _mColors = ['#3a9ae0','#1faa5a','#d4a017','#9b59b6','#e67e22'];
+
         const _mIdx=(window._piSelectedTitleIdx!==null&&window._piSelectedTitleIdx!==undefined)?window._piSelectedTitleIdx:0;
         const _mTitle=(selPi.titles&&selPi.titles.length>_mIdx)?selPi.titles[_mIdx]:(selPi.title||'—');
-        const _mMatId=window._piSelectedMatId;
-        const _mMat=_mMatId&&typeof mediaLib!=='undefined'?mediaLib.find(m=>m.id===_mMatId):null;
-        const _matLabel=_mMat?` &nbsp;·&nbsp; Mat: <b>${esc(_mMat.seq||_mMat.name)}</b>`:'';
+
+        if(_mIsInt){
+          const _mats = _mLibItems.map((m,i)=>
+            `<span style="border-left:3px solid ${_mColors[i%_mColors.length]};padding-left:5px;margin-right:10px">${esc((m.title||m.name||'?').replace(/^VT\s+/i,''))}</span>`
+          ).join('');
+          return `<strong>PI ${selPi.piNumber}</strong> — ${esc(selPi.client)} · ${selPi.duration}"<br>
+            <span style="font-size:10px;color:var(--gold)">⇄ Intercalado:</span> ${_mats}`;
+        }
+        const _mMat = _mSelId&&typeof mediaLib!=='undefined'?mediaLib.find(m=>m.id===_mSelId):null;
+        const _matLabel = _mMat?` &nbsp;·&nbsp; Mat: <b>${esc(_mMat.seq||_mMat.name)}</b>`:'';
         return `<strong>PI ${selPi.piNumber}</strong> — ${esc(selPi.client)}<br>VT: ${esc(_mTitle)} · ${selPi.duration}"${_matLabel}`;
       })();
 
@@ -7974,6 +8093,26 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       // Isso evita inserir material errado em dias fora de qualquer período
       return null;
     }
+
+    // ── Modo de distribuição com múltiplos materiais ──
+    // 'intercalado' = alterna materiais a cada inserção (round-robin)
+    // 'por-data'    = escolhe pelo período dateStart–dateEnd (padrão)
+    const _distMode = window._piDistributeMode || 'por-data';
+    // Contador global para intercalação — reseta a cada aplicação
+    let _interleaveIdx = 0;
+
+    function _libItemForInsert(dayNum, monthNum, yearNum) {
+      if (!_libItems.length) return null;
+      if (_libItems.length === 1) return _libItems[0];
+      if (_distMode === 'intercalado') {
+        // Round-robin entre todos os materiais vinculados
+        const m = _libItems[_interleaveIdx % _libItems.length];
+        _interleaveIdx++;
+        return m;
+      }
+      // Modo por-data: delega para _libItemForDay
+      return _libItemForDay(dayNum, monthNum, yearNum);
+    }
     // Usar título escolhido pelo operador no seletor (se houver múltiplos títulos na PI)
     const _selTitleIdx = (window._piSelectedTitleIdx !== null && window._piSelectedTitleIdx !== undefined)
       ? window._piSelectedTitleIdx : 0;
@@ -8050,10 +8189,10 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
             // PI vencida — não inserir
             return;
           }
-          // Escolher o material correto para este dia específico
-          const _li = _libItemForDay(day.dayNum, day.monthNum, day.yearNum);
-          // Se múltiplos materiais vinculados e nenhum cobre este dia: não inserir
-          if(!_li && _libItems.length > 1) return;
+          // Escolher o material correto para este inserção (respeita modo intercalado ou por-data)
+          const _li = _libItemForInsert(day.dayNum, day.monthNum, day.yearNum);
+          // Se múltiplos materiais vinculados e nenhum cobre este dia (modo por-data): não inserir
+          if(!_li && _libItems.length > 1 && _distMode !== 'intercalado') return;
           // Nome: usar do libItem se disponível; fallback para nome gerado da PI
           const _liName  = _li?.title || _li?.name || _itemName;
           const _liTitle = (_li?.title && _li.title !== _liName) ? _li.title : _itemTitle;
@@ -8504,6 +8643,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     window._piListRef=piList; window._piSelId=id;
     // Resetar seleção de material ao trocar de PI
     window._piSelectedMatId=null; window._piSelectedTitleIdx=null;
+    window._piDistributeMode='por-data';
     piRenderList();piRenderPreview();piSetStep(2);
     // Criar/atualizar material na biblioteca ao carregar a PI
     _piEnsureLibItem(selPi);
@@ -8534,6 +8674,27 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     const sel=document.getElementById('pi-manual-sel');
     if(!sel||sel.value===''||!selPi)return;
     const it=window._piUnlinked?.[parseInt(sel.value)];if(!it)return;
+
+    // 1. Atualizar o item na biblioteca — vincular piNumber e piLinks
+    const libItem = typeof mediaLib!=='undefined' ? mediaLib.find(m=>m.id===it.id) : null;
+    if(libItem){
+      const piNum = String(selPi.piNumber||'').trim();
+      // Se já tem piNumber de outra PI, adicionar em piLinks ao invés de sobrescrever
+      if(libItem.piNumber && libItem.piNumber !== piNum){
+        if(!libItem.piLinks) libItem.piLinks=[];
+        const alreadyLinked = libItem.piLinks.some(lk=>String(lk.piNumber||'').trim()===piNum);
+        if(!alreadyLinked) libItem.piLinks.push({piNumber:piNum, piClient:selPi.client||''});
+      } else {
+        libItem.piNumber = piNum;
+        libItem.piClient = selPi.client||'';
+        libItem.dateStart = libItem.dateStart||selPi.dateStart||'';
+        libItem.dateEnd   = libItem.dateEnd||selPi.dateEnd||'';
+      }
+      if(typeof saveMediaLib==='function') saveMediaLib();
+      if(typeof renderMidList==='function') renderMidList();
+    }
+
+    // 2. Propagar piNumber para os itens desta PI já na grade (pelo nome do material)
     let count=0;
     Object.values(grade).forEach(progs=>(progs||[]).forEach(prog=>(prog.breaks||[]).forEach(brk=>{
       (brk.items||[]).forEach(item=>{
@@ -8543,8 +8704,10 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         }
       });
     })));
-    if(count){saveGrade();showToast(`✓ ${it.name} → PI ${selPi.piNumber} (${count}×)`);piRenderPreview();}
-    else showToast('Material não encontrado na grade');
+    if(count) saveGrade();
+
+    showToast(`✓ ${it.name} vinculado à PI ${selPi.piNumber}${count?` (${count} na grade)`:''}`);
+    piRenderPreview();
   };
 
   function piShowRight(html){const el=document.getElementById('pi-right-scroll');if(el)el.innerHTML=html;}
