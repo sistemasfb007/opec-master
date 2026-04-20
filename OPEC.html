@@ -8200,29 +8200,33 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
             // PI vencida — não inserir
             return;
           }
-          // Escolher o material correto para este inserção (respeita modo intercalado ou por-data)
-          const _li = _libItemForInsert(day.dayNum, day.monthNum, day.yearNum);
-          // Se múltiplos materiais vinculados e nenhum cobre este dia (modo por-data): não inserir
-          if(!_li && _libItems.length > 1 && _distMode !== 'intercalado') return;
-          // Nome: usar do libItem se disponível; fallback para nome gerado da PI
-          const _liName  = _li?.title || _li?.name || _itemName;
-          const _liTitle = (_li?.title && _li.title !== _liName) ? _li.title : _itemTitle;
+          // Verificar disponibilidade no modo por-data antes do loop (não consome o round-robin)
+          if(_libItems.length > 1 && _distMode !== 'intercalado'){
+            if(!_libItemForDay(day.dayNum, day.monthNum, day.yearNum)) return;
+          }
+          // BUG FIX: _libItemForInsert deve ser chamado DENTRO do loop para que cada
+          // inserção individual avance o índice do round-robin no modo intercalado.
+          // Antes estava fora do loop, causando repetição do mesmo material quando ins.count > 1.
           for(let n=0;n<ins.count;n++){
+            const _li = _libItemForInsert(day.dayNum, day.monthNum, day.yearNum);
+            if(!_li) { added++; continue; }
+            const _liName  = _li.title || _li.name || _itemName;
+            const _liTitle = (_li.title && _li.title !== _liName) ? _li.title : _itemTitle;
             brk.items.push({
               id:uid(),
-              seq:       _li?.seq||_libItem?.seq||'',
+              seq:       _li.seq||_libItem?.seq||'',
               name:      _liName,
               title:     _liTitle,
-              dur:       parseInt(_li?.dur||selPi.duration)||30,
+              dur:       parseInt(_li.dur||selPi.duration)||30,
               piNumber:  selPi.piNumber,
               piDay:     day.dayNum,
               piMonth:   day.monthNum,
               piYear:    day.yearNum,
               piClient:  selPi.client,
-              dateStart: _li?.dateStart || selPi.dateStart||'',
-              dateEnd:   _li?.dateEnd   || selPi.dateEnd||'',
-              segment:   _li?.segment||guessSegment(selPi.client||''),
-              libId:     _li?.id||'',
+              dateStart: _li.dateStart || selPi.dateStart||'',
+              dateEnd:   _li.dateEnd   || selPi.dateEnd||'',
+              segment:   _li.segment||guessSegment(selPi.client||''),
+              libId:     _li.id||'',
             });
             added++;
           }
