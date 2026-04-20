@@ -8066,6 +8066,22 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     // Fallback: item único (comportamento anterior)
     const _libItem = _libItems[0]||null;
 
+    // ── DIAGNÓSTICO ── mostra painel na tela ao aplicar
+    (function(){
+      var d=document.getElementById('_diag2');if(d)d.remove();
+      var b=document.createElement('div');
+      b.id='_diag2';
+      b.style.cssText='position:fixed;bottom:10px;left:50%;transform:translateX(-50%);z-index:99999;background:#0d1117;border:2px solid #d4a017;border-radius:8px;padding:12px 16px;font-family:monospace;font-size:11px;color:#d8e0ea;min-width:500px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.9)';
+      var h='<b style="color:#f0c040">DIAG piDoApply</b> <span onclick="this.parentNode.parentNode.remove()" style="float:right;cursor:pointer;color:#555">✕</span><br>';
+      h+='distMode: <b style="color:'+(_distMode==='intercalado'?'#1faa5a':'#e05050')+'">'+_distMode+'</b> &nbsp;';
+      h+='selMatId: <b>'+(_selMatId||'null=TODOS')+'</b><br>';
+      h+='_libItemsAll ('+_libItemsAll.length+'): ';
+      _libItemsAll.forEach(function(m){h+='<br>&nbsp;&nbsp;► <b style="color:#f0c040">'+m.name+'</b> piNumber=<b>'+m.piNumber+'</b> piLinks='+JSON.stringify((m.piLinks||[]).map(function(l){return l.piNumber;}));});
+      h+='<br>_libItems após filtro ('+_libItems.length+'): ';
+      _libItems.forEach(function(m){h+='<br>&nbsp;&nbsp;► <b style="color:#3a9ae0">'+m.name+'</b>';});
+      b.innerHTML=h;document.body.appendChild(b);
+    })();
+
     // Função: escolher o material correto para um dia específico pelo período dateStart–dateEnd
     // monthNum é 0-indexed (vem de parsePeriod/getMonth)
     function _libItemForDay(dayNum, monthNum, yearNum){
