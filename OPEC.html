@@ -8044,211 +8044,117 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         }
       });
     })));
-    // ── DISTRIBUIR — estratégia limpa ──
-    // Para cada dia: remover TODOS os itens desta PI do programa e reinserir a quantidade exata
+    // ── DISTRIBUIR ──
     const _piNum = String(selPi.piNumber).trim();
-    // Encontrar TODOS os materiais da biblioteca vinculados a esta PI
-    // (por piNumber direto OU por piLinks — cobre materiais criados manualmente)
-    const _piNum_str = String(selPi.piNumber).trim();
-    const _libItemsAll = (typeof mediaLib!=='undefined') ? mediaLib.filter(m=>{
-      if(String(m.piNumber||'').trim()===_piNum_str) return true;
-      if(m.piLinks && m.piLinks.some(lk=>String(lk.piNumber||'').trim()===_piNum_str)) return true;
+
+    // Coletar TODOS os materiais vinculados a esta PI (por piNumber direto ou piLinks)
+    const _allMats = (typeof mediaLib!=='undefined') ? mediaLib.filter(m=>{
+      if(String(m.piNumber||'').trim()===_piNum) return true;
+      if(m.piLinks && m.piLinks.some(lk=>String(lk.piNumber||'').trim()===_piNum)) return true;
       return false;
     }) : [];
-    // Se operador escolheu um material específico no seletor, usar só ele
+
+    // Se operador escolheu material específico, usar só ele; senão usar todos
     const _selMatId = window._piSelectedMatId;
-    const _libItems = (_selMatId && _libItemsAll.length > 1)
-      ? _libItemsAll.filter(m => m.id === _selMatId)
-      : _libItemsAll;
-    // Garantir modo correto: se "Todos" está selecionado (_selMatId===null) e há múltiplos
-    // materiais, forçar intercalado independente do valor de _piDistributeMode
-    if(!_selMatId && _libItems.length > 1) window._piDistributeMode = 'intercalado';
-    // Fallback: item único (comportamento anterior)
-    const _libItem = _libItems[0]||null;
+    const _mats = (_selMatId && _allMats.length > 1)
+      ? _allMats.filter(m=>m.id===_selMatId)
+      : _allMats;
 
-    // ── DIAGNÓSTICO ── mostra painel na tela ao aplicar
-    (function(){
-      var d=document.getElementById('_diag2');if(d)d.remove();
-      var b=document.createElement('div');
-      b.id='_diag2';
-      b.style.cssText='position:fixed;bottom:10px;left:50%;transform:translateX(-50%);z-index:99999;background:#0d1117;border:2px solid #d4a017;border-radius:8px;padding:12px 16px;font-family:monospace;font-size:11px;color:#d8e0ea;min-width:500px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.9)';
-      var h='<b style="color:#f0c040">DIAG piDoApply</b> <span onclick="this.parentNode.parentNode.remove()" style="float:right;cursor:pointer;color:#555">✕</span><br>';
-      h+='distMode: <b style="color:'+(_distMode==='intercalado'?'#1faa5a':'#e05050')+'">'+_distMode+'</b> &nbsp;';
-      h+='selMatId: <b>'+(_selMatId||'null=TODOS')+'</b><br>';
-      h+='_libItemsAll ('+_libItemsAll.length+'): ';
-      _libItemsAll.forEach(function(m){h+='<br>&nbsp;&nbsp;► <b style="color:#f0c040">'+m.name+'</b> piNumber=<b>'+m.piNumber+'</b> piLinks='+JSON.stringify((m.piLinks||[]).map(function(l){return l.piNumber;}));});
-      h+='<br>_libItems após filtro ('+_libItems.length+'): ';
-      _libItems.forEach(function(m){h+='<br>&nbsp;&nbsp;► <b style="color:#3a9ae0">'+m.name+'</b>';});
-      b.innerHTML=h;document.body.appendChild(b);
-    })();
+    // Modo intercalado: todos selecionados E há mais de 1 material
+    const _intercalar = !_selMatId && _mats.length > 1;
 
-    // Função: escolher o material correto para um dia específico pelo período dateStart–dateEnd
-    // monthNum é 0-indexed (vem de parsePeriod/getMonth)
-    function _libItemForDay(dayNum, monthNum, yearNum){
-      if(!_libItems.length) return null;
-      if(_libItems.length===1) return _libItems[0];
+    // Índice round-robin — incrementa a cada item inserido no modo intercalado
+    let _rrIdx = 0;
 
-      // dayDate em horário local (monthNum já é 0-indexed)
-      const dayDate = new Date(yearNum, monthNum, dayNum);
-      dayDate.setHours(12,0,0,0);
-
-      // Converter datas dos materiais usando parseDate() — CRÍTICO para fusos negativos:
-      // new Date("2026-03-24") = UTC midnight = 23/03 20:00 em UTC-4 (Rondônia)
-      // parseDate() usa new Date(y, m-1, d) = sempre horário local, sem deslocamento
-      const withDates = _libItems.map(m => ({
-        m,
-        s: m.dateStart ? parseDate(m.dateStart) : null,
-        e: m.dateEnd   ? parseDate(m.dateEnd)   : null,
-      }));
-      withDates.forEach(x => {
-        if(x.s) x.s.setHours(0,0,0,0);
-        if(x.e) x.e.setHours(23,59,59,999);
-      });
-
-      // 1ª prioridade: material cujo período EXATO cobre este dia
-      // Ordenar por especificidade: quem tem dateStart definido e mais recente vem primeiro
-      const candidates = withDates
-        .filter(x => (!x.s || dayDate >= x.s) && (!x.e || dayDate <= x.e))
-        .sort((a, b) => {
-          // Prefere quem tem dateStart (mais específico)
-          if(a.s && !b.s) return -1;
-          if(!a.s && b.s) return 1;
-          // Entre dois com dateStart, prefere o mais recente (período mais próximo do dia)
-          if(a.s && b.s) return b.s - a.s;
-          // Entre dois sem dateStart, prefere quem tem dateEnd mais próximo (mais restrito)
-          if(a.e && b.e) return a.e - b.e;
-          return 0;
-        });
-
-      if(candidates.length > 0) return candidates[0].m;
-
-      // 2ª prioridade: nenhum material cobre exatamente — retornar null (não inserir)
-      // Isso evita inserir material errado em dias fora de qualquer período
-      return null;
-    }
-
-    // ── Modo de distribuição com múltiplos materiais ──
-    // 'intercalado' = alterna materiais a cada inserção (round-robin)
-    // 'por-data'    = escolhe pelo período dateStart–dateEnd (padrão)
-    const _distMode = window._piDistributeMode || 'por-data';
-    // Contador global para intercalação — reseta a cada aplicação
-    let _interleaveIdx = 0;
-
-    function _libItemForInsert(dayNum, monthNum, yearNum) {
-      if (!_libItems.length) return null;
-      if (_libItems.length === 1) return _libItems[0];
-      if (_distMode === 'intercalado') {
-        // Round-robin entre todos os materiais vinculados
-        const m = _libItems[_interleaveIdx % _libItems.length];
-        _interleaveIdx++;
+    // Escolhe qual material usar para este slot
+    function _pickMat(dayNum, monthNum, yearNum){
+      if(!_mats.length) return null;
+      if(_mats.length === 1) return _mats[0];
+      if(_intercalar){
+        const m = _mats[_rrIdx % _mats.length];
+        _rrIdx++;
         return m;
       }
-      // Modo por-data: delega para _libItemForDay
-      return _libItemForDay(dayNum, monthNum, yearNum);
+      // Modo por-data: material cujo período cobre este dia
+      const dayDate = new Date(yearNum, monthNum, dayNum);
+      dayDate.setHours(12,0,0,0);
+      for(const m of _mats){
+        const s = m.dateStart ? parseDate(m.dateStart) : null;
+        const e = m.dateEnd   ? parseDate(m.dateEnd)   : null;
+        if(s) s.setHours(0,0,0,0);
+        if(e) e.setHours(23,59,59,999);
+        if((!s||dayDate>=s) && (!e||dayDate<=e)) return m;
+      }
+      return _mats[0]; // fallback: primeiro material
     }
-    // Usar título escolhido pelo operador no seletor (se houver múltiplos títulos na PI)
-    const _selTitleIdx = (window._piSelectedTitleIdx !== null && window._piSelectedTitleIdx !== undefined)
-      ? window._piSelectedTitleIdx : 0;
-    const _activePiTitle = (selPi.titles && selPi.titles.length > _selTitleIdx)
-      ? selPi.titles[_selTitleIdx]
-      : (selPi.title || '');
-    const _titleClean = _activePiTitle.replace(/^VT\s+/i,'').trim();
-    // Nome no roteiro: PRIMEIRO NOME DO CLIENTE — TÍTULO DO VT (ex: PREFEITURA — LIMPEZA)
-    const _firstWord  = (selPi.client||'').split(/\s+/)[0]||'';
-    const _itemName   = _titleClean
-      ? (_firstWord ? _firstWord + ' — ' + _titleClean : _titleClean)
-      : (selPi.client||'');
-    // Subtítulo: título da biblioteca (ex: PREFEITURA — LIMPEZA) se diferente do nome
-    const _itemTitle  = (_libItem?.title && _libItem.title !== _itemName) ? _libItem.title : '';
+
+    // Nome base para itens sem material na biblioteca
+    const _fallbackName = (selPi.client||'').split(/\s+/)[0]||selPi.client||'';
 
     Object.values(piDist).forEach(day=>{
-      if(!day.inserts.some(i=>!i.warn&&i.program&&i.brk)) return;
-
-      // ── Agrupar inserts por programa (pode haver múltiplos programas no mesmo dia) ──
       const insertsValidos = day.inserts.filter(i=>!i.warn&&i.program&&i.brk);
-      const progIds = [...new Set(insertsValidos.map(i=>i.program.id))];
+      if(!insertsValidos.length) return;
 
-      // Suporta grade indexada por data (YYYY-MM-DD) ou por dow (0-6)
+      const progIds = [...new Set(insertsValidos.map(i=>i.program.id))];
       const _dayProgs = g[day.key] || g[day.dow] || g[String(day.dow)] || [];
 
       progIds.forEach(progId=>{
-        // BUG1 FIX: IDs podem mudar após sync do Firebase.
-        // Busca por id; fallback por (nome+horário) ou só horário.
+        // Localizar programa na grade (com fallback por nome+horário)
         let prog = _dayProgs.find(p=>p.id===progId);
-        let _foundByFallback = false;
+        let _byFallback = false;
         if(!prog){
-          const _refProg = insertsValidos.find(i=>i.program&&i.program.id===progId)?.program;
-          if(_refProg){
-            prog = _dayProgs.find(p=>p.time===_refProg.time && p.name===_refProg.name);
-            if(!prog) prog = _dayProgs.find(p=>p.time===_refProg.time);
-            if(prog) _foundByFallback = true;
+          const ref = insertsValidos.find(i=>i.program.id===progId)?.program;
+          if(ref){
+            prog = _dayProgs.find(p=>p.time===ref.time&&p.name===ref.name)
+                || _dayProgs.find(p=>p.time===ref.time);
+            if(prog) _byFallback = true;
           }
         }
-        if(!prog){
-          return;
-        }
+        if(!prog) return;
 
-        // Passo 1: remover apenas os itens desta PI para o dia específico sendo processado.
-        // CORREÇÃO CRÍTICA: a grade é indexada por DOW (0-6), então grade[1] contém
-        // inserções de TODAS as segundas do mês (dias 16, 23, 30...).
-        // Remover "todos os itens da PI" apagava os dias anteriores da mesma semana.
-        // Agora remove só o dia atual (day.dayNum / day.monthNum / day.yearNum).
+        // Remover itens anteriores desta PI para este dia exato
         (prog.breaks||[]).forEach(brk=>{
           brk.items = (brk.items||[]).filter(it=>{
-            if(String(it.piNumber||'').trim()!==_piNum) return true; // outro PI — manter
-            // mesmo PI — remover só se for exatamente este dia
+            if(String(it.piNumber||'').trim()!==_piNum) return true;
             return !(Number(it.piDay)===day.dayNum &&
                      Number(it.piMonth)===day.monthNum &&
                      Number(it.piYear)===day.yearNum);
           });
         });
 
-        // Passo 2: reinserir exatamente o que a PI manda para este programa
+        // Reinserir com intercalação correta
         insertsValidos.filter(i=>i.program.id===progId).forEach(ins=>{
-          // BUG1b FIX: quando o prog foi encontrado por fallback, o brk.id do piDist
-          // pode não existir no prog atual. Remapear por posição (índice) ou por nome.
           let brk = (prog.breaks||[]).find(b=>b.id===ins.brk.id);
-          if(!brk && _foundByFallback){
-            const _refIdx = (insertsValidos.find(i2=>i2.program.id===progId)?.program?.breaks||[])
+          if(!brk && _byFallback){
+            const ri = (insertsValidos.find(i2=>i2.program.id===progId)?.program?.breaks||[])
               .findIndex(b=>b.id===ins.brk.id);
-            if(_refIdx >= 0 && prog.breaks[_refIdx]) brk = prog.breaks[_refIdx];
-            if(!brk && prog.breaks?.length) brk = prog.breaks[0]; // último recurso: 1º break
+            brk = (ri>=0&&prog.breaks[ri]) ? prog.breaks[ri] : prog.breaks?.[0];
           }
-          if(!brk){ return; }
+          if(!brk) return;
           brk.items = brk.items||[];
-          // Verificar validade antes de inserir
-          const _piDateEnd = selPi.dateEnd||'';
-          if(_piDateEnd && isExpired(_piDateEnd)){
-            // PI vencida — não inserir
-            return;
-          }
-          // Verificar disponibilidade no modo por-data antes do loop (não consome o round-robin)
-          if(_libItems.length > 1 && _distMode !== 'intercalado'){
-            if(!_libItemForDay(day.dayNum, day.monthNum, day.yearNum)) return;
-          }
-          // BUG FIX: _libItemForInsert deve ser chamado DENTRO do loop para que cada
-          // inserção individual avance o índice do round-robin no modo intercalado.
-          // Antes estava fora do loop, causando repetição do mesmo material quando ins.count > 1.
+
+          // PI vencida — não inserir
+          if(selPi.dateEnd && isExpired(selPi.dateEnd)) return;
+
+          // Inserir cada slot chamando _pickMat individualmente (garante round-robin por slot)
           for(let n=0;n<ins.count;n++){
-            const _li = _libItemForInsert(day.dayNum, day.monthNum, day.yearNum);
-            if(!_li) { added++; continue; }
-            const _liName  = _li.title || _li.name || _itemName;
-            const _liTitle = (_li.title && _li.title !== _liName) ? _li.title : _itemTitle;
+            const m = _pickMat(day.dayNum, day.monthNum, day.yearNum);
+            if(!m) { added++; continue; }
             brk.items.push({
-              id:uid(),
-              seq:       _li.seq||_libItem?.seq||'',
-              name:      _liName,
-              title:     _liTitle,
-              dur:       parseInt(_li.dur||selPi.duration)||30,
-              piNumber:  selPi.piNumber,
-              piDay:     day.dayNum,
-              piMonth:   day.monthNum,
-              piYear:    day.yearNum,
-              piClient:  selPi.client,
-              dateStart: _li.dateStart || selPi.dateStart||'',
-              dateEnd:   _li.dateEnd   || selPi.dateEnd||'',
-              segment:   _li.segment||guessSegment(selPi.client||''),
-              libId:     _li.id||'',
+              id:       uid(),
+              seq:      m.seq||'',
+              name:     m.title||m.name||_fallbackName,
+              title:    m.name||'',
+              dur:      parseInt(m.dur||selPi.duration)||30,
+              piNumber: selPi.piNumber,
+              piDay:    day.dayNum,
+              piMonth:  day.monthNum,
+              piYear:   day.yearNum,
+              piClient: selPi.client,
+              dateStart:m.dateStart||selPi.dateStart||'',
+              dateEnd:  m.dateEnd||selPi.dateEnd||'',
+              segment:  m.segment||guessSegment(selPi.client||''),
+              libId:    m.id||'',
             });
             added++;
           }
