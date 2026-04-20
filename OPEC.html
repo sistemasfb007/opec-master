@@ -2655,10 +2655,10 @@ let selectedContractId=null;
 // ═══ BOOT ═══
 window.addEventListener('DOMContentLoaded',()=>{
   if(_isLocalFile){
-    try{const g=localStorage.getItem('roteiro_grade');if(g){const p=JSON.parse(g);for(let i=0;i<7;i++){const v=p[i]??p[String(i)];grade[i]=Array.isArray(v)?v:[];}}}catch(e){}
-    try{const s=localStorage.getItem('roteiro_medialib');if(s)mediaLib=JSON.parse(s)||[];}catch(e){}
-    try{const ct=localStorage.getItem('roteiro_contracts');if(ct)contracts=JSON.parse(ct)||[];}catch(e){}
-    try{const c=localStorage.getItem('roteiro_cur');if(c){const p=JSON.parse(c);cur={...cur,...p};}}catch(e){}
+    try{const g=localStorage.getItem('roteiro_grade');if(g){const p=JSON.parse(g);for(let i=0;i<7;i++){const v=p[i]??p[String(i)];grade[i]=Array.isArray(v)?v:[];}}}catch(e){console.warn('[OPEC] Falha ao carregar grade local:',e);}
+    try{const s=localStorage.getItem('roteiro_medialib');if(s)mediaLib=JSON.parse(s)||[];}catch(e){console.warn('[OPEC] Falha ao carregar mediaLib local:',e);}
+    try{const ct=localStorage.getItem('roteiro_contracts');if(ct)contracts=JSON.parse(ct)||[];}catch(e){console.warn('[OPEC] Falha ao carregar contratos local:',e);}
+    try{const c=localStorage.getItem('roteiro_cur');if(c){const p=JSON.parse(c);cur={...cur,...p};}}catch(e){console.warn('[OPEC] Falha ao carregar cur local:',e);}
   }
   applyLayout();
   buildSwatches();
@@ -4484,7 +4484,9 @@ function resetLayout(){
 
 // ═══ STORAGE ═══
 function save(){
-  // grade via Firebase
+  // Estado do cur é persistido via broadcastState() → Firebase.
+  // Grade e mediaLib são persistidos via saveGrade() → _fbSaveGrade().
+  // Esta função existe como ponto de extensão; não precisa fazer nada aqui.
 }
 function recalcBrkTotals(){
   Object.values(grade).forEach(progs => {
@@ -4515,12 +4517,12 @@ function saveGrade(){
   recalcBrkTotals();
   for(let i=0;i<7;i++) if(!Array.isArray(grade[i])) grade[i]=[];
   if(_isLocalFile){
-    try{localStorage.setItem('roteiro_grade',JSON.stringify(grade));}catch(e){}
+    try{localStorage.setItem('roteiro_grade',JSON.stringify(grade));}catch(e){console.warn('[OPEC] Falha ao salvar grade local:',e);}
   } else if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
 }
 function saveLayout(){lsSet('roteiro_layout',JSON.stringify(layout));}
 function saveContracts(){
-  if(_isLocalFile){try{localStorage.setItem('roteiro_contracts',JSON.stringify(contracts));}catch(e){}return;}
+  if(_isLocalFile){try{localStorage.setItem('roteiro_contracts',JSON.stringify(contracts));}catch(e){console.warn('[OPEC] Falha ao salvar contratos local:',e);}return;}
   if(window._fbPaused) return;
   if(typeof db!=='undefined'&&db&&_stationCode){
     ref(db,'estacoes/'+_stationCode+'/contracts').set({items:contracts,_ts:Date.now()}).catch(function(){});
@@ -4766,7 +4768,7 @@ function loadMediaLib(){
   if(changed) saveMediaLib();
 }
 function saveMediaLib(){
-  if(_isLocalFile){try{localStorage.setItem('roteiro_medialib',JSON.stringify(mediaLib));}catch(e){}return;}
+  if(_isLocalFile){try{localStorage.setItem('roteiro_medialib',JSON.stringify(mediaLib));}catch(e){console.warn('[OPEC] Falha ao salvar mediaLib local:',e);}return;}
   // mediaLib viaja embutida na grade — mesma fonte, mesmo ciclo de vida
   if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
 }
@@ -5022,8 +5024,7 @@ function autoNumberMediaLib(){
       if(m && m.seq) it.seq = m.seq;
     });
   })));
-  saveMediaLib();
-  saveGrade();
+  saveGrade(); // salva grade + mediaLib embutida (evita dupla escrita no Firebase)
   broadcastState();
   renderOpcMidias();
   renderMidList();
@@ -5046,8 +5047,7 @@ function opcEditSeq(id, currentSeq){
       }
     });
   })));
-  saveMediaLib();
-  saveGrade();
+  saveGrade(); // salva grade + mediaLib embutida (evita dupla escrita no Firebase)
   renderOpcMidias();
   renderMidList();
   renderRoteiro();
@@ -7492,15 +7492,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
                 value="${it.seq||''}"
                 placeholder="—"
                 title="Número de Mídia"
-                onchange="(function(el){
-                  const m=mediaLib.find(m=>m.id==='${it.id}');
-                  if(m){m.seq=el.value.trim().toUpperCase();saveMediaLib();
-                    Object.values(grade).forEach(ps=>(ps||[]).forEach(p=>(p.breaks||[]).forEach(b=>{
-                      (b.items||[]).forEach(i=>{if(i.piNumber===m.piNumber&&i.name===m.name)i.seq=m.seq;});
-                    })));
-                    saveGrade();renderMidList();renderRoteiro();piRenderPreview();
-                  }
-                })(this)"
+                onchange="piUpdateSeq(this,'${it.id}')"
                 style="width:52px;background:var(--bg);border:2px solid var(--gold);border-radius:5px;
                        padding:3px 6px;font-size:12px;font-family:var(--font-m);color:var(--gold2);
                        outline:none;text-transform:uppercase;font-weight:800;text-align:center"
@@ -7550,18 +7542,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
             ${it.piNumber?`<span style="font-family:var(--font-m);font-size:10px;color:var(--gold);background:rgba(212,160,23,.12);border:1px solid rgba(212,160,23,.3);border-radius:4px;padding:3px 9px;font-weight:800;letter-spacing:1px">PI-${it.piNumber}</span>`:''}
             <span style="font-size:9px;padding:3px 8px;border-radius:4px;background:rgba(31,170,90,.12);color:var(--green);border:1px solid rgba(31,170,90,.25);font-weight:700;letter-spacing:1px">✓ VINCULADO</span>
             <button title="Desvincular este material da PI"
-              onclick="(function(){
-                const m=mediaLib.find(x=>x.id==='${it.id}');
-                if(!m) return;
-                if(!confirm('Desvincular \\\"'+( m.title||m.name)+'\\\" da PI ${esc(selPi.piNumber)}?')) return;
-                // Remover piNumber direto se for desta PI
-                if(m.piNumber===String(selPi.piNumber)) m.piNumber='';
-                // Remover do array piLinks se existir
-                if(m.piLinks) m.piLinks=m.piLinks.filter(lk=>String(lk.piNumber||'').trim()!==String(selPi.piNumber));
-                if(typeof saveMediaLib==='function') saveMediaLib();
-                if(typeof renderMidList==='function') renderMidList();
-                if(typeof window.piRenderPreview==='function') window.piRenderPreview();
-              })()"
+              onclick="piDesvincularMat('${it.id}')"
               style="background:rgba(192,57,43,.12);border:1px solid rgba(192,57,43,.35);border-radius:4px;color:var(--red2);font-size:9px;font-weight:700;letter-spacing:1px;padding:3px 8px;cursor:pointer;transition:all .15s;text-transform:uppercase;white-space:nowrap"
               onmouseover="this.style.background='rgba(192,57,43,.28)'"
               onmouseout="this.style.background='rgba(192,57,43,.12)'">
@@ -7676,15 +7657,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
               ${_hasMultiTitle ? `
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                 <span style="font-size:10px;color:var(--text3);min-width:80px">Título do VT:</span>
-                <select id="pi-title-sel" onchange="(function(v){
-                    const idx=parseInt(v.replace('__title_',''));
-                    window._piSelectedTitleIdx=isNaN(idx)?0:idx;
-                    const pi=window._piListRef&&window._piListRef.find(p=>p.id===window._piSelId);
-                    if(pi&&pi.titles&&pi.titles[window._piSelectedTitleIdx!==undefined?window._piSelectedTitleIdx:0]){
-                      pi.title=pi.titles[window._piSelectedTitleIdx];
-                    }
-                    if(typeof window.piRenderPreview==='function') window.piRenderPreview();
-                  })(this.value)"
+                <select id="pi-title-sel" onchange="piSelectTitle(this.value)"
                   style="flex:1;min-width:160px;background:var(--bg);border:1px solid var(--blue2);border-radius:5px;padding:5px 9px;font-size:11px;color:var(--text);outline:none;cursor:pointer">
                   ${_titOpts}
                 </select>
@@ -7823,6 +7796,44 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       piToast('! Erro ao ler Excel: '+e.message);
     }
     piHideLoading();
+  };
+
+  window.piDesvincularMat=function(id){
+    var m=mediaLib.find(function(x){return x.id===id;});
+    if(!m) return;
+    var piNum=window._piCurrentSelPiNum||'';
+    if(!confirm('Desvincular "'+( m.title||m.name)+'" da PI '+piNum+'?')) return;
+    if(m.piNumber===piNum) m.piNumber='';
+    if(m.piLinks) m.piLinks=m.piLinks.filter(function(lk){return String(lk.piNumber||'').trim()!==piNum;});
+    if(typeof saveMediaLib==='function') saveMediaLib();
+    if(typeof renderMidList==='function') renderMidList();
+    if(typeof window.piRenderPreview==='function') window.piRenderPreview();
+  };
+  window.piUpdateSeq=function(el,id){
+    var m=mediaLib.find(function(m){return m.id===id;});
+    if(m){
+      m.seq=el.value.trim().toUpperCase();
+      saveMediaLib();
+      Object.values(grade).forEach(function(ps){
+        (ps||[]).forEach(function(p){
+          (p.breaks||[]).forEach(function(b){
+            (b.items||[]).forEach(function(i){
+              if(i.piNumber===m.piNumber&&i.name===m.name) i.seq=m.seq;
+            });
+          });
+        });
+      });
+      saveGrade();renderMidList();renderRoteiro();piRenderPreview();
+    }
+  };
+  window.piSelectTitle=function(v){
+    var idx=parseInt((v||'').replace('__title_',''));
+    window._piSelectedTitleIdx=isNaN(idx)?0:idx;
+    var pi=window._piListRef&&window._piListRef.find(function(p){return p.id===window._piSelId;});
+    if(pi&&pi.titles&&pi.titles[window._piSelectedTitleIdx!==undefined?window._piSelectedTitleIdx:0]){
+      pi.title=pi.titles[window._piSelectedTitleIdx];
+    }
+    if(typeof window.piRenderPreview==='function') window.piRenderPreview();
   };
 
   window.piClearSel=function(){
