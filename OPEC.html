@@ -3121,16 +3121,17 @@ function renderRoteiro(){
               );
               return found?.seq||'';
             })();
-            // Buscar título na biblioteca se o item não tiver
+            // Buscar título na biblioteca — prioriza libId (item específico), depois piNumber
             const _libTitle = (()=>{
               if(item.title) return item.title;
               if(!mediaLib||!mediaLib.length) return '';
-              const found = mediaLib.find(m=>
-                (item.piNumber && m.piNumber && m.piNumber===item.piNumber) ||
-                (item.id && m.id===item.id) ||
-                (item.libId && m.id===item.libId)
-              );
-              return found?.title||'';
+              // 1ª prioridade: libId exato (garante intercalação correta)
+              if(item.libId){ const byId=mediaLib.find(m=>m.id===item.libId); if(byId?.title) return byId.title; }
+              // 2ª prioridade: id do item
+              if(item.id){ const byItemId=mediaLib.find(m=>m.id===item.id); if(byItemId?.title) return byItemId.title; }
+              // 3ª prioridade: piNumber (fallback — pode retornar material errado se houver >1)
+              const byPi=mediaLib.find(m=>item.piNumber&&m.piNumber&&m.piNumber===item.piNumber);
+              return byPi?.title||'';
             })();
             return `<div class="${cls}" draggable="true" data-pi="${pi}" data-bi="${bi}" data-ii="${ii}" onclick="selectItem(${pi},${bi},${ii})">
               ${_segBar}
@@ -8143,8 +8144,8 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
             brk.items.push({
               id:       uid(),
               seq:      m.seq||'',
-              name:     m.title||m.name||_fallbackName,
-              title:    m.name||'',
+              name:     m.name||_fallbackName,  // segmento/label (ex: "Mídia Oficial")
+              title:    m.title||'',            // nome completo (ex: "GOVERNO — IMPORTA 2")
               dur:      parseInt(m.dur||selPi.duration)||30,
               piNumber: selPi.piNumber,
               piDay:    day.dayNum,
@@ -8154,7 +8155,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
               dateStart:m.dateStart||selPi.dateStart||'',
               dateEnd:  m.dateEnd||selPi.dateEnd||'',
               segment:  m.segment||guessSegment(selPi.client||''),
-              libId:    m.id||'',
+              libId:    m.id||'',               // ID exato do material — crítico para _libTitle
             });
             added++;
           }
