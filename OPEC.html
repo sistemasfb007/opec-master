@@ -8057,14 +8057,29 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     const _libItems = (_selMatId && _libItemsAll.length > 1)
       ? _libItemsAll.filter(m => m.id === _selMatId)
       : _libItemsAll;
-    // ── DIAGNÓSTICO — aparece no console do navegador (F12) ──
-    console.group('[OPEC] piDoApply — diagnóstico de intercalação');
-    console.log('PI:', _piNum_str);
-    console.log('_distMode:', window._piDistributeMode);
-    console.log('_selMatId:', _selMatId);
-    console.log('_libItemsAll:', _libItemsAll.map(m=>({id:m.id,name:m.name,title:m.title,piNumber:m.piNumber,piLinks:m.piLinks})));
-    console.log('_libItems (após filtro de seleção):', _libItems.map(m=>({id:m.id,name:m.name,title:m.title})));
-    console.groupEnd();
+    // ── DIAGNÓSTICO VISUAL ──
+    (function(){
+      var existing = document.getElementById('_opec_diag');
+      if(existing) existing.remove();
+      var box = document.createElement('div');
+      box.id = '_opec_diag';
+      box.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:99999;background:#0d1117;border:2px solid #d4a017;border-radius:10px;padding:14px 18px;font-family:monospace;font-size:11px;color:#d8e0ea;max-width:90vw;min-width:420px;box-shadow:0 8px 32px rgba(0,0,0,.8)';
+      var lines = [];
+      lines.push('<b style="color:#f0c040">DIAGNÓSTICO piDoApply</b> <span style="color:#3a4d60;cursor:pointer" onclick="document.getElementById('_opec_diag').remove()">✕ fechar</span>');
+      lines.push('PI: <b style="color:#3a9ae0">' + _piNum_str + '</b>');
+      lines.push('_distMode: <b style="color:' + (window._piDistributeMode==='intercalado'?'#1faa5a':'#e05050') + '">' + (window._piDistributeMode||'por-data (padrão)') + '</b>');
+      lines.push('_selMatId: <b>' + (_selMatId||'null (todos)') + '</b>');
+      lines.push('_libItemsAll (' + _libItemsAll.length + '):');
+      _libItemsAll.forEach(function(m,i){
+        lines.push('&nbsp;&nbsp;['+i+'] <b style="color:#f0c040">' + (m.name||'?') + '</b> | piNumber: <b>' + (m.piNumber||'—') + '</b> | piLinks: <b>' + (m.piLinks?JSON.stringify(m.piLinks.map(function(l){return l.piNumber;})):'—') + '</b>');
+      });
+      lines.push('_libItems após filtro (' + _libItems.length + '):');
+      _libItems.forEach(function(m,i){
+        lines.push('&nbsp;&nbsp;['+i+'] <b style="color:#3a9ae0">' + (m.name||'?') + '</b>');
+      });
+      box.innerHTML = lines.join('<br>');
+      document.body.appendChild(box);
+    })();
     // Fallback: item único (comportamento anterior)
     const _libItem = _libItems[0]||null;
 
