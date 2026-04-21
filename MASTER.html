@@ -71,8 +71,8 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 .b-next-sub{font-size:11px;color:var(--text3);margin-top:2px}
 
 /* ══ DATE NAVIGATOR — compacto e colapsável ══ */
-.date-nav{background:var(--s1);border-bottom:1px solid var(--border);flex-shrink:0;overflow:hidden;transition:max-height .25s ease}
-.date-nav.open{max-height:260px}
+.date-nav{background:var(--s1);border-bottom:1px solid var(--border);flex-shrink:0;overflow:hidden;transition:max-height .3s ease;position:relative;z-index:10}
+.date-nav.open{max-height:340px}
 .date-nav.closed{max-height:28px}
 .dnt-top{display:flex;align-items:center;gap:3px;padding:4px 8px;height:28px;cursor:pointer;transition:background .15s}
 .dnt-top:hover{background:var(--s2)}
@@ -86,7 +86,9 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 .dnt-today{font-family:var(--font-d);font-size:8px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:2px 7px;border-radius:3px;border:1px solid var(--border);background:none;color:var(--text3);cursor:pointer;transition:all .14s;white-space:nowrap}
 .dnt-today:hover{border-color:var(--gold);color:var(--gold)}
 .dnt-body{overflow:hidden}
+.date-nav.open .dnt-body{overflow:visible}
 .date-nav.closed .dnt-body{display:none}
+.date-nav.open .dnt-body{overflow:visible}
 .dnt-dow-row{display:grid;grid-template-columns:repeat(7,1fr);padding:4px 8px 2px}
 .dnt-dow{font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);text-align:center;padding:2px 0;opacity:.6}
 .dnt-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:4px 8px 6px}
@@ -384,8 +386,8 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 .b-next-sub{font-size:11px;color:var(--text3);margin-top:2px}
 
 /* ══ DATE NAVIGATOR — compacto e colapsável ══ */
-.date-nav{background:var(--s1);border-bottom:1px solid var(--border);flex-shrink:0;overflow:hidden;transition:max-height .25s ease}
-.date-nav.open{max-height:260px}
+.date-nav{background:var(--s1);border-bottom:1px solid var(--border);flex-shrink:0;overflow:hidden;transition:max-height .3s ease;position:relative;z-index:10}
+.date-nav.open{max-height:340px}
 .date-nav.closed{max-height:28px}
 .dnt-top{display:flex;align-items:center;gap:3px;padding:4px 8px;height:28px;cursor:pointer;transition:background .15s}
 .dnt-top:hover{background:var(--s2)}
@@ -400,11 +402,12 @@ body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-b
 .dnt-today:hover{border-color:var(--gold);color:var(--gold)}
 .dnt-body{overflow:hidden}
 .date-nav.closed .dnt-body{display:none}
+.date-nav.open .dnt-body{overflow:visible}
 .dnt-dow-row{display:grid;grid-template-columns:repeat(7,1fr);padding:4px 8px 2px}
 .dnt-dow{font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);text-align:center;padding:2px 0;opacity:.6}
 .dnt-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:4px 8px 6px}
 .dnt-cell{text-align:center;border-radius:5px;padding:5px 2px;cursor:pointer;transition:all .15s;min-height:34px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
-.dnt-cell:hover:not(.dnt-other){background:var(--s3)}
+.dnt-cell:hover{background:var(--s3)}
 .dnt-cell.dnt-other{opacity:.2;pointer-events:none}
 .dnt-cell.dnt-today{background:var(--blue-dim);border:1px solid rgba(58,154,224,.3)}
 .dnt-cell.dnt-sel{background:var(--gold-dim);border:1px solid rgba(212,160,23,.55)}
@@ -851,6 +854,7 @@ const FB = { apiKey:"AIzaSyDZ_A6YI3a6p9eGb3khWF5dJRf43q0kR5A", authDomain:"siste
 const DOMINIO = '@sistemasfb.com'; // domínio fictício — usuário digita só o nome
 
 let _db, _auth, _unsub, _lastTs=0;
+let _fbLastTs=0, _lastCurTs=0;
 let _code = ''; // station_code vem do Firebase via onAuthStateChanged/_masterSetCode
 
 // ── Inicializar ──
@@ -991,26 +995,15 @@ function _masterSavePrefs(patch){
     }).catch(function(){});
   }catch(e){}
 }
-// ── Watchdog Firebase: alerta sonoro se não receber sinal por 30s ──
-let _wdTimer = null;
-const _WD_TIMEOUT = 30000;
-function _wdReset(){
-  clearTimeout(_wdTimer);
-  _wdTimer = setTimeout(_wdFire, _WD_TIMEOUT);
-}
-function _wdFire(){
-  _dot('err');
-  showToast('⚠ Firebase sem sinal há 30s — verifique a conexão!', 'warn');
-  // Som de alerta removido
-  _wdTimer = setTimeout(_wdFire, _WD_TIMEOUT);
-}
+// Watchdog Firebase removido (sem alertas de conexão)
+function _wdReset(){ /* desativado */ }
 
 // ── Aplicar grade recebida ──
 function _apply(d){
   const ts=d._ts||0;
   if(ts<=_lastTs) return;
   _lastTs=ts;
-  _wdReset();
+  _fbLastTs=ts; // mantém _fbLastTs sincronizado para WS e IP poll
   const g={...d}; delete g._ts; delete g.__air_logs;
   // Normalizar chaves — Firebase pode retornar strings; garantir 0-6 como inteiros
   const normalized={};
@@ -1059,6 +1052,7 @@ function _connect(code){
     const d = snap.val();
     const fbTs = d._ts||0;
     if(fbTs > _lastCurTs){
+      _lastCurTs = fbTs;
       const c = {...d}; delete c._ts;
       cur = {...cur, ...c};
       if(!Array.isArray(cur.doneKeys)) cur.doneKeys=[];
@@ -1314,6 +1308,12 @@ console.log('[MASTER Firebase] módulo carregado — banco: sistemas-fb');
   </div>
 </div>
 
+<!-- CONTENT AREA: flex-column, takes remaining height after topbar+banner -->
+<div style="display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0">
+
+<!-- DATE BANNER — só aparece quando vendo dia diferente de hoje -->
+<div id="date-banner" style="display:none"></div>
+
 <!-- DATE NAVIGATOR colapsável — inicia fechado -->
 <div class="date-nav closed" id="date-nav">
   <div class="dnt-top" onclick="toggleDateNav()" style="cursor:pointer" title="Clique para expandir o calendário">
@@ -1432,6 +1432,8 @@ console.log('[MASTER Firebase] módulo carregado — banco: sistemas-fb');
 
 
 </div><!-- /master-content -->
+
+</div><!-- /content-area wrapper -->
 </div><!-- /master-app-root -->
 
 <!-- IP MODAL -->
@@ -1466,6 +1468,10 @@ const DAYS_SHORT  = ['DOM','SEG','TER','QUA','QUI','SEX','SÁB'];
 const DAYS_FULL  = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
 const MONTHS_PT  = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const MONTHS_SHORT = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+
+// Referência ao banner de data (dias diferentes de hoje)
+let _dateBanner = null;
+document.addEventListener('DOMContentLoaded', () => { _dateBanner = document.getElementById('date-banner'); });
 
 // ── STATE ──
 let grade       = {};
@@ -1630,13 +1636,30 @@ function analyzeBrkConflict(items){
 
 // ── BUILD ROTEIRO — constrói o DOM completo ──
 
-// ── Verifica se item pertence à data selecionada no calendário ──
+// ── Verifica se item deve ser exibido para a data selecionada no calendário ──
 function _isItemToday(item){
-  if(item.piDay==null||item.piDay===undefined) return true; // item manual
+  // Itens sem data específica (recorrentes): sempre mostrar
+  if(item.piDay==null || item.piDay===undefined) return true;
+
   const [y,m,d] = viewDateKey.split('-').map(Number);
-  return Number(item.piDay)===d
-      && Number(item.piMonth)===(m-1)  // piMonth é 0-indexed (JS getMonth)
+  const isToday = viewDateKey === todayKey();
+
+  // Bate exatamente com a data selecionada → mostrar sempre
+  const matchesSelected = Number(item.piDay)===d
+      && Number(item.piMonth)===(m-1)
       && Number(item.piYear)===y;
+  if(matchesSelected) return true;
+
+  // Estamos vendo hoje e o item é de outro dia → não mostrar
+  // (hoje só exibe itens do próprio dia ou recorrentes)
+  if(isToday) return false;
+
+  // Estamos vendo um dia FUTURO ou PASSADO:
+  // O operador quer ver o roteiro estrutural daquele dia da semana.
+  // Como a grade é DOW-based, todos os itens do DOW são igualmente válidos
+  // para qualquer ocorrência futura/passada daquele dia.
+  // Mostrar todos — o filtro de data só faz sentido no dia em execução (hoje).
+  return true;
 }
 function buildRoteiro(){
   snap.grade = JSON.stringify(grade);
@@ -1644,13 +1667,41 @@ function buildRoteiro(){
   const ps   = gradeForKey(viewDateKey);
   const isCurDay = viewDow===cur.day;
 
+
+
   // Label do topo — mostra a data SELECIONADA no calendário
   const dlabel = document.getElementById('day-label');
   if(dlabel){
     const [_dy,_dm,_dd] = viewDateKey.split('-').map(Number);
     const _selDow = keyToDow(viewDateKey);
     const _isToday = viewDateKey === todayKey();
-    dlabel.textContent = `${DAYS_FULL[_selDow]}, ${_dd} ${MONTHS_SHORT[_dm-1]}. ${_dy}${_isToday?' — HOJE':''}`;
+    const _isFuture = viewDateKey > todayKey();
+    const _isPast   = viewDateKey < todayKey();
+    const _MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const _tag = _isToday ? ' — HOJE' : _isFuture ? ' ▶ FUTURO' : ' ◀ PASSADO';
+    dlabel.textContent = `${DAYS_FULL[_selDow].toUpperCase()}, ${_dd} ${_MESES[_dm-1].toUpperCase()}. ${_dy}${_tag}`;
+    dlabel.style.color = _isToday ? 'var(--text3)' : _isFuture ? 'var(--blue2)' : 'var(--text3)';
+    dlabel.style.fontWeight = _isToday ? '' : '700';
+  }
+
+  {
+    const [_dy,_dm,_dd] = viewDateKey.split('-').map(Number);
+    const _selDow = keyToDow(viewDateKey);
+    const _isToday = viewDateKey === todayKey();
+    const _isFuture = viewDateKey > todayKey();
+    const _MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    if(_dateBanner){
+      if(_isToday){
+        _dateBanner.style.cssText = 'display:none';
+      } else {
+        const _cor = _isFuture ? 'rgba(30,111,181,.18)' : 'rgba(120,120,120,.12)';
+        const _borda = _isFuture ? 'rgba(58,154,224,.5)' : 'rgba(150,150,150,.3)';
+        const _texto = _isFuture ? 'var(--blue2)' : 'var(--text3)';
+        const _icon = _isFuture ? '📅' : '🕐';
+        _dateBanner.style.cssText = `display:flex;align-items:center;justify-content:center;gap:10px;padding:6px 16px;background:${_cor};border-bottom:1px solid ${_borda};flex-shrink:0;`;
+        _dateBanner.innerHTML = `<span style="font-size:12px">${_icon}</span><span style="font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${_texto}">Visualizando: ${DAYS_FULL[_selDow].toUpperCase()}, ${_dd} DE ${_MESES[_dm-1].toUpperCase()} DE ${_dy}</span><button onclick="selectDate(todayKey())" style="font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:2px 8px;border-radius:3px;border:1px solid ${_borda};background:none;color:${_texto};cursor:pointer;">← HOJE</button>`;
+      }
+    }
   }
 
   if(!ps.length){
@@ -1665,7 +1716,7 @@ function buildRoteiro(){
     (prog.breaks||[]).forEach((b,bi)=>(b.items||[]).forEach((it,ii)=>{
       if(!_isItemToday(it)) return; // só contar itens do dia
       pTot++;
-      if((cur.doneKeys||[]).includes(`${viewDow}-${pi}-${bi}-${ii}`)) pDone++;
+      if((cur.doneKeys||[]).includes(`${viewDateKey}-${pi}-${bi}-${ii}`)) pDone++;
       if(isExpired(it.dateEnd)) pExp++;
     }));
     const allDone = pTot>0 && pDone===pTot;
@@ -1682,7 +1733,7 @@ function buildRoteiro(){
           (brk.items||[]).forEach((it,ii)=>{
             if(!_isItemToday(it)) return; // só contar itens do dia
             bTot++;
-            if((cur.doneKeys||[]).includes(`${viewDow}-${pi}-${bi}-${ii}`)) bDone++;
+            if((cur.doneKeys||[]).includes(`${viewDateKey}-${pi}-${bi}-${ii}`)) bDone++;
             if(isExpired(it.dateEnd)) bExp++;
           });
           const _visItems = (brk.items||[]).map((it,ii)=>({it,ii})).filter(({it})=>_isItemToday(it));
@@ -1691,7 +1742,7 @@ function buildRoteiro(){
             : !_visItems.length
             ? `<div class="no-items" style="color:var(--text3)">Sem inserções para este dia.</div>`
             : _visItems.map(({it,ii}) => {
-                const key = `${viewDow}-${pi}-${bi}-${ii}`;
+                const key = `${viewDateKey}-${pi}-${bi}-${ii}`;
                 const act = isCB && cur.itemIdx===ii;
                 const dn  = (cur.doneKeys||[]).includes(key);
                 const exp = isExpired(it.dateEnd);
@@ -1767,7 +1818,7 @@ function updateHighlight(){
     (prog.breaks||[]).forEach((b,bi)=>(b.items||[]).forEach((it,ii)=>{
       if(!_isItemToday(it)) return;
       pTot++;
-      if((cur.doneKeys||[]).includes(`${viewDow}-${pi}-${bi}-${ii}`)) pDone++;
+      if((cur.doneKeys||[]).includes(`${viewDateKey}-${pi}-${bi}-${ii}`)) pDone++;
     }));
     const allDone = pTot>0 && pDone===pTot;
 
@@ -1796,7 +1847,7 @@ function updateHighlight(){
         const el  = document.getElementById(`it-${pi}-${bi}-${ii}`);
         if(!el) return;
         const act = isCB && cur.itemIdx===ii;
-        const dn  = (cur.doneKeys||[]).includes(`${viewDow}-${pi}-${bi}-${ii}`);
+        const dn  = (cur.doneKeys||[]).includes(`${viewDateKey}-${pi}-${bi}-${ii}`);
         const exp = isExpired(it.dateEnd);
         let cls = 'item';
         if(act) cls+=' cur'; else if(dn) cls+=' done';
@@ -1891,20 +1942,13 @@ function renderDateNav(){
   const startDow    = firstDay.getDay();
   const daysInMonth = new Date(dntYear, dntMonth+1, 0).getDate();
   let cells = '';
+  // Dias do mês anterior — sem onclick (pointer-events:none no CSS)
   for(let i=0; i<startDow; i++){
     cells += `<div class="dnt-cell dnt-other"><span class="dnt-num">${new Date(dntYear,dntMonth,-(startDow-i-1)).getDate()}</span><div class="dnt-dot"></div></div>`;
   }
   for(let d=1; d<=daysInMonth; d++){
     const key  = `${dntYear}-${String(dntMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const dow  = keyToDow(key);
-    const dow3 = keyToDow(key);
-    const ps3  = gradeForKey(key);
-    const [ky,km,kd] = key.split('-').map(Number);
-    const has  = ps3.some(prog=>(prog.breaks||[]).some(brk=>
-      (brk.items||[]).some(it=>
-        it.piDay==null || (Number(it.piDay)===kd && Number(it.piMonth)===(km-1) && Number(it.piYear)===ky)
-      )
-    ));
+    const has  = (gradeForKey(key)).length > 0;
     let cls = 'dnt-cell';
     if(key===tKey)        cls += ' dnt-today';
     if(key===viewDateKey) cls += ' dnt-sel';
@@ -1912,6 +1956,7 @@ function renderDateNav(){
     if(key===tKey && cur.progIdx>=0) cls += ' dnt-onair';
     cells += `<div class="${cls}" onclick="selectDate('${key}')"><span class="dnt-num">${d}</span><div class="dnt-dot"></div></div>`;
   }
+  // Dias do próximo mês — sem onclick (pointer-events:none no CSS)
   const rem = (startDow + daysInMonth) % 7;
   if(rem) for(let i=1; i<=7-rem; i++)
     cells += `<div class="dnt-cell dnt-other"><span class="dnt-num">${i}</span><div class="dnt-dot"></div></div>`;
@@ -1920,7 +1965,11 @@ function renderDateNav(){
 
 function dntShift(dir){ dntMonth+=dir; if(dntMonth>11){dntMonth=0;dntYear++;}if(dntMonth<0){dntMonth=11;dntYear--;} renderDateNav(); }
 function dntSetYear(y){ dntYear=parseInt(y); renderDateNav(); }
-function dntGoToday(){ const n=new Date(); dntYear=n.getFullYear(); dntMonth=n.getMonth(); selectDate(todayKey()); }
+function dntGoToday(){
+  const n=new Date(); dntYear=n.getFullYear(); dntMonth=n.getMonth();
+  const tk=todayKey();
+  selectDate(tk);
+}
 
 function selectDate(key){
   viewDateKey = key;
@@ -1935,6 +1984,7 @@ function selectDate(key){
   snap.doneLen = (cur.doneKeys||[]).length;
   lastGradeTs  = _fbLastTs || 0; // Firebase timestamp em memoria
   lastCurTs    = _lastCurTs || 0;
+
   renderDateNav();
   buildRoteiro();
   restoreCollapsed();
@@ -2332,7 +2382,7 @@ document.addEventListener('keydown',e=>{
 // Render completo do painel OPEC
 
 function isItemConfirmed(pi, bi, ii){
-  const key = `${viewDow}-${pi}-${bi}-${ii}`;
+  const key = `${viewDateKey}-${pi}-${bi}-${ii}`;
   if((cur.doneKeys||[]).includes(key)) return true;
   return getOpecLog().some(l => l.pi===pi && l.bi===bi && l.ii===ii);
 }
