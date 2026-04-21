@@ -1001,18 +1001,7 @@ function _wdReset(){
 function _wdFire(){
   _dot('err');
   showToast('⚠ Firebase sem sinal há 30s — verifique a conexão!', 'warn');
-  try{
-    const ctx=new(window.AudioContext||window.webkitAudioContext)();
-    [440,480,440].forEach((freq,i)=>{
-      const osc=ctx.createOscillator(),gain=ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.frequency.value=freq; osc.type='sine';
-      gain.gain.setValueAtTime(0.3,ctx.currentTime+i*0.3);
-      gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+i*0.3+0.25);
-      osc.start(ctx.currentTime+i*0.3);
-      osc.stop(ctx.currentTime+i*0.3+0.25);
-    });
-  }catch(e){}
+  // Som de alerta removido
   _wdTimer = setTimeout(_wdFire, _WD_TIMEOUT);
 }
 
@@ -1655,10 +1644,14 @@ function buildRoteiro(){
   const ps   = gradeForKey(viewDateKey);
   const isCurDay = viewDow===cur.day;
 
-  // Label do topo — sempre a data de HOJE (independente do dia selecionado no calendário)
-  const today = new Date();
+  // Label do topo — mostra a data SELECIONADA no calendário
   const dlabel = document.getElementById('day-label');
-  if(dlabel) dlabel.textContent = `${DAYS_FULL[today.getDay()]}, ${today.getDate()} ${MONTHS_SHORT[today.getMonth()]}. ${today.getFullYear()}`;
+  if(dlabel){
+    const [_dy,_dm,_dd] = viewDateKey.split('-').map(Number);
+    const _selDow = keyToDow(viewDateKey);
+    const _isToday = viewDateKey === todayKey();
+    dlabel.textContent = `${DAYS_FULL[_selDow]}, ${_dd} ${MONTHS_SHORT[_dm-1]}. ${_dy}${_isToday?' — HOJE':''}`;
+  }
 
   if(!ps.length){
     area.innerHTML=`<div class="empty"><div class="empty-ico">📋</div>Nenhum programa para este dia.<br><span style="font-size:12px">Configure no Operação Comercial.</span></div>`;
@@ -1904,11 +1897,19 @@ function renderDateNav(){
   for(let d=1; d<=daysInMonth; d++){
     const key  = `${dntYear}-${String(dntMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const dow  = keyToDow(key);
-    const has  = (gradeForKey(key)).length > 0;
+    const dow3 = keyToDow(key);
+    const ps3  = gradeForKey(key);
+    const [ky,km,kd] = key.split('-').map(Number);
+    const has  = ps3.some(prog=>(prog.breaks||[]).some(brk=>
+      (brk.items||[]).some(it=>
+        it.piDay==null || (Number(it.piDay)===kd && Number(it.piMonth)===(km-1) && Number(it.piYear)===ky)
+      )
+    ));
     let cls = 'dnt-cell';
     if(key===tKey)        cls += ' dnt-today';
     if(key===viewDateKey) cls += ' dnt-sel';
     if(has)               cls += ' dnt-has';
+    if(key===tKey && cur.progIdx>=0) cls += ' dnt-onair';
     cells += `<div class="${cls}" onclick="selectDate('${key}')"><span class="dnt-num">${d}</span><div class="dnt-dot"></div></div>`;
   }
   const rem = (startDow + daysInMonth) % 7;
