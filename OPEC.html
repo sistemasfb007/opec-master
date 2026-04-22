@@ -6972,6 +6972,12 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         const mHora = lines[j].match(/^(\d{1,2}:\d{2})\s+[STQDM]/i);
         if(mHora) timeStart = mHora[1];
         j++;
+        // BUGFIX: "INS" isolado numa linha + "06:30 D" na linha seguinte
+        // O pdfjs às vezes separa "INS" e "06:30 D" em linhas diferentes (Y diferente)
+        if(!timeStart && j < lines.length){
+          const mHora2 = lines[j].match(/^(\d{1,2}:\d{2})\s+[STQDMD]/i);
+          if(mHora2){ timeStart = mHora2[1]; j++; }
+        }
       }
 
       // ── Linha [D]: hora início isolada ──
@@ -7032,8 +7038,30 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       // Se insNums.length > dias.length, o último é o total
       let insArr;
       if(insNums.length > dias.length){
+        // Caso normal: vieram N valores por dia + 1 total no final → descartar total
         insArr = insNums.slice(0, dias.length);
-        // total = insNums[insNums.length - 1] (ignorar, recalcular)
+      } else if(insNums.length === 1){
+        // Só veio o total (PDF não detalhou por dia) → distribuir uniformemente
+        const perDay = Math.round(insNums[0] / dias.length) || 1;
+        insArr = dias.map(() => perDay);
+      } else if(insNums.length < dias.length){
+        // PDF omitiu zeros nos dias sem inserção ou houve quebra de linha.
+        // Heurística: se a soma dos números disponíveis bate com o total esperado,
+        // os valores faltantes são zero. Caso contrário, o último número pode ser
+        // o total — tenta descartar e completar com zeros.
+        const rawSum = insNums.reduce((s,v)=>s+v,0);
+        const lastVal = insNums[insNums.length-1];
+        const sumWithoutLast = rawSum - lastVal;
+        // Se descartar o último deixa a soma igual a sumWithoutLast e
+        // o número de valores restantes bate com dias.length-1 → era o total
+        if(insNums.length - 1 === dias.length - 1 || (insNums.length - 1 < dias.length && sumWithoutLast <= lastVal)){
+          // Provável que o último seja total: usar apenas os anteriores e completar com 0
+          const base = insNums.slice(0, insNums.length - 1);
+          insArr = [...base, ...Array(dias.length - base.length).fill(0)];
+        } else {
+          // Completar com zeros à direita (dias sem inserção)
+          insArr = [...insNums, ...Array(dias.length - insNums.length).fill(0)];
+        }
       } else {
         insArr = insNums.slice(0, dias.length);
       }
@@ -7447,14 +7475,63 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     const totalIns=(pi.lines||[]).reduce((s,l)=>s+l.totalInsertions,0);
     const DSH=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
     const DFU=['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+
+    // ── Pré-calcular distribuição para obter motivos por dia ──
+    const _previewDist = piBuildDist(pi, g, monthNum, yearNum);
+    // Montar mapa: "YYYY-MM-DD" → array de warns
+    const _warnByKey = {};
+    Object.values(_previewDist).forEach(day => {
+      day.inserts.forEach(ins => {
+        if(ins.warn){
+          if(!_warnByKey[day.key]) _warnByKey[day.key] = [];
+          _warnByKey[day.key].push({warn: ins.warn, acao: ins.acao, count: ins.count});
+        }
+      });
+    });
+
     const mapRows=(pi.lines||[]).map(l=>{
       const chips=(l.days||[]).map(d=>{
         const dow=new Date(yearNum,monthNum,d).getDay();
         const has=(g[dow]||[]).some(p=>piProgOverlap(p,l.timeStart,l.timeEnd));
-        return `<span class="pi-dchip ${has?'match':'nomatch'}" title="${DFU[dow]} ${d}/${monthNum+1}"><span style="font-size:9px;font-weight:600;text-transform:uppercase">${DSH[dow]}</span><span>${d}</span></span>`;
+        const dayKey=`${yearNum}-${String(monthNum+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const warns = _warnByKey[dayKey] || [];
+        // Montar tooltip: se há warn, mostrar motivo; senão, nome do dia
+        let tipText = `${DFU[dow]} ${d}/${monthNum+1}`;
+        if(!has && warns.length){
+          tipText += '\n⚠ ' + warns.map(w=>w.warn+(w.acao?'\n→ '+w.acao:'')).join('\n');
+        }
+        return `<span class="pi-dchip ${has?'match':'nomatch'}" title="${tipText.replace(/"/g,"'")}" style="${!has && warns.length ? 'cursor:help' : ''}"><span style="font-size:9px;font-weight:600;text-transform:uppercase">${DSH[dow]}</span><span>${d}</span></span>`;
       }).join('');
       return `<tr><td><span class="pi-prog-pill">${esc(l.program)}</span></td><td style="font-family:var(--font-m);font-size:10px;color:var(--text2)">${l.timeStart}–${l.timeEnd}</td><td><div style="display:flex;flex-wrap:wrap;gap:2px">${chips}</div></td><td style="font-family:var(--font-m);font-size:10px;color:var(--gold)">${l.insertionsPerDay}×</td><td style="font-family:var(--font-m);font-size:10px;color:var(--gold)">${l.totalInsertions}</td></tr>`;
     }).join('');
+
+    // ── Construir painel de avisos para o step 2 ──
+    const _previewProblems = {};
+    Object.values(_previewDist).forEach(day => {
+      day.inserts.forEach(ins => {
+        if(ins.warn){
+          const k = ins.warnType+'|'+ins.warn;
+          if(!_previewProblems[k]) _previewProblems[k]={warn:ins.warn, acao:ins.acao, warnType:ins.warnType, dias:[], count:0};
+          _previewProblems[k].dias.push(`${String(day.dayNum).padStart(2,'0')}/${String(monthNum+1).padStart(2,'0')}`);
+          _previewProblems[k].count += ins.count;
+        }
+      });
+    });
+    const _previewProblemsArr = Object.values(_previewProblems);
+    const _previewWarnsHtml = _previewProblemsArr.map(p=>`
+      <div style="background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.25);border-radius:8px;padding:10px 14px;margin-bottom:8px">
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
+          <span style="font-size:14px;flex-shrink:0">⚠</span>
+          <div style="flex:1">
+            <div style="font-size:11px;font-weight:600;color:var(--red2);margin-bottom:3px">${esc(p.warn)}</div>
+            <div style="font-size:10px;color:var(--text3)">Dias afetados: <span style="color:var(--text2)">${p.dias.join(' · ')}</span> &nbsp;·&nbsp; <span style="color:var(--gold)">${p.count} inserção(ões) sem programa</span></div>
+          </div>
+        </div>
+        ${p.acao?`<div style="display:flex;align-items:flex-start;gap:8px;background:rgba(58,154,224,.08);border:1px solid rgba(58,154,224,.2);border-radius:5px;padding:7px 10px">
+          <span style="font-size:12px;flex-shrink:0">💡</span>
+          <div style="font-size:10px;color:var(--blue2);line-height:1.6">${esc(p.acao)}</div>
+        </div>`:''}
+      </div>`).join('');
     // materiais vinculados
     const allM=getAllMidias();
     const linked=allM.filter(it=>{
@@ -7603,6 +7680,15 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
           ?`<div style="padding:18px;text-align:center;color:var(--text3)">! Nenhuma faixa identificada.<br><small>Verifique o PDF.</small></div>`
           :`<div style="overflow-x:auto"><table class="pi-mapa-table"><thead><tr><th>Faixa</th><th>Horário</th><th>Dias</th><th>Ins/dia</th><th>Total</th></tr></thead><tbody>${mapRows}</tbody></table></div>`}
       </div>
+      ${_previewProblemsArr.length ? `
+      <div class="card" data-panel-id="avisos-preview" draggable="true" style="border-color:rgba(192,57,43,.35)">
+        <div class="card-head" style="display:flex;align-items:center;gap:8px;background:rgba(192,57,43,.07)">
+          <span style="color:var(--red2);font-size:14px">⚠</span>
+          <span style="color:var(--red2)">${_previewProblemsArr.length} problema(s) encontrado(s) — inserções sem programa no roteiro</span>
+          <span style="font-size:10px;color:var(--text3);margin-left:auto">${_previewProblemsArr.reduce((s,p)=>s+p.count,0)} inserção(ões) afetada(s)</span>
+        </div>
+        <div style="padding:12px 14px">${_previewWarnsHtml}</div>
+      </div>` : ''}
       <div class="card" data-panel-id="materiais" draggable="true">
         <div class="card-head" style="display:flex;align-items:center;justify-content:space-between">
           <span>Materiais Vinculados</span>
