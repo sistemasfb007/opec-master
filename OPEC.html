@@ -6745,19 +6745,29 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
   function _savePiList(){
     try{
-      // piList viaja embutida na grade — mesma fonte, mesmo ciclo de vida
+      const toSave=piList.map(p=>({
+        id:p.id,piNumber:p.piNumber,status:p.status,client:p.client,
+        campaign:p.campaign,title:p.title,titles:p.titles||[],period:p.period,
+        duration:p.duration,totalInsertions:p.totalInsertions,
+        dateStart:p.dateStart,dateEnd:p.dateEnd,
+        materialSeq:p.materialSeq,lines:p.lines,
+        applied:p.applied||false,appliedCount:p.appliedCount||0
+      }));
       if(_isLocalFile){
-        const toSave=piList.map(p=>({
-          id:p.id,piNumber:p.piNumber,status:p.status,client:p.client,
-          campaign:p.campaign,title:p.title,period:p.period,duration:p.duration,
-          totalInsertions:p.totalInsertions,dateStart:p.dateStart,dateEnd:p.dateEnd,
-          materialSeq:p.materialSeq,lines:p.lines,applied:p.applied||false,appliedCount:p.appliedCount||0
-        }));
         localStorage.setItem('roteiro_pilist',JSON.stringify(toSave));
       } else {
+        // Nó dedicado — evita limite de 5MB da grade
+        if(typeof db!=='undefined' && db && _stationCode){
+          try{
+            ref(db,`estacoes/${_stationCode}/pilist`).set({
+              data: JSON.stringify(toSave), _ts: Date.now()
+            }).catch(e=>console.warn('[OPEC] pilist save:',e));
+          }catch(e){}
+        }
+        // Manter embutido na grade para o Master receber via sync
         if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
       }
-    }catch(e){}
+    }catch(e){ console.warn('[OPEC] _savePiList:',e); }
   }
 
   const MESES={janeiro:0,fevereiro:1,marco:2,março:2,abril:3,maio:4,junho:5,
@@ -6784,20 +6794,33 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     const buf=await file.arrayBuffer();
     const pdf=await pdfjsLib.getDocument({data:buf}).promise;
     const allLines=[];
+    // Padrões de linhas que são cabeçalho/rodapé repetido em cada página da Pen6.
+    // Estas linhas são marcadas com prefixo especial "##SKIP##" para que o parser
+    // as ignore no lookahead sem abortar a busca pela linha [E] (ás HH:MM).
+    const _headerPatterns=[
+      /^Pen[6ó]\s+Ltda\b/i,
+      /^AV\s+BRASIL[IÍ]A\b/i,
+      /^\s*PORTO\s+VELHO\s*[-–]?\s*RO\s*$/i,
+      /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\s*$/,  // CNPJ isolado
+    ];
     for(let p=1;p<=pdf.numPages;p++){
       const page=await pdf.getPage(p);
       const tc=await page.getTextContent();
-      // Agrupar por Y (tolerância 4px)
       const byY={};
       for(const item of tc.items){
         const y=Math.round(item.transform[5]/4)*4;
         if(!byY[y]) byY[y]=[];
         byY[y].push({x:item.transform[4],str:item.str});
       }
-      // Ordenar cada linha por X e juntar
       for(const y of Object.keys(byY).map(Number).sort((a,b)=>b-a)){
         const txt=byY[y].sort((a,b)=>a.x-b.x).map(i=>i.str).join(' ').replace(/\s+/g,' ').trim();
-        if(txt) allLines.push(txt);
+        if(!txt) continue;
+        // Marcar linhas de cabeçalho com prefixo para o parser ignorar no lookahead
+        if(_headerPatterns.some(re=>re.test(txt))){
+          allLines.push('##SKIP## '+txt);
+        } else {
+          allLines.push(txt);
+        }
       }
     }
     return allLines;
@@ -6898,9 +6921,14 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
   function parseFaixas(lines){
     const faixas = [];
 
+    // Linhas marcadas com ##SKIP## são cabeçalhos/rodapés de página — ignorar em todo parser
+    function isSkip(l){ return /^##SKIP##/.test(l); }
+    function clean(l){ return l.replace(/^##SKIP##\s*/,''); }
+
     // Linha [A]: contém dias do mês E "TOT"
     function isDaysLine(l){
-      const s = l.trim();
+      if(isSkip(l)) return false;
+      const s = clean(l).trim();
       if(/^Total\b/i.test(s)) return false;          // "Total TOT INS: 128" — ignorar
       if(/^[aáà]/i.test(s))    return false;          // linha "ás HH:MM" — ignorar
       if(!/\bTOT\b/i.test(s)) return false;          // precisa ter "TOT"
@@ -6912,36 +6940,39 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
     // Extrair dias do mês da linha [A]
     function extractDays(l){
-      const before = l.split(/\bTOT\b/i)[0];
+      const before = clean(l).split(/\bTOT\b/i)[0];
       return (before.match(/\b(\d{1,2})\b/g)||[])
               .map(Number).filter(n => n >= 1 && n <= 31);
     }
 
     // Linha [B]: começa com número seguido de " ou '
     function isNameLine(l){
-      return /^\d+["""''\u201c\u201d]\s*[-\u2013]/.test(l.trim());
+      if(isSkip(l)) return false;
+      return /^\d+["""''\u201c\u201d]\s*[-\u2013]/.test(clean(l).trim());
     }
 
     // Linha [C]: contém "INS" (linha de dias da semana, às vezes com hora)
     function isDowLine(l){
-      return /\bINS\b/i.test(l);
+      if(isSkip(l)) return false;
+      return /\bINS\b/i.test(clean(l));
     }
 
     // Linha [D]: só horário "HH:MM" (aceita também "HH:MM " com espaços)
     function isTimeLine(l){
-      return /^\d{1,2}:\d{2}\s*$/.test(l.trim());
+      if(isSkip(l)) return false;
+      return /^\d{1,2}:\d{2}\s*$/.test(clean(l).trim());
     }
 
     // Extrai horário HH:MM isolado de uma linha (para timeStart)
     function extractTime(l){
-      const m = l.trim().match(/^(\d{1,2}:\d{2})\s*$/);
+      const m = clean(l).trim().match(/^(\d{1,2}:\d{2})\s*$/);
       return m ? m[1] : null;
     }
 
     // Linha [E]: começa com "ás"/"às"/"as" + HH:MM
-    // BUGFIX: aceita crase ("às"), variações de acento e "00:00" explicitamente
     function isAsLine(l){
-      return /^[aáàÀÁÃ][sS]?\s+\d{1,2}:\d{2}/i.test(l.trim());
+      if(isSkip(l)) return false;
+      return /^[aáàÀÁÃ][sS]?\s+\d{1,2}:\d{2}/i.test(clean(l).trim());
     }
 
     let i = 0;
@@ -6957,8 +6988,10 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       let j = i + 1;
 
       // ── Linha [B]: nome do programa ──
+      // Pular linhas ##SKIP## antes de [B]
+      while(j < lines.length && isSkip(lines[j])) j++;
       if(j < lines.length && isNameLine(lines[j])){
-        const m = lines[j].match(/^(\d+)["""''\u201c\u201d]\s*[-\u2013]\s*(.*)/);
+        const m = clean(lines[j]).match(/^(\d+)["""''\u201c\u201d]\s*[-\u2013]\s*(.*)/);
         if(m){
           dur  = parseInt(m[1]) || 30;
           nome = m[2].replace(/\*$/, '').replace(/\s+/g,' ').trim();
@@ -6967,63 +7000,67 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       }
 
       // ── Linha [C]: dias da semana — pode ter hora no início (caso domingo) ──
+      while(j < lines.length && isSkip(lines[j])) j++;
       if(j < lines.length && isDowLine(lines[j])){
-        // Caso especial: "06:30 D D D INS" — hora início antes dos dias
-        const mHora = lines[j].match(/^(\d{1,2}:\d{2})\s+[STQDM]/i);
+        const mHora = clean(lines[j]).match(/^(\d{1,2}:\d{2})\s+[STQDM]/i);
         if(mHora) timeStart = mHora[1];
         j++;
         // BUGFIX: "INS" isolado numa linha + "06:30 D" na linha seguinte
-        // O pdfjs às vezes separa "INS" e "06:30 D" em linhas diferentes (Y diferente)
+        while(j < lines.length && isSkip(lines[j])) j++;
         if(!timeStart && j < lines.length){
-          const mHora2 = lines[j].match(/^(\d{1,2}:\d{2})\s+[STQDMD]/i);
+          const mHora2 = clean(lines[j]).match(/^(\d{1,2}:\d{2})\s+[STQDMD]/i);
           if(mHora2){ timeStart = mHora2[1]; j++; }
         }
       }
 
       // ── Linha [D]: hora início isolada ──
-      // BUGFIX: busca até 2 linhas à frente para cobrir casos onde
-      // há uma linha intermediária entre [C] e [D]
       if(!timeStart){
         for(let k = 0; k < 2 && (j + k) < lines.length; k++){
           const candidate = lines[j + k];
-          if(isAsLine(candidate)) break; // chegou na linha [E], para
-          if(isDaysLine(candidate)) break; // nova faixa, para
+          if(isSkip(candidate)) continue;
+          if(isAsLine(candidate)) break;
+          if(isDaysLine(candidate)) break;
           const t = extractTime(candidate);
           if(t){ timeStart = t; j += k + 1; break; }
         }
       }
 
       // ── Linha [E]: "ás HH:MM ins ins ins... total" ──
-      // BUG3 FIX: tolerância aumentada para 8 linhas (quebra de página no PDF
-      // pode inserir cabeçalho/rodapé entre a linha dos dias e a linha "ás HH:MM").
-      // Removido o break em isDaysLine: se o skip ainda não passou de 2, pode ser
-      // falso positivo de dias na página seguinte — continua buscando a linha "ás".
+      // Busca até 12 posições à frente. Linhas ##SKIP## (cabeçalho de página) são
+      // puladas transparentemente. Aborta IMEDIATAMENTE ao encontrar nova linha [A]
+      // (qualquer isDaysLine), pois cada faixa é autossuficiente — não há razão para
+      // o parser da linha [E] atravessar o início de uma nova faixa.
       let asFound = false;
-      for(let skip = 0; skip < 8 && (j + skip) < lines.length; skip++){
-        if(isAsLine(lines[j + skip])){
+      let _lookJ = j; // posição real após pular ##SKIP##
+      for(let skip = 0; skip < 12 && (j + skip) < lines.length; skip++){
+        const candidate = lines[j + skip];
+        if(isSkip(candidate)) continue; // pular cabeçalhos de página sem contar
+        if(isAsLine(candidate)){
           if(skip > 0) j += skip;
           asFound = true;
           break;
         }
-        // Só aborta se encontrou nova faixa E já passou da tolerância mínima (2 linhas)
-        if(skip >= 2 && isDaysLine(lines[j + skip])) break;
+        // Abortar imediatamente ao encontrar início de nova faixa [A]
+        if(isDaysLine(candidate)) break;
+        // Abortar em linha [B] de nova faixa
+        if(isNameLine(candidate)) break;
       }
 
       if(asFound && j < lines.length && isAsLine(lines[j])){
-        const mAs = lines[j].match(/^[aáàÀÁÃ][sS]?\s+(\d{1,2}:\d{2})\s*(.*)/i);
+        const mAs = clean(lines[j]).match(/^[aáàÀÁÃ][sS]?\s+(\d{1,2}:\d{2})\s*(.*)/i);
         if(mAs){
           timeEnd  = mAs[1].padStart(5, '0');
           insNums  = (mAs[2].match(/\d+/g) || []).map(Number);
-          // BUGFIX RAIZ: "ás 08:00" (ou "ás 00:00") aparece sozinho e os números ficam
-          // na linha seguinte separada (ex: "3 3 2 8").
-          // Se não vieram números na mesma linha, pega a próxima linha
-          // desde que seja só números (não seja outra faixa/cabeçalho).
           if(!insNums.length && (j+1) < lines.length){
-            const nextL = lines[j+1].trim();
-            const onlyNums = /^[\d\s]+$/.test(nextL);
-            if(onlyNums){
-              insNums = (nextL.match(/\d+/g)||[]).map(Number);
-              j++; // consumir a linha extra de números
+            let nj = j+1;
+            while(nj < lines.length && isSkip(lines[nj])) nj++;
+            if(nj < lines.length){
+              const nextL = clean(lines[nj]).trim();
+              const onlyNums = /^[\d\s]+$/.test(nextL);
+              if(onlyNums){
+                insNums = (nextL.match(/\d+/g)||[]).map(Number);
+                j = nj;
+              }
             }
           }
         }
@@ -7034,36 +7071,19 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       if(!dias.length || !insNums.length){ i++; continue; }
 
       // ── Montar insertionsPerDayMap ──
-      // insNums tem: [ins_dia1, ins_dia2, ..., total]
-      // Se insNums.length > dias.length, o último é o total
+      // O PDF Pen6 sempre termina com o total acumulado: [v1, v2, ..., vN, TOTAL]
+      // Regra determinística: se insNums.length > dias.length → o último é o total.
+      // Faixas de 1 dia: "15 15" → [15,15], dias=[25] → 2>1 → slice → [15] ✓
       let insArr;
       if(insNums.length > dias.length){
-        // Caso normal: vieram N valores por dia + 1 total no final → descartar total
         insArr = insNums.slice(0, dias.length);
+      } else if(insNums.length === dias.length){
+        insArr = insNums.slice();
       } else if(insNums.length === 1){
-        // Só veio o total (PDF não detalhou por dia) → distribuir uniformemente
         const perDay = Math.round(insNums[0] / dias.length) || 1;
         insArr = dias.map(() => perDay);
-      } else if(insNums.length < dias.length){
-        // PDF omitiu zeros nos dias sem inserção ou houve quebra de linha.
-        // Heurística: se a soma dos números disponíveis bate com o total esperado,
-        // os valores faltantes são zero. Caso contrário, o último número pode ser
-        // o total — tenta descartar e completar com zeros.
-        const rawSum = insNums.reduce((s,v)=>s+v,0);
-        const lastVal = insNums[insNums.length-1];
-        const sumWithoutLast = rawSum - lastVal;
-        // Se descartar o último deixa a soma igual a sumWithoutLast e
-        // o número de valores restantes bate com dias.length-1 → era o total
-        if(insNums.length - 1 === dias.length - 1 || (insNums.length - 1 < dias.length && sumWithoutLast <= lastVal)){
-          // Provável que o último seja total: usar apenas os anteriores e completar com 0
-          const base = insNums.slice(0, insNums.length - 1);
-          insArr = [...base, ...Array(dias.length - base.length).fill(0)];
-        } else {
-          // Completar com zeros à direita (dias sem inserção)
-          insArr = [...insNums, ...Array(dias.length - insNums.length).fill(0)];
-        }
       } else {
-        insArr = insNums.slice(0, dias.length);
+        insArr = [...insNums, ...Array(dias.length - insNums.length).fill(0)];
       }
 
       // Montar mapa dia → inserções
@@ -7082,13 +7102,17 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         timeStart:           timeStart || '00:00',
         timeEnd:             timeEnd   || '00:00',
         duration:            dur,
-        insertionsPerDay:    insArr.find(v => v > 0) || 1,
+        insertionsPerDay:    (()=>{ const _nz=insArr.filter(v=>v>0); return _nz.length?Math.round(_nz.reduce((s,v)=>s+v,0)/_nz.length):1; })(),
         insertionsPerDayMap: insMap,
         days:                Object.keys(insMap).map(Number),
         totalInsertions:     totalIns,
       });
 
       i = j; // avançar para próxima faixa
+      // DEBUG: logar cada faixa processada para diagnóstico
+      if(typeof console !== 'undefined' && window._piDebug){
+        console.log('[parseFaixas] faixa', faixas.length, '|', nome, '|', timeStart, '-', timeEnd, '| dias:', dias, '| ins:', insNums, '| i agora:', i);
+      }
     }
 
     return faixas;
@@ -7139,12 +7163,22 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         return;
       }
 
-      // Verificar duplicata
-      const _dup = piList.find(x => x.piNumber && pi.piNumber &&
+      // Verificar duplicata — se já existe PI com mesmo número, SUBSTITUIR (não bloquear)
+      // Isso permite reimportar um PI revisado (ex: PI cancelado e substituído pelo emissor)
+      const _dupIdx = piList.findIndex(x => x.piNumber && pi.piNumber &&
         String(x.piNumber).trim() === String(pi.piNumber).trim());
-      if(_dup){
-        piToast('! PI ' + pi.piNumber + ' já está carregada. Selecione ela na lista.');
-        piSelectPi(_dup.id);
+      if(_dupIdx >= 0){
+        const _old = piList[_dupIdx];
+        // Preservar histórico de aplicação da versão anterior
+        pi.applied      = _old.applied      || false;
+        pi.appliedCount = _old.appliedCount  || 0;
+        pi.id           = _old.id; // manter o mesmo ID para não quebrar vínculos
+        piList.splice(_dupIdx, 1, pi);
+        window._piList = piList;
+        _savePiList();
+        _piEnsureLibItem(pi);
+        piRenderList(); piSelectPi(pi.id);
+        piToast('✓ PI '+pi.piNumber+' atualizada — '+pi.totalInsertions+' inserções (versão anterior substituída)');
         piHideLoading && piHideLoading();
         return;
       }
@@ -8057,14 +8091,21 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
       // Chave de busca: piNumber + índice do título (para múltiplos)
       const _piKey   = pi.piNumber || '';
+      const _piId    = pi.id || '';  // ID único do objeto PI carregado
       const _titleKey = title.toLowerCase().trim();
 
       // Verificar se já existe item com este piNumber + título
+      // Também verifica por piId para evitar duplicatas quando piNumber está vazio
       const existing = mediaLib.find(m => {
-        if(!m.piNumber || m.piNumber !== _piKey) return false;
-        const mt = (m.title||'').toLowerCase().trim();
-        return mt === _titleKey;
-      }) || (idx === 0 && _allTitles.length === 1
+        // Match por piId (evita duplicatas na mesma sessão)
+        if(_piId && m._piSourceId === _piId && (m._piTitleIdx||0) === idx) return true;
+        // Match por piNumber + título
+        if(_piKey && m.piNumber === _piKey){
+          const mt = (m.title||'').toLowerCase().trim();
+          if(mt === _titleKey) return true;
+        }
+        return false;
+      }) || (_piKey && idx === 0 && _allTitles.length === 1
         // Fallback para PI com título único: match só por piNumber (comportamento anterior)
         ? mediaLib.find(m => m.piNumber && m.piNumber === _piKey)
         : null);
@@ -8078,21 +8119,25 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         existing.piNumber  = _piKey||existing.piNumber||'';
         existing.piClient  = pi.client||existing.piClient||'';
         existing.segment   = existing.segment||_seg;
+        existing._piSourceId = _piId;
+        existing._piTitleIdx = idx;
         if(!existing.id) existing.id = uid();
         _changed = true;
       } else {
         // Criar novo item na biblioteca
         mediaLib.push({
-          id:        uid(),
-          seq:       '',           // operador define Nº Mídia manualmente
-          name:      name,
-          title:     title,
-          dur:       parseInt(pi.duration)||30,
-          dateStart: pi.dateStart||'',
-          dateEnd:   pi.dateEnd||'',
-          piNumber:  _piKey,
-          piClient:  pi.client||'',
-          segment:   _seg,
+          id:          uid(),
+          seq:         '',           // operador define Nº Mídia manualmente
+          name:        name,
+          title:       title,
+          dur:         parseInt(pi.duration)||30,
+          dateStart:   pi.dateStart||'',
+          dateEnd:     pi.dateEnd||'',
+          piNumber:    _piKey,
+          piClient:    pi.client||'',
+          segment:     _seg,
+          _piSourceId: _piId,
+          _piTitleIdx: idx,
         });
         _changed = true;
       }
@@ -8183,29 +8228,31 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       if(!insertsValidos.length) return;
 
       const progIds = [...new Set(insertsValidos.map(i=>i.program.id))];
-      const _dayProgs = g[day.key] || g[day.dow] || g[String(day.dow)] || [];
+      const _dayProgs = g[day.dow] || g[String(day.dow)] || [];
 
       progIds.forEach(progId=>{
-        // Localizar programa na grade (com fallback por nome+horário)
+        // Localizar programa na grade pelo ID; fallback por nome+horário no DOW correto
         let prog = _dayProgs.find(p=>p.id===progId);
         let _byFallback = false;
         if(!prog){
           const ref = insertsValidos.find(i=>i.program.id===progId)?.program;
           if(ref){
-            prog = _dayProgs.find(p=>p.time===ref.time&&p.name===ref.name)
-                || _dayProgs.find(p=>p.time===ref.time);
+            prog = _dayProgs.find(p=>p.time===ref.time && p.name===ref.name)
+                || _dayProgs.find(p=>p.time===ref.time)
+                || _dayProgs.find(p=>p.name===ref.name);
             if(prog) _byFallback = true;
           }
         }
         if(!prog) return;
 
-        // Remover itens anteriores desta PI para este dia exato
+        // Remover itens anteriores desta PI para este dia exato (piDay+piMonth+piYear)
         (prog.breaks||[]).forEach(brk=>{
           brk.items = (brk.items||[]).filter(it=>{
             if(String(it.piNumber||'').trim()!==_piNum) return true;
-            return !(Number(it.piDay)===day.dayNum &&
-                     Number(it.piMonth)===day.monthNum &&
-                     Number(it.piYear)===day.yearNum);
+            // Só remover se for exatamente este dia (não remover outros dias já aplicados)
+            return !(Number(it.piDay)===day.dayNum
+                  && Number(it.piMonth)===day.monthNum
+                  && Number(it.piYear)===day.yearNum);
           });
         });
 
