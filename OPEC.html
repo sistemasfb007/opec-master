@@ -1233,9 +1233,10 @@ function _applyGrade(d){
       window._airLogsCache = logs;
     }
   }
-  // Extrair mediaLib e piList embutidos na grade
+  // Extrair mediaLib embutida na grade — só aplica se mediaLib local estiver vazia
+  // (evita apagar cadastros manuais recentes que ainda não foram sincronizados)
   if(d.__medialib && Array.isArray(d.__medialib)){
-    if(typeof mediaLib!=='undefined') mediaLib=d.__medialib;
+    if(typeof mediaLib!=='undefined' && mediaLib.length===0) mediaLib=d.__medialib;
   }
   if(d.__pilist){
     try{
@@ -4546,7 +4547,9 @@ function _fbLoadMedialib(){
     if(!snap.exists()) return;
     const d=snap.val();
     window._mediaLibFbTs=d._ts||0;
-    mediaLib=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);
+    // Só aplicar se mediaLib local estiver vazia (evita apagar cadastro recente)
+    const items=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);
+    if(items.length>0) mediaLib=items;
     if(typeof renderMidList==='function') renderMidList();
     if(typeof renderOpcMidias==='function') renderOpcMidias();
   }).catch(function(){});
@@ -4555,7 +4558,8 @@ function _fbLoadMedialib(){
     const d=snap.val(), ts=d._ts||0;
     if(ts<=(window._mediaLibFbTs||0)) return;
     window._mediaLibFbTs=ts;
-    mediaLib=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);
+    const items=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);
+    if(items.length>0) mediaLib=items;
     if(typeof renderMidList==='function') renderMidList();
     if(typeof renderOpcMidias==='function') renderOpcMidias();
   });
@@ -4770,13 +4774,16 @@ function loadMediaLib(){
 }
 function saveMediaLib(){
   if(_isLocalFile){try{localStorage.setItem('roteiro_medialib',JSON.stringify(mediaLib));}catch(e){console.warn('[OPEC] Falha ao salvar mediaLib local:',e);}return;}
-  // Salvar mediaLib no caminho dedicado do Firebase (mesmo caminho que _fbLoadMedialib le)
-  if(typeof db==='undefined'||!db||!_stationCode) return;
   if(window._fbPaused) return;
-  try{
-    const r=ref(db,'estacoes/'+_stationCode+'/medialib');
-    set(r,{items:mediaLib,_ts:Date.now()}).then(()=>_fbDot('green')).catch(e=>console.warn('[OPEC] Falha ao salvar mediaLib no Firebase:',e));
-  }catch(e){console.warn('[OPEC] saveMediaLib erro:',e);}
+  // Salvar no caminho dedicado /medialib (lido por _fbLoadMedialib no reload)
+  if(typeof db!=='undefined'&&db&&_stationCode){
+    try{
+      const r=ref(db,'estacoes/'+_stationCode+'/medialib');
+      set(r,{items:mediaLib,_ts:Date.now()}).catch(e=>console.warn('[OPEC] saveMediaLib Firebase:',e));
+    }catch(e){}
+  }
+  // Também embutir na grade para manter compatibilidade com _applyGrade
+  if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
 }
 
 function getAllMidias(){
