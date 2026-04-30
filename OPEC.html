@@ -4770,8 +4770,13 @@ function loadMediaLib(){
 }
 function saveMediaLib(){
   if(_isLocalFile){try{localStorage.setItem('roteiro_medialib',JSON.stringify(mediaLib));}catch(e){console.warn('[OPEC] Falha ao salvar mediaLib local:',e);}return;}
-  // mediaLib viaja embutida na grade — mesma fonte, mesmo ciclo de vida
-  if(typeof window._fbSaveGrade==='function') window._fbSaveGrade(grade);
+  // Salvar mediaLib no caminho dedicado do Firebase (mesmo caminho que _fbLoadMedialib le)
+  if(typeof db==='undefined'||!db||!_stationCode) return;
+  if(window._fbPaused) return;
+  try{
+    const r=ref(db,'estacoes/'+_stationCode+'/medialib');
+    set(r,{items:mediaLib,_ts:Date.now()}).then(()=>_fbDot('green')).catch(e=>console.warn('[OPEC] Falha ao salvar mediaLib no Firebase:',e));
+  }catch(e){console.warn('[OPEC] saveMediaLib erro:',e);}
 }
 
 function getAllMidias(){
