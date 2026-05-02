@@ -8159,10 +8159,10 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     const linkedHtml=linked.length
       ?linked.map(it=>{
         // Dados tratados
-        const _client  = (it.piClient||'').split(/\s+/).slice(0,2).join(' '); // primeiras 2 palavras do cliente
-        const _vtTitle = (it.title||'').replace(/^VT\s+/i,'').trim();         // título do VT limpo
-        const _seg     = it.name||'';                                            // segmento / marca
-        const _dateEnd = it.dateEnd ? fmtDate(it.dateEnd) : '—';               // data final
+        const _client  = (it.piClient||it.name||'').split(/\s+/).slice(0,2).join(' '); // cliente / partido
+        const _vtTitle = (it.title||'').replace(/^VT\s+/i,'').trim();                  // título do VT limpo
+        const _seg     = SEG_LABELS[it.segment] || it.segment || '';                   // segmento legível
+        const _dateEnd = it.dateEnd ? fmtDate(it.dateEnd) : '—';                      // data final
         const _exp     = it.dateEnd && isExpired(it.dateEnd);
 
         return `
@@ -8647,7 +8647,10 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     if(!pi.title && !pi.campaign && !(pi.titles&&pi.titles.length)) return;
     if(typeof mediaLib === 'undefined') return;
 
-    const _seg      = guessSegment(pi.client||'');
+    // Detectar PI partidária no nível da função (não por índice)
+    const _isPiPartidaria = pi.source === 'pdf-partidaria';
+
+    const _seg      = _isPiPartidaria ? 'POLITICO' : guessSegment(pi.client||'');
     const _segLabel = SEG_LABELS[_seg] || (pi.client||'').split(/\s+/)[0] || '';
     const _firstWord = (pi.client||'').split(/\s+/)[0] || '';
 
@@ -8756,7 +8759,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
           it.dateEnd=selPi.dateEnd||it.dateEnd;
           it.piClient=selPi.client||it.piClient;
           it.piNumber=selPi.piNumber||it.piNumber;
-          if(!it.segment) it.segment=guessSegment(selPi.client);
+          if(!it.segment) it.segment = selPi.source==='pdf-partidaria' ? 'POLITICO' : guessSegment(selPi.client);
           synced++;
         }
       });
@@ -8872,7 +8875,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
               piClient: selPi.client,
               dateStart:m.dateStart||selPi.dateStart||'',
               dateEnd:  m.dateEnd||selPi.dateEnd||'',
-              segment:  m.segment||guessSegment(selPi.client||''),
+              segment:  m.segment||(selPi.source==='pdf-partidaria'?'POLITICO':guessSegment(selPi.client||'')),
               libId:    m.id||'',               // ID exato do material — crítico para _libTitle
             });
             added++;
