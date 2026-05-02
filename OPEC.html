@@ -7430,6 +7430,251 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
   }
 
   // ── Detectar se PDF é formato Record News (tabela de grade) ──
+  // ── Detector: Calendário de Inserções Partidárias ──
+  function _isPartidariaPdf(lines){
+    const txt=lines.slice(0,40).join(' ');
+    return /CALEND[AÁ]RIO\s*DE\s*INSER[ÇC][OÕ]ES/i.test(txt)
+        || /PARTIDOS\s*POR\s*ORDEM/i.test(txt)
+        || (/INSER[ÇC][OÕ]ES?\s*PARTID[AÁ]RIA/i.test(txt))
+        || ((/PODE|AVANTE|SOLIDARIEDADE/i.test(txt)) && /segunda|terça|quarta|quinta|sexta|sábado|domingo/i.test(txt));
+  }
+
+  // ── Parser Inserção Partidária — calendário por partido/dia ──
+  // Formato: tabela com colunas X=partido, linhas Y=dia do mês
+  // Células: duração HH:MM:SS ou vazia
+  async function piParsePartidaria(file){
+    const buf=await file.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+
+    // Extrair todos os items com coordenadas X,Y
+    const allItems=[];
+    for(let p=1;p<=pdf.numPages;p++){
+      const page=await pdf.getPage(p);
+      const tc=await page.getTextContent();
+      const vp=page.getViewport({scale:1});
+      const H=vp.height;
+      for(const item of tc.items){
+        if(!item.str.trim()) continue;
+        allItems.push({
+          str:item.str.trim(),
+          x:Math.round(item.transform[4]),
+          y:Math.round(H-item.transform[5])
+        });
+      }
+    }
+
+    // Agrupar em linhas por Y (tolerância 6px)
+    const rowMap={};
+    for(const it of allItems){
+      const yk=Math.round(it.y/6)*6;
+      if(!rowMap[yk]) rowMap[yk]=[];
+      rowMap[yk].push(it);
+    }
+    const rows=Object.keys(rowMap).map(Number).sort((a,b)=>a-b)
+      .map(y=>rowMap[y].sort((a,b)=>a.x-b.x));
+
+    const fullText=allItems.map(i=>i.str).join(' ');
+
+    // ── Mês e ano ──
+    let monthNum=new Date().getMonth(), yearNum=new Date().getFullYear();
+    const MNAMES_PT=['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                     'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const MESES_PART={JANEIRO:0,FEVEREIRO:1,MARÇO:2,MARCO:2,ABRIL:3,MAIO:4,JUNHO:5,
+                      JULHO:6,AGOSTO:7,SETEMBRO:8,OUTUBRO:9,NOVEMBRO:10,DEZEMBRO:11};
+    const mM=fullText.match(/M[eê]s\s*de\s*([A-ZÁÇÃa-záçã]+)/i);
+    if(mM){
+      const mn=MESES_PART[mM[1].toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')];
+      if(mn!==undefined) monthNum=mn;
+    }
+    const yM=fullText.match(/\b(20\d{2})\b/);
+    if(yM) yearNum=parseInt(yM[1]);
+
+    const period=MNAMES_PT[monthNum].toUpperCase()+'/'+yearNum;
+
+    // ── Encontrar linha de cabeçalho dos partidos ──
+    // A linha que contém "PODE", "PT", "PL", etc — nomes de partido
+    const PARTIDO_RE=/^(PODE|PT|PP|AVANTE|PSD|PDT|PL|REPUBLICANOS|PSDB|PRD|SOLIDARIE|DADE|SOLIDARIEDADE|PV|REDE|UNIÃO|MDB|NOVO|CIDADANIA|PATRIOTA|AGIR|DC|PMB|PMN|PRB|PSC|PSL|PROS|SDD|SD|DEM|PSB|PCdoB|PCB|PCDOB|PSTU|PCO)$/i;
+
+    // Mapear colunas X → nome do partido
+    const partidoColMap={}; // x → nomePartido
+    let headerY=-1;
+    for(const row of rows){
+      const matched=row.filter(i=>PARTIDO_RE.test(i.str));
+      if(matched.length>=2){
+        // Encontrou a linha de cabeçalho dos partidos
+        headerY=row[0].y;
+        for(const it of matched){
+          partidoColMap[it.x]=it.str.toUpperCase();
+        }
+        break;
+      }
+    }
+
+    // Tratar "SOLIDARIE" + "DADE" (partido quebrado em duas linhas/colunas)
+    // Se tiver SOLIDARIE mas não SOLIDARIEDADE, checar linha seguinte/atual para DADE
+    // Na verdade, SOLIDARIEDADE pode aparecer como "SOLIDARIE\nDADE" em linhas consecutivas
+    // Já foram agrupados por X≈mesmo, então vamos mesclar
+    const partidoColFinal={};
+    const xKeys=Object.keys(partidoColMap).map(Number).sort((a,b)=>a-b);
+    for(const x of xKeys){
+      let nome=partidoColMap[x];
+      if(nome==='SOLIDARIE'){
+        // Procurar DADE na próxima linha com X próximo
+        let encontrouDade=false;
+        for(const row2 of rows){
+          if(row2[0] && Math.abs(row2[0].y - headerY) < 20 && row2[0].y !== headerY){
+            const dade=row2.find(i=>i.str.toUpperCase()==='DADE'&&Math.abs(i.x-x)<20);
+            if(dade){ nome='SOLIDARIEDADE'; encontrouDade=true; break; }
+          }
+        }
+        if(!encontrouDade) nome='SOLIDARIEDADE';
+      }
+      partidoColFinal[x]=nome;
+    }
+
+    // Coluna TOTAL — procurar "TOTAL" no cabeçalho
+    let totalColX=-1;
+    for(const row of rows){
+      const tot=row.find(i=>/^TOTAL$/i.test(i.str));
+      if(tot&&Math.abs(tot.y-headerY)<30){ totalColX=tot.x; break; }
+    }
+
+    if(!Object.keys(partidoColFinal).length) return null;
+
+    const partidoXs=Object.keys(partidoColFinal).map(Number);
+    const minPartidoX=Math.min(...partidoXs)-20;
+    const maxPartidoX=Math.max(...partidoXs)+30;
+
+    // ── Extrair linhas de dia ──
+    // Cada linha de dado: número do dia + nome do dia + duração em alguma coluna de partido
+    // Formato duração: HH:MM:SS  ex: 00:01:30
+    const DUR_RE=/^(\d{1,2}):(\d{2}):(\d{2})$/;
+
+    // Conversão de duração HH:MM:SS → segundos
+    function parseDur(s){
+      const m=DUR_RE.exec(s);
+      if(!m) return 0;
+      return parseInt(m[1])*3600+parseInt(m[2])*60+parseInt(m[3]);
+    }
+    // Converter segundos → string MM:SS para exibição
+    function durToStr(sec){
+      const m=Math.floor(sec/60), s=sec%60;
+      return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+    }
+
+    // Map: partido → [ {dayNum, durSec} ]
+    const partidoDays={};
+    for(const nome of Object.values(partidoColFinal)) partidoDays[nome]=[];
+
+    for(const row of rows){
+      // Ignorar linhas acima do cabeçalho ou a própria linha de cabeçalho
+      if(row[0].y <= headerY+5) continue;
+      // Ignorar linha de total geral e rodapé
+      const rowTxt=row.map(i=>i.str).join(' ').toLowerCase();
+      if(/^total\b/.test(rowTxt)) continue;
+      if(/tempo m[aá]ximo/.test(rowTxt)) continue;
+
+      // Verificar se é linha de dia: primeiro token numérico 1-31
+      const firstNum=parseInt(row[0].str);
+      if(isNaN(firstNum)||firstNum<1||firstNum>31) continue;
+      const dayNum=firstNum;
+
+      // Para cada item na linha, verificar se é duração e mapeá-lo ao partido pela coluna X
+      for(const it of row){
+        if(!DUR_RE.test(it.str)) continue;
+        const durSec=parseDur(it.str);
+        if(!durSec) continue;
+
+        // Encontrar partido mais próximo por X — IGNORAR coluna TOTAL
+        let bestPartido=null, bestDist=99999;
+        for(const [px,pNome] of Object.entries(partidoColFinal)){
+          // Pular coluna TOTAL
+          if(/^TOTAL$/i.test(pNome)) continue;
+          const dist=Math.abs(it.x-parseInt(px));
+          if(dist<bestDist){ bestDist=dist; bestPartido=pNome; }
+        }
+        // Também ignorar se a coluna TOTAL for mais próxima que qualquer partido
+        if(totalColX>=0 && Math.abs(it.x-totalColX)<bestDist) continue;
+
+        if(bestPartido && bestDist<40){
+          partidoDays[bestPartido].push({dayNum, durSec});
+        }
+      }
+    }
+
+    // ── Construir faixas — UMA POR PARTIDO ──
+    // Regra: cada entrada no calendário = 1 inserção com a duração informada
+    // (não dividir duração por 30 — a duração já é o tempo total da inserção)
+    const faixas=[];
+    const DIM=new Date(yearNum,monthNum+1,0).getDate();
+    // Títulos para criação de materiais: um por partido
+    const titlesParaLib=[];
+
+    for(const [partido,dias] of Object.entries(partidoDays)){
+      if(!dias.length) continue;
+
+      // Duração mais comum neste partido (para o material da biblioteca)
+      const durFreq={};
+      dias.forEach(d=>{ durFreq[d.durSec]=(durFreq[d.durSec]||0)+1; });
+      const mainDurSec=parseInt(Object.keys(durFreq).sort((a,b)=>durFreq[b]-durFreq[a])[0]);
+
+      // insertionsPerDayMap: sempre 1 inserção por dia
+      // (cada linha do calendário = 1 inserção com aquela duração)
+      const insertionsPerDayMap={};
+      dias.forEach(d=>{ insertionsPerDayMap[d.dayNum]=1; });
+
+      faixas.push({
+        program: partido,
+        timeStart:'00:00',
+        timeEnd:'23:59',
+        // Duração principal deste partido (segundos)
+        duration: mainDurSec,
+        insertionsPerDay: 1,
+        insertionsPerDayMap,
+        // Duração real por dia (pode variar — ex: 30s em alguns dias, 60s em outros)
+        durSecPerDay: Object.fromEntries(dias.map(d=>[d.dayNum, d.durSec])),
+        days: dias.map(d=>d.dayNum),
+        // Total de inserções = número de dias com veiculação (sempre 1 por dia)
+        totalInsertions: dias.length,
+        isPartidaria: true,
+        partidario: true
+      });
+
+      // Título + duração para biblioteca: um material por partido com sua duração real
+      titlesParaLib.push({title:'Inserção Partidária — '+partido, dur:mainDurSec});
+    }
+
+    if(!faixas.length) return null;
+
+    const totalInsertions=faixas.reduce((s,f)=>s+f.totalInsertions,0);
+    const dateStart=`${yearNum}-${String(monthNum+1).padStart(2,'0')}-01`;
+    const dateEnd=`${yearNum}-${String(monthNum+1).padStart(2,'0')}-${String(DIM).padStart(2,'0')}`;
+    const partidos=Object.keys(partidoDays).filter(k=>partidoDays[k].length).join(', ');
+    const piNum='PART-'+String(monthNum+1).padStart(2,'0')+yearNum;
+
+    return {
+      piNumber: piNum,
+      status:'APROVADO',
+      client:'INSERÇÃO PARTIDÁRIA',
+      campaign:'Calendário de Inserções — '+period,
+      // title = primeiro título (para compatibilidade)
+      title: titlesParaLib[0]?.title||('Inserção Partidária '+period),
+      // titles[] = strings dos títulos → _piEnsureLibItem cria um material por índice
+      titles: titlesParaLib.map(t=>t.title),
+      // titlesData[] = metadados extras por título (duração real de cada partido)
+      titlesData: titlesParaLib,
+      period,
+      // Duração padrão 30s (cada partido tem sua própria duração na faixa)
+      duration: 30,
+      totalInsertions,
+      lines: faixas,
+      dateStart, dateEnd,
+      materialSeq: piNum,
+      source:'pdf-partidaria',
+      partidarios: partidos
+    };
+  }
+
   function _isRecordNewsPdf(lines){
     const txt=lines.slice(0,30).join(' ');
     return /RECORD\s*NEWS/i.test(txt)
@@ -7444,9 +7689,20 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       const lines=await piExtractLines(file);
       piShowLoading('Interpretando PI…','Identificando faixas e inserções');
 
-      // Detectar formato Record News e usar parser especializado
+      // Detectar formato Inserção Partidária
       let pi=null;
-      if(_isRecordNewsPdf(lines)){
+      if(_isPartidariaPdf(lines)){
+        piShowLoading('Interpretando PI…','Calendário Partidário detectado');
+        pi=await piParsePartidaria(file);
+        if(pi&&pi.totalInsertions>0){
+          // OK
+        } else {
+          pi=null;
+        }
+      }
+
+      // Detectar formato Record News e usar parser especializado
+      if(!pi && _isRecordNewsPdf(lines)){
         piShowLoading('Interpretando PI…','Formato Record News detectado');
         pi=await piParseRecordNews(file);
         if(pi&&pi.totalInsertions>0){
@@ -8388,6 +8644,10 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
     _allTitles.forEach((rawTitle, idx) => {
       if(!rawTitle) return;
+      // Duração: usar titlesData[idx].dur se disponível (ex: partidária com dur por partido)
+      const _titleDur = (pi.titlesData && pi.titlesData[idx] && pi.titlesData[idx].dur)
+        ? pi.titlesData[idx].dur
+        : (parseInt(pi.duration)||30);
       const vtClean = rawTitle.replace(/^VT\s+/i,'').trim();
       const name    = _segLabel || vtClean;
       const title   = vtClean ? (_firstWord ? _firstWord + ' — ' + vtClean : vtClean) : _firstWord;
@@ -8416,7 +8676,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       if(existing){
         existing.name      = name;
         existing.title     = title;
-        existing.dur       = parseInt(pi.duration)||existing.dur||30;
+        existing.dur       = _titleDur||existing.dur||30;
         existing.dateStart = pi.dateStart||existing.dateStart||'';
         existing.dateEnd   = pi.dateEnd||existing.dateEnd||'';
         existing.piNumber  = _piKey||existing.piNumber||'';
@@ -8433,7 +8693,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
           seq:         '',           // operador define Nº Mídia manualmente
           name:        name,
           title:       title,
-          dur:         parseInt(pi.duration)||30,
+          dur:         _titleDur||30,
           dateStart:   pi.dateStart||'',
           dateEnd:     pi.dateEnd||'',
           piNumber:    _piKey,
