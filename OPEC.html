@@ -4626,6 +4626,9 @@ function showToast(msg){const t=$('toast');t.textContent=msg;t.classList.add('sh
 // ── Banco de segmentos — palavras-chave por categoria ──
 const _SEG_MAP = [
 
+  // POLÍTICO — partidos políticos, inserção eleitoral/partidária
+  [/(partido|inserção partidária|inserção eleitoral|eleitoral|pt\b|psdb\b|psd\b|pdt\b|pl\b|pp\b|pode\b|avante\b|republicanos\b|prd\b|solidariedade\b|pv\b|rede\b|união\b|mdb\b|novo\b|psol\b|pcdob\b|psb\b)/i, 'POLITICO'],
+
   // MÍDIA OFICIAL — governo, assembleia, prefeitura, sebrae
   // MÍDIA OFICIAL — governo, prefeitura, assembleia, detran, governo federal e órgãos públicos
   [/(governo|estado de rondonia|estado do|prefeitura|municipio|município|secretaria|assembleia|senado|câmara|camara|ministerio|ministério|sebrae|ibge|detran|governo federal|federal|decea|sefin|semusa|semus|sesau|sesap|idaron|emater|incra|inss|receita federal|agencia.*reguladora|anvisa|anatel|aneel|anp|sus|saude publica|saude pública|defensoria|tribunal|tce|trf|stj|stf|mpu|mpc|mpf|mpe|dpf|prf|pm |policia militar|policia civil|bombeiro|defesa civil)/i, 'MIDIA'],
@@ -4685,9 +4688,9 @@ function guessSegment(clientName){
   return 'OUTRO';
 }
 
-const SEG_LABELS={CONCESSIONARIA:'Concessionária',MECANICA:'Mecânica',SUPERMERCADO:'Supermercado',HOSPITAL:'Hospital',MIDIA:'Mídia Oficial',ESTETICA:'Estética',ENSINO:'Ensino',VAREJO:'Varejo',CONSTRUCAO:'Construção',INTERNET:'Internet',SORTEIOS:'Sorteios',CONSORCIO:'Consórcio',BANCO:'Banco',FARMACIA:'Farmácia',JOIAS:'Joias',VESTUARIO:'Vestuário',OUTRO:'Outro'};
-const SEG_TEXT={CONCESSIONARIA:'#f0c040',MECANICA:'#d4883a',SUPERMERCADO:'#4acc7a',HOSPITAL:'#e07070',MIDIA:'#5aaaf0',ESTETICA:'#e070c0',ENSINO:'#9080e0',VAREJO:'#60b8e0',CONSTRUCAO:'#c09060',INTERNET:'#00d0d0',SORTEIOS:'#d070e0',CONSORCIO:'#70a0d8',BANCO:'#40b880',FARMACIA:'#30c090',JOIAS:'#d4c040',VESTUARIO:'#d87090',OUTRO:'var(--text2)'};
-const SEG_BG={CONCESSIONARIA:'rgba(212,160,23,.15)',MECANICA:'rgba(180,100,20,.15)',SUPERMERCADO:'rgba(31,170,90,.12)',HOSPITAL:'rgba(224,80,80,.12)',MIDIA:'rgba(30,111,181,.15)',ESTETICA:'rgba(200,80,160,.12)',ENSINO:'rgba(100,80,200,.12)',VAREJO:'rgba(80,160,200,.12)',CONSTRUCAO:'rgba(140,100,60,.12)',INTERNET:'rgba(0,180,180,.12)',SORTEIOS:'rgba(180,50,200,.12)',CONSORCIO:'rgba(50,120,180,.12)',BANCO:'rgba(20,100,60,.12)',FARMACIA:'rgba(0,160,120,.12)',JOIAS:'rgba(200,160,20,.12)',VESTUARIO:'rgba(200,80,120,.12)',OUTRO:'rgba(80,80,80,.1)'};
+const SEG_LABELS={POLITICO:'Político',CONCESSIONARIA:'Concessionária',MECANICA:'Mecânica',SUPERMERCADO:'Supermercado',HOSPITAL:'Hospital',MIDIA:'Mídia Oficial',ESTETICA:'Estética',ENSINO:'Ensino',VAREJO:'Varejo',CONSTRUCAO:'Construção',INTERNET:'Internet',SORTEIOS:'Sorteios',CONSORCIO:'Consórcio',BANCO:'Banco',FARMACIA:'Farmácia',JOIAS:'Joias',VESTUARIO:'Vestuário',OUTRO:'Outro'};
+const SEG_TEXT={POLITICO:'#a0c8ff',CONCESSIONARIA:'#f0c040',MECANICA:'#d4883a',SUPERMERCADO:'#4acc7a',HOSPITAL:'#e07070',MIDIA:'#5aaaf0',ESTETICA:'#e070c0',ENSINO:'#9080e0',VAREJO:'#60b8e0',CONSTRUCAO:'#c09060',INTERNET:'#00d0d0',SORTEIOS:'#d070e0',CONSORCIO:'#70a0d8',BANCO:'#40b880',FARMACIA:'#30c090',JOIAS:'#d4c040',VESTUARIO:'#d87090',OUTRO:'var(--text2)'};
+const SEG_BG={POLITICO:'rgba(100,160,255,.13)',CONCESSIONARIA:'rgba(212,160,23,.15)',MECANICA:'rgba(180,100,20,.15)',SUPERMERCADO:'rgba(31,170,90,.12)',HOSPITAL:'rgba(224,80,80,.12)',MIDIA:'rgba(30,111,181,.15)',ESTETICA:'rgba(200,80,160,.12)',ENSINO:'rgba(100,80,200,.12)',VAREJO:'rgba(80,160,200,.12)',CONSTRUCAO:'rgba(140,100,60,.12)',INTERNET:'rgba(0,180,180,.12)',SORTEIOS:'rgba(180,50,200,.12)',CONSORCIO:'rgba(50,120,180,.12)',BANCO:'rgba(20,100,60,.12)',FARMACIA:'rgba(0,160,120,.12)',JOIAS:'rgba(200,160,20,.12)',VESTUARIO:'rgba(200,80,120,.12)',OUTRO:'rgba(80,80,80,.1)'};
 
 // ── SCROLL JUMP ──
 function buildJumpBtns(){
@@ -6763,7 +6766,10 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         duration:p.duration,totalInsertions:p.totalInsertions,
         dateStart:p.dateStart,dateEnd:p.dateEnd,
         materialSeq:p.materialSeq,lines:p.lines,
-        applied:p.applied||false,appliedCount:p.appliedCount||0
+        applied:p.applied||false,appliedCount:p.appliedCount||0,
+        // Campos essenciais para PI partidária (segmento, material por partido)
+        source:p.source||'',
+        titlesData:p.titlesData||[]
       }));
       if(_isLocalFile){
         localStorage.setItem('roteiro_pilist',JSON.stringify(toSave));
@@ -7618,15 +7624,16 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       dias.forEach(d=>{ durFreq[d.durSec]=(durFreq[d.durSec]||0)+1; });
       const mainDurSec=parseInt(Object.keys(durFreq).sort((a,b)=>durFreq[b]-durFreq[a])[0]);
 
-      // insertionsPerDayMap: sempre 1 inserção por dia
-      // (cada linha do calendário = 1 inserção com aquela duração)
+      // insertionsPerDayMap: duração ÷ 30s = nº de inserções no dia
+      // ex: 00:01:30 (90s) = 3 inserções de 30s
       const insertionsPerDayMap={};
-      dias.forEach(d=>{ insertionsPerDayMap[d.dayNum]=1; });
+      dias.forEach(d=>{ insertionsPerDayMap[d.dayNum]=Math.max(1,Math.round(d.durSec/30)); });
 
       faixas.push({
         program: partido,
-        timeStart:'00:00',
-        timeEnd:'23:59',
+        // Inserção partidária sempre distribui na faixa noturna 19:30–22:00
+        timeStart:'19:30',
+        timeEnd:'22:00',
         // Duração principal deste partido (segundos)
         duration: mainDurSec,
         insertionsPerDay: 1,
@@ -7634,14 +7641,14 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         // Duração real por dia (pode variar — ex: 30s em alguns dias, 60s em outros)
         durSecPerDay: Object.fromEntries(dias.map(d=>[d.dayNum, d.durSec])),
         days: dias.map(d=>d.dayNum),
-        // Total de inserções = número de dias com veiculação (sempre 1 por dia)
-        totalInsertions: dias.length,
+        // Total de inserções = soma de (durSec ÷ 30) por dia
+        totalInsertions: dias.reduce((s,d)=>s+Math.max(1,Math.round(d.durSec/30)),0),
         isPartidaria: true,
         partidario: true
       });
 
-      // Título + duração para biblioteca: um material por partido com sua duração real
-      titlesParaLib.push({title:'Inserção Partidária — '+partido, dur:mainDurSec});
+      // Material: cliente = partido, título = "INSERÇÃO [PARTIDO]"
+      titlesParaLib.push({title:'INSERÇÃO '+partido, dur:mainDurSec, partido});
     }
 
     if(!faixas.length) return null;
@@ -7658,10 +7665,10 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       client:'INSERÇÃO PARTIDÁRIA',
       campaign:'Calendário de Inserções — '+period,
       // title = primeiro título (para compatibilidade)
-      title: titlesParaLib[0]?.title||('Inserção Partidária '+period),
+      title: titlesParaLib[0]?.title||('INSERÇÃO PARTIDÁRIA '+period),
       // titles[] = strings dos títulos → _piEnsureLibItem cria um material por índice
       titles: titlesParaLib.map(t=>t.title),
-      // titlesData[] = metadados extras por título (duração real de cada partido)
+      // titlesData[] = metadados extras por título (duração real e partido de cada material)
       titlesData: titlesParaLib,
       period,
       // Duração padrão 30s (cada partido tem sua própria duração na faixa)
@@ -7769,18 +7776,24 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
 
         // Todos os programas do dia
         const allProgs = g[dow]||[];
-        // Match 1: sobreposição de horário + nome compatível (mais preciso)
-        let progs = allProgs.filter(p=>
-          piProgOverlap(p,line.timeStart,line.timeEnd) &&
-          piNameOverlap(p.name, line.program)
-        );
-        // Match 2: só horário (sem checar nome)
-        if(!progs.length){
+        // Para inserção partidária: match SOMENTE por horário (nome do partido ≠ nome do programa)
+        let progs;
+        if(line.isPartidaria){
           progs = allProgs.filter(p=>piProgOverlap(p,line.timeStart,line.timeEnd));
-        }
-        // Match 3: só nome (sem checar horário) — PI com horário diferente da grade
-        if(!progs.length){
-          progs = allProgs.filter(p=>piNameOverlap(p.name, line.program));
+        } else {
+          // Match 1: sobreposição de horário + nome compatível (mais preciso)
+          progs = allProgs.filter(p=>
+            piProgOverlap(p,line.timeStart,line.timeEnd) &&
+            piNameOverlap(p.name, line.program)
+          );
+          // Match 2: só horário (sem checar nome)
+          if(!progs.length){
+            progs = allProgs.filter(p=>piProgOverlap(p,line.timeStart,line.timeEnd));
+          }
+          // Match 3: só nome (sem checar horário) — PI com horário diferente da grade
+          if(!progs.length){
+            progs = allProgs.filter(p=>piNameOverlap(p.name, line.program));
+          }
         }
 
         if(!progs.length){
@@ -8093,7 +8106,11 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         if(!has && warns.length){
           tipText += '\n⚠ ' + warns.map(w=>w.warn+(w.acao?'\n→ '+w.acao:'')).join('\n');
         }
-        return `<span class="pi-dchip ${has?'match':'nomatch'}" title="${tipText.replace(/"/g,"'")}" style="${!has && warns.length ? 'cursor:help' : ''}"><span style="font-size:9px;font-weight:600;text-transform:uppercase">${DSH[dow]}</span><span>${d}</span></span>`;
+        const _insCount = (l.insertionsPerDayMap && l.insertionsPerDayMap[d] != null)
+          ? l.insertionsPerDayMap[d]
+          : (l.insertionsPerDay||1);
+        const _insLabel = `<span style="font-size:8px;color:var(--gold);font-family:var(--font-m);line-height:1">${_insCount}×</span>`;
+        return `<span class="pi-dchip ${has?'match':'nomatch'}" title="${tipText.replace(/"/g,"'")}" style="flex-direction:column;align-items:center;gap:0;${!has && warns.length ? 'cursor:help' : ''}"><span style="font-size:9px;font-weight:600;text-transform:uppercase">${DSH[dow]}</span><span>${d}</span>${_insLabel}</span>`;
       }).join('');
       return `<tr><td><span class="pi-prog-pill">${esc(l.program)}</span></td><td style="font-family:var(--font-m);font-size:10px;color:var(--text2)">${l.timeStart}–${l.timeEnd}</td><td><div style="display:flex;flex-wrap:wrap;gap:2px">${chips}</div></td><td style="font-family:var(--font-m);font-size:10px;color:var(--gold)">${l.insertionsPerDay}×</td><td style="font-family:var(--font-m);font-size:10px;color:var(--gold)">${l.totalInsertions}</td></tr>`;
     }).join('');
@@ -8649,8 +8666,13 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         ? pi.titlesData[idx].dur
         : (parseInt(pi.duration)||30);
       const vtClean = rawTitle.replace(/^VT\s+/i,'').trim();
-      const name    = _segLabel || vtClean;
-      const title   = vtClean ? (_firstWord ? _firstWord + ' — ' + vtClean : vtClean) : _firstWord;
+      // Para PI partidária: cliente = partido, título = "INSERÇÃO [PARTIDO]"
+      const _tData = pi.titlesData && pi.titlesData[idx];
+      const _isPartidaria = pi.source === 'pdf-partidaria' && _tData && _tData.partido;
+      const name  = _isPartidaria ? _tData.partido : (_segLabel || vtClean);
+      const title = _isPartidaria ? vtClean : (vtClean ? (_firstWord ? _firstWord + ' — ' + vtClean : vtClean) : _firstWord);
+      // Segmento sempre POLÍTICO para materiais partidários
+      const _itemSeg = _isPartidaria ? 'POLITICO' : _seg;
 
       // Chave de busca: piNumber + índice do título (para múltiplos)
       const _piKey   = pi.piNumber || '';
@@ -8681,7 +8703,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         existing.dateEnd   = pi.dateEnd||existing.dateEnd||'';
         existing.piNumber  = _piKey||existing.piNumber||'';
         existing.piClient  = pi.client||existing.piClient||'';
-        existing.segment   = existing.segment||_seg;
+        existing.segment   = _isPartidaria ? 'POLITICO' : (existing.segment||_seg);
         existing._piSourceId = _piId;
         existing._piTitleIdx = idx;
         if(!existing.id) existing.id = uid();
@@ -8698,7 +8720,7 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
           dateEnd:     pi.dateEnd||'',
           piNumber:    _piKey,
           piClient:    pi.client||'',
-          segment:     _seg,
+          segment:     _itemSeg,
           _piSourceId: _piId,
           _piTitleIdx: idx,
         });
