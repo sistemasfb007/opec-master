@@ -2271,8 +2271,22 @@ function _expiredModalResp(ok) {
 </div>
 <!-- AddItem -->
 <div class="overlay" id="m-item">
-  <div class="modal"><div class="m-ttl">＋ Novo Material</div>
-    <div class="m-form">
+  <div class="modal" style="max-width:700px;width:96vw"><div class="m-ttl">＋ Novo Material</div>
+
+    <!-- ABAS -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin:0 -20px 16px;padding:0 20px">
+      <button id="mi-tab-dados" onclick="miSwitchTab('dados')"
+        style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:8px 16px;background:none;border:none;border-bottom:2px solid var(--blue2);color:var(--blue2);cursor:pointer">
+        Dados
+      </button>
+      <button id="mi-tab-dist" onclick="miSwitchTab('dist')"
+        style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text3);cursor:pointer">
+        Distribuição
+      </button>
+    </div>
+
+    <!-- PAINEL DADOS -->
+    <div id="mi-pane-dados" class="m-form">
 
       <!-- Linha 1: Nº Mídia | Nº PI | Duração -->
       <div class="fg-row">
@@ -2338,9 +2352,104 @@ function _expiredModalResp(ok) {
 
       <div class="m-actions">
         <button class="btn btn-ghost" onclick="closeModal('m-item')">Cancelar</button>
-        <button class="btn btn-blue" onclick="doAddItem()">Adicionar</button>
+        <button class="btn btn-blue" id="mi-btn-add" onclick="doAddItem()">Adicionar</button>
       </div>
     </div>
+
+    <!-- PAINEL DISTRIBUIÇÃO -->
+    <div id="mi-pane-dist" style="display:none;padding:0 0 4px">
+
+      <!-- Modo -->
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button id="mi-dist-auto-btn" onclick="miDistSetMode('auto')"
+          style="flex:1;padding:9px;border-radius:6px;border:2px solid var(--blue2);background:var(--blue-dim);color:var(--blue2);font-size:10px;font-weight:700;letter-spacing:1px;cursor:pointer">
+          ⚡ AUTOMÁTICO
+        </button>
+        <button id="mi-dist-manual-btn" onclick="miDistSetMode('manual')"
+          style="flex:1;padding:9px;border-radius:6px;border:2px solid var(--border);background:none;color:var(--text3);font-size:10px;font-weight:700;letter-spacing:1px;cursor:pointer">
+          📅 MANUAL
+        </button>
+      </div>
+
+      <!-- AUTO -->
+      <div id="mi-dist-auto-pane">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div class="fg" style="margin:0">
+            <div class="fg-lbl">Programa / Faixa</div>
+            <select class="sel" id="mi-dist-prog" onchange="miDistAutoPreview()">
+              <option value="">— qualquer programa —</option>
+            </select>
+          </div>
+          <div class="fg" style="margin:0">
+            <div class="fg-lbl">Inserções por dia</div>
+            <input class="inp" type="number" id="mi-dist-ipd" value="1" min="1" max="20" oninput="miDistAutoPreview()">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+          <div class="fg" style="margin:0">
+            <div class="fg-lbl">Horário início</div>
+            <input class="inp" type="time" id="mi-dist-ts" value="06:00" oninput="miDistAutoPreview()">
+          </div>
+          <div class="fg" style="margin:0">
+            <div class="fg-lbl">Horário fim</div>
+            <input class="inp" type="time" id="mi-dist-te" value="23:59" oninput="miDistAutoPreview()">
+          </div>
+        </div>
+        <!-- Dias da semana -->
+        <div style="margin-bottom:10px">
+          <div class="fg-lbl" style="margin-bottom:6px">Dias da semana</div>
+          <div style="display:flex;gap:5px">
+            ${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map((d,i)=>`
+            <button id="mi-dow-${i}" onclick="miToggleDow(${i})" style="flex:1;padding:6px 2px;border-radius:5px;border:1px solid var(--border);background:none;color:var(--text3);font-size:9px;font-weight:700;cursor:pointer">${d}</button>`).join('')}
+          </div>
+        </div>
+        <!-- Preview automático -->
+        <div id="mi-dist-auto-preview" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;min-height:48px;max-height:160px;overflow-y:auto;font-size:10px;color:var(--text3)">
+          <span style="opacity:.6">Configure os campos acima para ver o preview</span>
+        </div>
+      </div>
+
+      <!-- MANUAL -->
+      <div id="mi-dist-manual-pane" style="display:none">
+        <!-- Mês/ano nav -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <button onclick="miDistCalPrev()" style="background:none;border:1px solid var(--border);color:var(--text2);border-radius:5px;padding:4px 10px;cursor:pointer;font-size:13px">‹</button>
+          <span id="mi-dist-cal-label" style="font-size:11px;font-weight:700;color:var(--text);letter-spacing:1px"></span>
+          <button onclick="miDistCalNext()" style="background:none;border:1px solid var(--border);color:var(--text2);border-radius:5px;padding:4px 10px;cursor:pointer;font-size:13px">›</button>
+        </div>
+        <!-- Grade do calendário -->
+        <div id="mi-dist-cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:10px"></div>
+        <!-- Horário e break para os dias selecionados -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+          <div class="fg" style="margin:0">
+            <div class="fg-lbl">Horário</div>
+            <input class="inp" type="time" id="mi-dist-man-time" value="19:30">
+          </div>
+          <div class="fg" style="margin:0">
+            <div class="fg-lbl">Inserções/dia</div>
+            <input class="inp" type="number" id="mi-dist-man-ipd" value="1" min="1" max="20">
+          </div>
+          <div class="fg" style="margin:0">
+            <div class="fg-lbl">Programa</div>
+            <select class="sel" id="mi-dist-man-prog" style="font-size:10px">
+              <option value="">— auto —</option>
+            </select>
+          </div>
+        </div>
+        <!-- Dias selecionados -->
+        <div id="mi-dist-man-selected" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;min-height:36px;font-size:10px;color:var(--text3);max-height:100px;overflow-y:auto">
+          <span id="mi-dist-man-empty" style="opacity:.6">Clique nos dias do calendário para selecionar</span>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="m-actions" style="margin-top:14px">
+        <button class="btn btn-ghost" onclick="closeModal('m-item')">Cancelar</button>
+        <button class="btn btn-ghost" onclick="miSwitchTab('dados')" style="border-color:var(--border2)">‹ Dados</button>
+        <button class="btn btn-gold" onclick="miDistApply()">⚡ Distribuir no Roteiro</button>
+      </div>
+    </div>
+
   </div>
 </div>
 <!-- Add Contract -->
@@ -4026,7 +4135,311 @@ function openAddItem(){
   _miPiLinks=[];miRenderPiLinks();
   const pin=$('mi-pi-number');if(pin)pin.value='';
   const pinfo=document.getElementById('mi-pi-info');if(pinfo)pinfo.textContent='';
+  // Reset modal title/button
+  const ttl=document.querySelector('#m-item .m-ttl');if(ttl)ttl.textContent='＋ Novo Material';
+  const btn=document.getElementById('mi-btn-add');
+  if(btn){btn.textContent='Adicionar';btn.onclick=doAddItem;}
+  // Reset distribuição
+  miSwitchTab('dados');
+  miDistInit();
   openModal('m-item');
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// DISTRIBUIÇÃO DE MATERIAL MANUAL — aba "Distribuição" no modal
+// ══════════════════════════════════════════════════════════════
+
+let _miDistMode   = 'auto';   // 'auto' | 'manual'
+let _miDistDows   = new Set([1,2,3,4,5]); // dias marcados no modo auto (seg-sex default)
+let _miDistCalY   = new Date().getFullYear();
+let _miDistCalM   = new Date().getMonth();
+let _miDistManSel = new Map(); // iso-date → {time, ipd, progIdx}
+
+function miSwitchTab(tab){
+  const isDados = tab === 'dados';
+  document.getElementById('mi-pane-dados').style.display = isDados ? '' : 'none';
+  document.getElementById('mi-pane-dist').style.display  = isDados ? 'none' : '';
+  document.getElementById('mi-tab-dados').style.borderBottomColor = isDados ? 'var(--blue2)' : 'transparent';
+  document.getElementById('mi-tab-dados').style.color = isDados ? 'var(--blue2)' : 'var(--text3)';
+  document.getElementById('mi-tab-dist').style.borderBottomColor = !isDados ? 'var(--gold)' : 'transparent';
+  document.getElementById('mi-tab-dist').style.color = !isDados ? 'var(--gold2)' : 'var(--text3)';
+  if(!isDados) miDistRefreshProgs();
+}
+
+function miDistInit(){
+  _miDistMode   = 'auto';
+  _miDistDows   = new Set([1,2,3,4,5]);
+  _miDistCalY   = selectedDate.getFullYear();
+  _miDistCalM   = selectedDate.getMonth();
+  _miDistManSel = new Map();
+  miDistSetMode('auto');
+}
+
+function miDistSetMode(mode){
+  _miDistMode = mode;
+  const isAuto = mode === 'auto';
+  document.getElementById('mi-dist-auto-pane').style.display   = isAuto ? '' : 'none';
+  document.getElementById('mi-dist-manual-pane').style.display = isAuto ? 'none' : '';
+
+  // Estilo botões
+  const autoBtn = document.getElementById('mi-dist-auto-btn');
+  const manBtn  = document.getElementById('mi-dist-manual-btn');
+  if(autoBtn){ autoBtn.style.borderColor = isAuto ? 'var(--blue2)' : 'var(--border)'; autoBtn.style.background = isAuto ? 'var(--blue-dim)' : 'none'; autoBtn.style.color = isAuto ? 'var(--blue2)' : 'var(--text3)'; }
+  if(manBtn){  manBtn.style.borderColor  = !isAuto ? 'var(--gold)' : 'var(--border)'; manBtn.style.background = !isAuto ? 'var(--gold-dim)' : 'none'; manBtn.style.color = !isAuto ? 'var(--gold2)' : 'var(--text3)'; }
+
+  if(isAuto){ miDistRenderDows(); miDistAutoPreview(); }
+  else { miDistRenderCal(); miDistRenderManSel(); }
+}
+
+function miDistRefreshProgs(){
+  // Popula selects de programa em ambos os modos com programas únicos da grade
+  const progNames = new Set();
+  Object.values(grade).forEach(dayProgs=>(dayProgs||[]).forEach(p=>progNames.add(p.name)));
+  const opts = ['<option value="">— qualquer programa —</option>',
+    ...[...progNames].map(n=>`<option value="${n}">${n}</option>`)].join('');
+  const manOpts = ['<option value="">— auto —</option>',
+    ...[...progNames].map(n=>`<option value="${n}">${n}</option>`)].join('');
+  const ps = document.getElementById('mi-dist-prog'); if(ps) ps.innerHTML = opts;
+  const pm = document.getElementById('mi-dist-man-prog'); if(pm) pm.innerHTML = manOpts;
+}
+
+// ── MODO AUTO: dias da semana toggle ──
+function miDistRenderDows(){
+  ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].forEach((_, i)=>{
+    const btn = document.getElementById(`mi-dow-${i}`);
+    if(!btn) return;
+    const on = _miDistDows.has(i);
+    btn.style.background   = on ? 'var(--blue-dim)' : 'none';
+    btn.style.borderColor  = on ? 'var(--blue2)' : 'var(--border)';
+    btn.style.color        = on ? 'var(--blue2)' : 'var(--text3)';
+  });
+}
+
+function miToggleDow(i){
+  if(_miDistDows.has(i)) _miDistDows.delete(i); else _miDistDows.add(i);
+  miDistRenderDows();
+  miDistAutoPreview();
+}
+
+function miDistAutoPreview(){
+  const box = document.getElementById('mi-dist-auto-preview'); if(!box) return;
+  const ts  = document.getElementById('mi-dist-ts')?.value  || '06:00';
+  const te  = document.getElementById('mi-dist-te')?.value  || '23:59';
+  const ipd = parseInt(document.getElementById('mi-dist-ipd')?.value)||1;
+  const progFilter = document.getElementById('mi-dist-prog')?.value || '';
+  const DSH = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+  if(!_miDistDows.size){ box.innerHTML='<span style="opacity:.5">Selecione pelo menos um dia.</span>'; return; }
+
+  // Calcular dias do mês corrente com o dow selecionado
+  const y = _miDistCalY, m = _miDistCalM;
+  const dim = new Date(y, m+1, 0).getDate();
+  const linhas = [];
+  for(let d=1; d<=dim; d++){
+    const dow = new Date(y, m, d).getDay();
+    if(!_miDistDows.has(dow)) continue;
+    const dayProgs = grade[dow]||[];
+    const progs = dayProgs.filter(p=>{
+      if(progFilter && p.name !== progFilter) return false;
+      return _piProgOverlapLocal(p, ts, te);
+    });
+    const progLabel = progs.length ? progs.map(p=>p.name).join(', ') : '<span style="color:var(--red2)">sem programa</span>';
+    linhas.push(`<div style="display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px solid var(--border)">
+      <span style="font-family:var(--font-m);font-size:9px;min-width:22px;color:var(--text3)">${DSH[dow]}</span>
+      <span style="font-family:var(--font-m);font-size:10px;font-weight:600;min-width:18px">${d}</span>
+      <span style="font-size:9px;color:var(--gold2);">${ipd}×</span>
+      <span style="font-size:9px;color:var(--text3)">${ts}–${te}</span>
+      <span style="font-size:9px;flex:1">${progLabel}</span>
+    </div>`);
+  }
+  box.innerHTML = linhas.length
+    ? linhas.join('')
+    : '<span style="opacity:.5">Nenhum dia encontrado com esses filtros.</span>';
+}
+
+function _piProgOverlapLocal(prog, ts, te){
+  if(!prog || !prog.time) return true;
+  const toMin = t => { const [h,m]=(t||'').split(':').map(Number); return h*60+(m||0); };
+  const ps=toMin(prog.time), pe=toMin(prog.timeEnd||'23:59');
+  const ls=toMin(ts), le=toMin(te);
+  return ps < le && pe > ls;
+}
+
+// ── MODO MANUAL: calendário ──
+const _MESES_PT=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const _DSH_PT=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+function miDistCalPrev(){ _miDistCalM--; if(_miDistCalM<0){_miDistCalM=11;_miDistCalY--;} miDistRenderCal(); }
+function miDistCalNext(){ _miDistCalM++; if(_miDistCalM>11){_miDistCalM=0;_miDistCalY++;} miDistRenderCal(); }
+
+function miDistRenderCal(){
+  const lbl = document.getElementById('mi-dist-cal-label');
+  if(lbl) lbl.textContent = _MESES_PT[_miDistCalM].toUpperCase() + ' ' + _miDistCalY;
+
+  const grid = document.getElementById('mi-dist-cal-grid'); if(!grid) return;
+  const y = _miDistCalY, m = _miDistCalM;
+  const dim = new Date(y, m+1, 0).getDate();
+  const firstDow = new Date(y, m, 1).getDay();
+
+  let html = _DSH_PT.map(d=>`<div style="font-size:8px;font-weight:700;text-align:center;color:var(--text3);letter-spacing:1px;padding:2px 0">${d}</div>`).join('');
+
+  // espaços em branco antes do dia 1
+  for(let i=0;i<firstDow;i++) html += '<div></div>';
+
+  for(let d=1;d<=dim;d++){
+    const iso = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const sel = _miDistManSel.has(iso);
+    const dow = new Date(y,m,d).getDay();
+    const isWknd = dow===0||dow===6;
+    html += `<div onclick="miDistToggleDay('${iso}')"
+      style="text-align:center;padding:5px 2px;border-radius:5px;cursor:pointer;font-size:10px;font-weight:${sel?'700':'500'};
+             background:${sel?'var(--gold-dim)':'none'};border:1px solid ${sel?'var(--gold)':'var(--border)'};
+             color:${sel?'var(--gold2)':isWknd?'var(--text3)':'var(--text)'};user-select:none">
+      ${d}</div>`;
+  }
+  grid.innerHTML = html;
+}
+
+function miDistToggleDay(iso){
+  const time = document.getElementById('mi-dist-man-time')?.value || '19:30';
+  const ipd  = parseInt(document.getElementById('mi-dist-man-ipd')?.value)||1;
+  const prog = document.getElementById('mi-dist-man-prog')?.value || '';
+  if(_miDistManSel.has(iso)) _miDistManSel.delete(iso);
+  else _miDistManSel.set(iso, {time, ipd, prog});
+  miDistRenderCal();
+  miDistRenderManSel();
+}
+
+function miDistRenderManSel(){
+  const box   = document.getElementById('mi-dist-man-selected');
+  const empty = document.getElementById('mi-dist-man-empty');
+  if(!box) return;
+  if(!_miDistManSel.size){
+    if(empty) empty.style.display='';
+    box.innerHTML='<span id="mi-dist-man-empty" style="opacity:.6">Clique nos dias do calendário para selecionar</span>';
+    return;
+  }
+  const sorted = [..._miDistManSel.entries()].sort((a,b)=>a[0]<b[0]?-1:1);
+  box.innerHTML = sorted.map(([iso, info])=>{
+    const d = new Date(iso+'T12:00');
+    const label = d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',weekday:'short'});
+    return `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--gold-dim);border:1px solid var(--gold);border-radius:4px;padding:2px 8px;margin:2px;font-size:10px">
+      <span style="color:var(--gold2);font-weight:700">${label}</span>
+      <span style="color:var(--text3)">${info.time} · ${info.ipd}×</span>
+      <span onclick="miDistRemoveDay('${iso}')" style="color:var(--red2);cursor:pointer;font-weight:700;margin-left:2px">✕</span>
+    </span>`;
+  }).join('');
+}
+
+function miDistRemoveDay(iso){
+  _miDistManSel.delete(iso);
+  miDistRenderCal();
+  miDistRenderManSel();
+}
+
+// ── APLICAR DISTRIBUIÇÃO ──
+function miDistApply(){
+  // 1. Garantir que o material foi salvo
+  const name = $('mi-name')?.value.trim();
+  if(!name){ showToast('Preencha o nome do material primeiro'); miSwitchTab('dados'); return; }
+
+  // Montar item temporário
+  const dur    = parseInt($('mi-dur')?.value)||30;
+  const seq    = $('mi-seq')?.value.trim()||'';
+  const title  = $('mi-title')?.value.trim()||'';
+  const dateStart = $('mi-datestart')?.value||'';
+  const dateEnd   = $('mi-dateend')?.value||'';
+  const piNum  = ($('mi-pi-number')?.value||'').trim();
+  const pis    = window._piList||[];
+  const linkedPi = piNum ? pis.find(p=>String(p.piNumber||'').trim()===piNum) : null;
+  const _allPiLinks = miGetPiLinks();
+  const _primaryLink = _allPiLinks[0];
+  const _piClient = linkedPi ? linkedPi.client : '';
+
+  // Verificar se já existe ou criar
+  let item = mediaLib.find(m=>m.name===name && (m.seq||'')===(seq||''));
+  if(!item){
+    item = {
+      id:uid(), seq, name, title, dur, dateStart, dateEnd,
+      ...(_primaryLink?{piNumber:_primaryLink.piNumber,piClient:_primaryLink.piClient||_piClient}:{}),
+      ...(linkedPi?{piNumber:linkedPi.piNumber,piClient:_piClient}:{}),
+      piLinks:_allPiLinks.length?_allPiLinks:undefined,
+      segment:guessSegment(_piClient||(_primaryLink?.piClient)||name),
+    };
+    mediaLib.push(item);
+    saveMediaLib();
+  }
+
+  // 2. Distribuir conforme o modo
+  let insertions = []; // array de {iso, time, progName, ipd}
+
+  if(_miDistMode === 'auto'){
+    const ts  = document.getElementById('mi-dist-ts')?.value  || '06:00';
+    const te  = document.getElementById('mi-dist-te')?.value  || '23:59';
+    const ipd = parseInt(document.getElementById('mi-dist-ipd')?.value)||1;
+    const progFilter = document.getElementById('mi-dist-prog')?.value||'';
+    const y = _miDistCalY, m2 = _miDistCalM;
+    const dim = new Date(y, m2+1, 0).getDate();
+    for(let d=1;d<=dim;d++){
+      const dow = new Date(y,m2,d).getDay();
+      if(!_miDistDows.has(dow)) continue;
+      const iso = `${y}-${String(m2+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const dayProgs = grade[dow]||[];
+      const progs = dayProgs.filter(p=>{
+        if(progFilter && p.name!==progFilter) return false;
+        return _piProgOverlapLocal(p, ts, te);
+      });
+      const progName = progs.length ? progs[0].name : '';
+      insertions.push({iso, time:ts, progName, ipd, dow});
+    }
+  } else {
+    // manual
+    _miDistManSel.forEach((info, iso)=>{
+      insertions.push({iso, time:info.time, progName:info.prog||'', ipd:info.ipd, dow:new Date(iso+'T12:00').getDay()});
+    });
+  }
+
+  if(!insertions.length){ showToast('Nenhuma inserção configurada'); return; }
+
+  // 3. Injetar nos breaks da grade
+  let placed = 0, skipped = 0;
+  insertions.forEach(({iso, time, progName, ipd, dow})=>{
+    const dayProgs = grade[dow]||[];
+    // Achar programa alvo
+    const targetProgs = progName
+      ? dayProgs.filter(p=>p.name===progName)
+      : dayProgs.filter(p=>_piProgOverlapLocal(p, time, time));
+    if(!targetProgs.length){ skipped++; return; }
+
+    for(let ins=0;ins<ipd;ins++){
+      const prog = targetProgs[ins % targetProgs.length];
+      const breaks = prog.breaks||[];
+      if(!breaks.length){ skipped++; continue; }
+      const brk = breaks[ins % breaks.length];
+      if(!brk.items) brk.items=[];
+      brk.items.push({
+        id:uid(),
+        name:    item.name,
+        title:   item.title||'',
+        seq:     item.seq||'',
+        dur:     item.dur||30,
+        segment: item.segment||'',
+        piNumber:item.piNumber||'',
+        piClient:item.piClient||'',
+        libId:   item.id,
+        _manDist:true,
+        _distDate:iso,
+      });
+      placed++;
+    }
+  });
+
+  saveGrade();
+  closeModal('m-item');
+  renderList();
+  renderMidList();
+  showToast(`✓ ${placed} inserç${placed===1?'ão':'ões'} distribuída${placed===1?'':'s'}${skipped?` · ${skipped} pulada${skipped===1?'':'s'} (sem programa/break)`:''}`, placed?'green':'gold');
 }
 
 // ── Multi-PI link management ──
