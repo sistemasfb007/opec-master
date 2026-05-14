@@ -7276,8 +7276,16 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       .trim().replace(/\s+/g,' ');
 
     let campaign='';
-    const campM=text.match(/CAMPANHA\s*[:\-]?\s*(.+)/i);
-    if(campM) campaign=campM[1].trim();
+    // Busca linha-a-linha para não capturar parágrafos inteiros do rodapé Pen6
+    for(const _cl of lines){
+      const _cm=_cl.trim().match(/^CAMPANHA\s*[:\-]?\s*(.+)/i);
+      if(_cm){
+        campaign=_cm[1]
+          .replace(/\s*(PER[IÍ]ODO|T[IÍ]TULO|PRA[ÇC]A|Pen[6o]\s+Ltda|AV\s+BRASIL|PORTO\s+VELHO|\d{2}\.\d{3}\.\d{3}).*$/i,'')
+          .trim();
+        break;
+      }
+    }
 
     let title='';
     // Capturar apenas linhas onde TÍTULO está no início (campo de formulário),
@@ -7295,6 +7303,20 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       .filter(Boolean);
     const titles = _titleAll.length ? _titleAll : [];
     if (titles.length) title = titles[0];
+
+    // Fallback: buscar TÍTULO dentro de linha de Observação
+    // ex: "Observação: VEICULAÇÃO DE VT 30" TÍTULO: MAIO AMARELO PERÍODO: ..."
+    if (!title) {
+      for (const _tl of lines) {
+        const _tm = _tl.trim().match(/T[IÍ]TULO\s*\d*\s*[:\-]\s*(.+)/i);
+        if (_tm) {
+          const _tc = _tm[1]
+            .replace(/\s*(PER[IÍ]ODO|PRA[ÇC]A|Pen[6o]\s+Ltda|AV\s+BRASIL|PORTO\s+VELHO|Emissor|Emiss[aã]o|Aprova[cç]|\d{2}\.\d{3}\.\d{3}).*$/i,'')
+            .trim();
+          if (_tc) { title = _tc; titles.push(_tc); break; }
+        }
+      }
+    }
 
     let period='';
     // Busca 1: linha "PERÍODO: MARÇO/2026" ou "PERÍODO: MARÇO/26"
@@ -7444,15 +7466,29 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       }
 
       // ── Linha [C]: dias da semana — pode ter hora no início (caso domingo) ──
+      // IMPORTANTE: o PDF.js às vezes coloca os números de inserção NA MESMA LINHA dos
+      // dias da semana (mesmo Y no PDF): "D D D INS 3 3 2 8". Nesse caso a linha [E]
+      // (ás HH:MM) chega sem números e a faixa seria descartada. Extraímos aqui como
+      // fallback e usamos se [E] vier vazia.
       while(j < lines.length && isSkip(lines[j])) j++;
+      let _dowInsNums = [];
       if(j < lines.length && isDowLine(lines[j])){
-        const mHora = clean(lines[j]).match(/^(\d{1,2}:\d{2})\s+[STQDM]/i);
+        const _dowRaw = clean(lines[j]);
+        const mHora = _dowRaw.match(/^(\d{1,2}:\d{2})\s+[STQDMstqdm]/i);
         if(mHora) timeStart = mHora[1];
+        // Extrair números após "INS" — se existirem são inserções por dia
+        const _afterIns = _dowRaw.replace(/^.*?\bINS\b/i, '');
+        if(_afterIns){
+          const _rawNums = _afterIns
+            .replace(/\d[\.,]\d{3}[\.,]?\d*/g, '')  // remover preços tipo 1.204,00
+            .replace(/\(\d+%\)/g, '');
+          _dowInsNums = (_rawNums.match(/\b\d+\b/g)||[]).map(Number).filter(n=>n>0&&n<=999);
+        }
         j++;
         // BUGFIX: "INS" isolado numa linha + "06:30 D" na linha seguinte
         while(j < lines.length && isSkip(lines[j])) j++;
         if(!timeStart && j < lines.length){
-          const mHora2 = clean(lines[j]).match(/^(\d{1,2}:\d{2})\s+[STQDMD]/i);
+          const mHora2 = clean(lines[j]).match(/^(\d{1,2}:\d{2})\s+[STQDMstqdm]/i);
           if(mHora2){ timeStart = mHora2[1]; j++; }
         }
       }
@@ -7494,8 +7530,11 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         const mAs = clean(lines[j]).match(/^[aáàÀÁÃ][sS]?\s+(\d{1,2}:\d{2})\s*(.*)/i);
         if(mAs){
           timeEnd  = mAs[1].padStart(5, '0');
-          // Aceitar números separados por espaço, vírgula ou ponto-e-vírgula
-          insNums  = (mAs[2].match(/\d+/g) || []).map(Number);
+          // Remover padrões de preço (1.204,00, (50%)) antes de extrair inserções
+          const _asRaw = mAs[2]
+            .replace(/\d[\.,]\d{3}[\.,]?\d*/g, '')  // preços tipo 1.204,00 ou 1440,00
+            .replace(/\(\d+%\)/g, '');
+          insNums = (_asRaw.match(/\b\d+\b/g) || []).map(Number).filter(n => n <= 999);
           if(!insNums.length && (j+1) < lines.length){
             let nj = j+1;
             while(nj < lines.length && isSkip(lines[nj])) nj++;
@@ -7512,6 +7551,9 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
         }
         j++;
       }
+
+      // Fallback: se linha [E] não trouxe números, usar os da linha [C] (DOW)
+      if(!insNums.length && _dowInsNums.length) insNums = _dowInsNums;
 
       // Validar dados mínimos
       if(!dias.length || !insNums.length){ i++; continue; }
@@ -7609,247 +7651,6 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
   }
 
   // ── Parser Record News — tabela com colunas de dias do mês ──
-  async function piParseRecordNews(file){
-    const buf=await file.arrayBuffer();
-    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
-
-    // Extrair todos os itens com coordenadas X,Y de todas as páginas
-    const allItems=[];
-    for(let p=1;p<=pdf.numPages;p++){
-      const page=await pdf.getPage(p);
-      const tc=await page.getTextContent();
-      const vp=page.getViewport({scale:1});
-      const H=vp.height;
-      for(const item of tc.items){
-        if(!item.str.trim()) continue;
-        allItems.push({
-          str:item.str.trim(),
-          x:Math.round(item.transform[4]),
-          y:Math.round(H - item.transform[5]) // flip Y: topo=0
-        });
-      }
-    }
-
-    // Agrupar em linhas por Y (tolerância 4px)
-    const rowMap={};
-    for(const it of allItems){
-      const yk=Math.round(it.y/4)*4;
-      if(!rowMap[yk]) rowMap[yk]=[];
-      rowMap[yk].push(it);
-    }
-    const rows=Object.keys(rowMap).map(Number).sort((a,b)=>a-b)
-      .map(y=>rowMap[y].sort((a,b)=>a.x-b.x));
-
-    // ── Extrair metadados ──
-    const fullText=allItems.map(i=>i.str).join(' ');
-    let client='', piNumber='', period='ABRIL/2026', duration=30, title='', piNumberRaw='';
-
-    // Cliente / Razão Social
-    const razM=fullText.match(/Raz[ãa]o\s*Social[:\s]+([A-ZÁÉÍÓÚÃÕÂÊÔÇ\s\-]+?)(?=CNPJ|$)/i);
-    if(razM) client=razM[1].replace(/\s+/g,' ').trim();
-    if(!client){
-      const cliM=fullText.match(/Cliente[:\s]+([A-ZÁÉÍÓÚÃÕÂÊÔÇ\s\-]+?)(?=Raz[ãa]o|CNPJ|$)/i);
-      if(cliM) client=cliM[1].replace(/\s+/g,' ').trim();
-    }
-
-    // Período
-    const perM=fullText.match(/Per[íi]odo[^:]*:\s*([\d\/]+)\s*e\s*([\d\/]+)/i)
-            || fullText.match(/\b(01\/(\d{2})\/(\d{4}))\b/);
-    if(perM){
-      const raw=perM[2]||perM[1]||'';
-      const mNum=parseInt(raw.split('/')[1]||raw.split('/')[0]);
-      const yr=parseInt(raw.split('/').pop());
-      const MNAMES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-      if(mNum>=1&&mNum<=12) period=MNAMES[mNum-1].toUpperCase()+'/'+(yr||new Date().getFullYear());
-    }
-    // Fallback: mês por nome
-    if(!perM){
-      const mnM=fullText.match(/\b(JANEIRO|FEVEREIRO|MAR[ÇC]O|ABRIL|MAIO|JUNHO|JULHO|AGOSTO|SETEMBRO|OUTUBRO|NOVEMBRO|DEZEMBRO)\b/i);
-      const yrM=fullText.match(/\b(202\d)\b/);
-      if(mnM) period=mnM[1].toUpperCase()+'/'+(yrM?yrM[1]:new Date().getFullYear());
-    }
-
-    // Duração
-    const durM=fullText.match(/Dura[çc][ãa]o[^:]*:\s*(\d+)/i)||fullText.match(/\bVT[^\d]*(\d+)\s*seg/i);
-    if(durM) duration=parseInt(durM[1])||30;
-
-    // Título do Material
-    const titM=fullText.match(/T[íi]tulo\s*do\s*Material[:\s]+([^\n\r]+)/i);
-    if(titM) title=titM[1].replace(/Institucional.*/i,'Institucional').trim();
-
-    // PI número — procura "PI / Nº" seguido de número, ou qualquer campo PI
-    const piM=fullText.match(/PI\s*[\/\\]?\s*N[º°]?\s*(\d{4,7})/i)
-            || fullText.match(/\bPI\s*[-:\s#]?\s*(\d{4,7})\b/i);
-    if(piM) piNumber=piM[1];
-    // Fallback: usar data+cliente para gerar identificador único
-    if(!piNumber){
-      const now=new Date();
-      piNumber='RN'+String(now.getMonth()+1).padStart(2,'0')+String(now.getFullYear()).slice(-2);
-    }
-
-    // ── Encontrar linha de cabeçalho da tabela de programação ──
-    // Procura linha com "PROGRAMAÇÃO" ou "SEMANAIS" e identifica as colunas de dia
-    // A tabela da Record News tem: Nome | DIA | INÍCIO | FIM | CÓD | dias1..30 | TOTAL | TABELA
-    let headerRowY=-1, dayColMap={};  // dayColMap: x → dayNum
-
-    for(let ri=0;ri<rows.length;ri++){
-      const row=rows[ri];
-      const rowTxt=row.map(i=>i.str).join(' ');
-      // Linha de cabeçalho dos dias: contém sequência de números 1..30 ou dias da semana
-      // Detectar linha que tem muitos números de 1 a 31 (colunas de dias)
-      const nums=row.map(i=>parseInt(i.str)).filter(n=>n>=1&&n<=31);
-      if(nums.length>=10){
-        // Esta é a linha de cabeçalho dos dias
-        headerRowY=rows[ri][0].y;
-        for(const it of row){
-          const n=parseInt(it.str);
-          if(n>=1&&n<=31) dayColMap[it.x]=n;
-        }
-        break;
-      }
-    }
-
-    if(!Object.keys(dayColMap).length){
-      // Fallback: tentar pelo texto "qua qui sex sáb dom seg ter"
-      for(let ri=0;ri<rows.length;ri++){
-        const rowTxt=rows[ri].map(i=>i.str.toLowerCase()).join(' ');
-        if(/qua.*qui.*sex/.test(rowTxt)){
-          // Linha anterior ou posterior pode ter os números
-          const adjacent=[rows[ri-1],rows[ri+1]].filter(Boolean);
-          for(const adj of adjacent){
-            if(!adj) continue;
-            const nums2=adj.map(i=>parseInt(i.str)).filter(n=>n>=1&&n<=31);
-            if(nums2.length>=10){
-              headerRowY=adj[0].y;
-              for(const it of adj){
-                const n=parseInt(it.str);
-                if(n>=1&&n<=31) dayColMap[it.x]=n;
-              }
-              break;
-            }
-          }
-          if(Object.keys(dayColMap).length) break;
-        }
-      }
-    }
-
-    // Coluna X do TOTAL — a mais à direita depois dos dias
-    const dayCols=Object.keys(dayColMap).map(Number).sort((a,b)=>a-b);
-    const maxDayX=dayCols.length?dayCols[dayCols.length-1]:9999;
-
-    // ── Extrair faixas da tabela ──
-    // Cada linha de programa está abaixo do cabeçalho e tem:
-    // nome do programa | dia(s) | início | fim | cód | inserções por dia
-    const faixas=[];
-
-    // Determinar as colunas de metadados (x aproximado)
-    // Colunas: NOME(~50-200) | DIA(~200-260) | INÍCIO(~260-320) | FIM(~320-380) | CÓD(~380-440) | dias...
-    // Vamos usar posição relativa ao início dos dias para separar
-    const minDayX=dayCols.length?dayCols[0]:440;
-
-    // Agrupar linhas abaixo do cabeçalho
-    const dataRows=rows.filter(r=>r[0].y>headerRowY+8)
-      .filter(r=>{
-        const txt=r.map(i=>i.str).join(' ');
-        // Ignorar rodapés, totais gerais e condições
-        if(/CONDI[ÇC][OÕ]ES/i.test(txt)) return false;
-        if(/^TOTAL$/i.test(txt.trim())) return false;
-        if(/CARIMBO/i.test(txt)) return false;
-        if(/^0\s+0\s+0/.test(txt)) return false; // linha de zeros
-        return true;
-      });
-
-    // Grupos de seção: SEMANAIS NOTURNO, SEMANAIS VESPERTINO, SÁBADO, DOMINGO
-    // Detectar qual seção estamos para mapear os dias
-    const DOW_MAP={ // nome seção → dias da semana (0=Dom,1=Seg,...,6=Sáb)
-      'SEG-SEX':[1,2,3,4,5],
-      'SEG/TER/QUI':[1,2,4],
-      'QUA-SEX':[3,4,5],
-      'QUA':[3],
-      'SEX':[5],
-      'SÁB':[6],'SAB':[6],
-      'DOM':[0],
-    };
-
-    for(const row of dataRows){
-      // Coletar texto à esquerda dos dias (metadados)
-      const leftItems=row.filter(i=>i.x<minDayX-10);
-      const dayItems=row.filter(i=>i.x>=minDayX-10&&i.x<=maxDayX+20);
-      if(!dayItems.length) continue;
-
-      // Inserções: números nas colunas de dia
-      const insMap={};
-      for(const it of dayItems){
-        const n=parseInt(it.str);
-        if(isNaN(n)||n<=0) continue;
-        // Encontrar o dia mais próximo desta coluna X
-        let bestDay=null, bestDist=99999;
-        for(const [cx,dn] of Object.entries(dayColMap)){
-          const dist=Math.abs(it.x-parseInt(cx));
-          if(dist<bestDist&&dist<15){ bestDist=dist; bestDay=dn; }
-        }
-        if(bestDay!==null) insMap[bestDay]=(insMap[bestDay]||0)+n;
-      }
-
-      const totalIns=Object.values(insMap).reduce((s,v)=>s+v,0);
-      if(!totalIns) continue;
-
-      // Extrair nome do programa, horários e código
-      const leftTxts=leftItems.map(i=>i.str);
-      let nome='',timeStart='00:00',timeEnd='23:59',codigo='';
-      // Tentar extrair horários (HH:MM ou HHHnn)
-      const timeRe=/(\d{1,2})[Hh:](\d{2})/g;
-      const times=[];
-      for(const t of leftTxts){
-        let m; while((m=timeRe.exec(t))!==null) times.push(m[1].padStart(2,'0')+':'+m[2]);
-      }
-      if(times.length>=2){ timeStart=times[0]; timeEnd=times[1]; }
-      else if(times.length===1){ timeStart=times[0]; }
-
-      // Nome: primeiro item de texto que não é hora e não é dia da semana
-      const dowWords=/^(SEG|TER|QUA|QUI|SEX|SÁB|SAB|DOM|NOITE|MANHÃ|TARDE|SS|1|2|3)$/i;
-      for(const t of leftTxts){
-        if(/\d{1,2}[Hh:]\d{2}/.test(t)) continue;
-        if(dowWords.test(t.trim())) continue;
-        if(t.trim().length<2) continue;
-        if(!nome) nome=t.trim();
-        else if(t.length>2&&!/^\d+$/.test(t)) nome+=' '+t.trim();
-      }
-      nome=nome.replace(/\s+/g,' ').trim()||'Rotativo';
-
-      // Código — item curto em maiúsculo tipo "SNRN1"
-      const codItem=leftTxts.find(t=>/^[A-Z]{2,8}\d*$/.test(t.trim())&&t.trim().length>=4);
-      if(codItem) codigo=codItem.trim();
-
-      faixas.push({
-        program: nome,
-        timeStart, timeEnd,
-        duration,
-        insertionsPerDay:1,
-        insertionsPerDayMap:insMap,
-        days:Object.keys(insMap).map(Number),
-        totalInsertions:totalIns,
-        codigo
-      });
-    }
-
-    if(!faixas.length) return null; // não conseguiu parsear — cair no parser padrão
-
-    const totalInsertions=faixas.reduce((s,f)=>s+f.totalInsertions,0);
-    const {monthNum,yearNum}=parsePeriod(period);
-    const dim=new Date(yearNum,monthNum+1,0).getDate();
-    const dateStart=`${yearNum}-${String(monthNum+1).padStart(2,'0')}-01`;
-    const dateEnd=`${yearNum}-${String(monthNum+1).padStart(2,'0')}-${String(dim).padStart(2,'0')}`;
-
-    return {
-      piNumber, status:'APROVADO', client, campaign:'', title, titles:title?[title]:[],
-      period, duration, totalInsertions, lines:faixas, dateStart, dateEnd,
-      materialSeq:piNumber?`PI-${piNumber}`:'', source:'pdf-recordnews'
-    };
-  }
-
-  // ── Detectar se PDF é formato Record News (tabela de grade) ──
-  // ── Detector: Calendário de Inserções Partidárias ──
   function _isPartidariaPdf(lines){
     const txt=lines.slice(0,40).join(' ');
     return /CALEND[AÁ]RIO\s*DE\s*INSER[ÇC][OÕ]ES/i.test(txt)
@@ -8095,6 +7896,261 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
     };
   }
 
+
+  // ── Detector: formato Pen6 / DETRAN (mini-tabela por faixa) ──
+  function _isPen6Pdf(lines){
+    const txt = lines.slice(0,20).join(' ');
+    return /VEICULAÇÃO\s*-\s*TV/i.test(txt)
+        || (/Especifica[çc][ãa]o.*Mapa\s*de\s*M[íi]dia/i.test(txt))
+        || (/\bTOT\b.*\bINS\b/i.test(lines.slice(0,60).join(' ')));
+  }
+
+  // ── Parser Pen6 / DETRAN ──
+  // Formato: cada faixa tem 4 linhas:
+  //   L1: dias numéricos + TOT
+  //   L2: nome do programa (30" - Rotativo Manhã)
+  //   L3: DOW (S/T/Q/D) + INS
+  //   L4: horário início  [ás HH:MM separado ou na mesma linha] + quantidades + total
+  async function piParseRecordNews(file){
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+
+    // Extrair palavras com X,Y de todas as páginas
+    const allWords = [];
+    for(let p=1; p<=pdf.numPages; p++){
+      const page = await pdf.getPage(p);
+      const tc   = await page.getTextContent();
+      const H    = page.getViewport({scale:1}).height;
+      for(const item of tc.items){
+        if(!item.str.trim()) continue;
+        allWords.push({
+          str: item.str.trim(),
+          x:   Math.round(item.transform[4]),
+          y:   Math.round(H - item.transform[5])
+        });
+      }
+    }
+
+    // Agrupar em linhas por Y (tolerância 4px)
+    const rowMap = {};
+    for(const w of allWords){
+      const yk = Math.round(w.y / 4) * 4;
+      if(!rowMap[yk]) rowMap[yk] = [];
+      rowMap[yk].push(w);
+    }
+    const rows = Object.keys(rowMap).map(Number).sort((a,b)=>a-b)
+      .map(y => rowMap[y].sort((a,b)=>a.x-b.x));
+
+    const fullText = allWords.map(w=>w.str).join(' ');
+
+    // ── Metadados ──
+    let client='', piNumber='', period='', duration=30, titleMat='';
+
+    const razM = fullText.match(/Raz[ãa]o\s*Social:\s*([\wÀ-ÿ\s\-]+?)(?=CNPJ|Veículo|$)/i);
+    if(razM) client = razM[1].replace(/\s+/g,' ').trim();
+
+    const piM = fullText.match(/\bPI\s*(\d{4,7})\b/);
+    if(piM) piNumber = piM[1];
+
+    // Período — "MAIO/26" ou "MAIO/2026"
+    const perM = fullText.match(/\b(JANEIRO|FEVEREIRO|MAR[ÇC]O|ABRIL|MAIO|JUNHO|JULHO|AGOSTO|SETEMBRO|OUTUBRO|NOVEMBRO|DEZEMBRO)\/(20\d{2}|\d{2})\b/i);
+    if(perM){
+      const yr = perM[2].length===2 ? '20'+perM[2] : perM[2];
+      period = perM[1].toUpperCase()+'/'+yr;
+    }
+
+    // Título — da linha de observação
+    const titM = fullText.match(/T[ÍI]TULO:\s*([^\n\r]+)/i);
+    if(titM){
+      titleMat = titM[1]
+        .replace(/\s*(PER[IÍ]ODO|PRA[ÇC]A|Pen[6o]\s+Ltda|AV\s+BRASIL|PORTO\s+VELHO|Emissor|Emiss[aã]o|Aprova[cç]|\d{2}\.\d{3}\.\d{3}|PI\s+\d{4,}|Status|Veículo|Raz[aã]o).*$/i,'')
+        .trim();
+    }
+
+    // Duração — "VT 30\"" ou "30\""
+    const durM = fullText.match(/\bVT\s*(\d+)["\"]/i) || fullText.match(/\b(\d+)["\"]/);
+    if(durM) duration = parseInt(durM[1])||30;
+
+    // ── Identificar blocos de faixa ──
+    // Uma linha de dias: ≥2 números entre 1-31 seguidos de TOT
+    // Estratégia: varrer as linhas buscando a linha de dias
+    const TOT_RE = /^TOT$/i;
+    const INS_RE = /^INS$/i;
+    const NUM_DAY_RE = /^\d{1,2}$/;
+    const DOW_RE = /^[STQD]$/i;
+    const TIME_RE = /^\d{1,2}:\d{2}$/;
+    const AS_RE  = /^ás$/i;
+
+    const faixas = [];
+
+    for(let ri=0; ri<rows.length; ri++){
+      const row = rows[ri];
+      const strs = row.map(w=>w.str);
+
+      // Linha de dias: contém ≥2 inteiros 1-31 E termina com TOT
+      const dayNums = strs.filter(s=>NUM_DAY_RE.test(s)).map(Number).filter(n=>n>=1&&n<=31);
+      if(dayNums.length < 2) continue;
+      if(!strs.some(s=>TOT_RE.test(s))) continue;
+
+      // Mapear X→dia para esta faixa
+      const dayXMap = {}; // x → dayNum
+      for(const w of row){
+        const n = parseInt(w.str);
+        if(n>=1&&n<=31) dayXMap[w.x] = n;
+      }
+      const dayXs = Object.keys(dayXMap).map(Number).sort((a,b)=>a-b);
+
+      // Próximas 3-4 linhas contêm: nome, DOW, horários, quantidades
+      let nomeLinha=[], dowLinha=[], qtdLinha=[], tsStr='', teStr='';
+
+      for(let offset=1; offset<=5 && ri+offset<rows.length; offset++){
+        const r2 = rows[ri+offset];
+        const s2 = r2.map(w=>w.str);
+
+        // Linha DOW: tem letras S/T/Q/D + INS
+        if(s2.some(s=>INS_RE.test(s)) && s2.some(s=>DOW_RE.test(s))){
+          dowLinha = s2;
+          continue;
+        }
+        // Linha horário início: um único HH:MM
+        if(s2.length===1 && TIME_RE.test(s2[0])){
+          tsStr = s2[0];
+          continue;
+        }
+        // Linha "ás HH:MM" + quantidades: tem "ás" ou tem números que parecem qtd
+        if(s2.some(s=>AS_RE.test(s))){
+          const timeIdx = s2.findIndex(s=>TIME_RE.test(s));
+          if(timeIdx>=0) teStr = s2[timeIdx];
+          // quantidades: números após o horário de fim
+          const afterTime = r2.filter(w=>TIME_RE.test(w.str)?false:w.x > (timeIdx>=0?r2[timeIdx].x:0));
+          qtdLinha = r2; // guardar toda a linha para pegar X
+          break;
+        }
+        // Linha com só números (sem "ás"): pode ser a linha de quantidades em PDFs onde tsStr veio da linha anterior
+        if(s2.every(s=>NUM_DAY_RE.test(s)||TOT_RE.test(s)||/^\d+$/.test(s)) && s2.some(s=>/^\d+$/.test(s)&&parseInt(s)>=1)){
+          qtdLinha = r2;
+          break;
+        }
+        // Linha de nome do programa
+        if(s2.join(' ').match(/Rotativo|Manhã|Tarde|Noite|AS\b|Especial/i)){
+          nomeLinha = s2;
+          continue;
+        }
+      }
+
+      // Se não achamos a linha de qtd via "ás", procurar na linha após DOW/horário
+      if(!qtdLinha.length){
+        for(let offset=1; offset<=6 && ri+offset<rows.length; offset++){
+          const r2 = rows[ri+offset];
+          const s2 = r2.map(w=>w.str);
+          const hasNums = s2.filter(s=>/^\d+$/.test(s)&&parseInt(s)>=1).length >= dayNums.length-1;
+          if(hasNums && !s2.some(s=>TOT_RE.test(s))){
+            qtdLinha = r2; break;
+          }
+          if(s2.some(s=>AS_RE.test(s))){
+            const ti = s2.findIndex(s=>TIME_RE.test(s));
+            if(ti>=0) teStr = s2[ti];
+            qtdLinha = r2; break;
+          }
+        }
+      }
+
+      if(!qtdLinha.length) continue;
+
+      // ── Montar insertionsPerDayMap ──
+      // Para cada número em qtdLinha (excluindo total e horário), associar ao dia pelo X mais próximo
+      const insMap = {};
+      const totX = row.find(w=>TOT_RE.test(w.str))?.x || 99999;
+      const maxDayX = Math.max(...dayXs);
+
+      for(const w of qtdLinha){
+        const n = parseInt(w.str);
+        if(isNaN(n) || n <= 0) continue;
+        if(w.str===teStr) continue; // é o horário fim
+        if(AS_RE.test(w.str)) continue;
+
+        // Ignorar se X >= coluna TOT (é o total da faixa)
+        // coluna TOT está no mesmo X que TOT da linha de dias
+        if(Math.abs(w.x - totX) < 15) continue;
+
+        // Encontrar dia pelo X mais próximo
+        let bestDay=null, bestDist=99999;
+        for(const [xStr, dn] of Object.entries(dayXMap)){
+          const dist = Math.abs(w.x - parseInt(xStr));
+          if(dist < bestDist && dist < 20){ bestDist=dist; bestDay=dn; }
+        }
+        if(bestDay !== null) insMap[bestDay] = (insMap[bestDay]||0) + n;
+      }
+
+      const totalIns = Object.values(insMap).reduce((s,v)=>s+v,0);
+      if(!totalIns) continue;
+
+      // ── Nome do programa ──
+      let nome = nomeLinha.join(' ').replace(/30["\"]\s*-?\s*/,'').trim() || 'Rotativo';
+      nome = nome.replace(/\s+/g,' ').trim();
+      if(!nome || nome.length < 2) nome = 'Rotativo';
+
+      // ── Horários ──
+      // tsStr = início (ex: "06:00"), teStr = fim (ex: "11:00")
+      if(!tsStr){
+        // tentar extrair do texto completo próximo desta faixa
+        for(let offset=1; offset<=5 && ri+offset<rows.length; offset++){
+          const s2 = rows[ri+offset].map(w=>w.str);
+          const found = s2.find(s=>TIME_RE.test(s));
+          if(found){ if(!tsStr) tsStr=found; else{ teStr=found; break; } }
+        }
+      }
+
+      faixas.push({
+        program:  nome,
+        timeStart: tsStr || '00:00',
+        timeEnd:   teStr || '23:59',
+        duration,
+        insertionsPerDay:    1,
+        insertionsPerDayMap: insMap,
+        days:            Object.keys(insMap).map(Number),
+        totalInsertions: totalIns,
+      });
+    }
+
+    if(!faixas.length) return null;
+
+    const totalInsertions = faixas.reduce((s,f)=>s+f.totalInsertions,0);
+
+    // Período → mês/ano
+    const MESES = {JANEIRO:0,FEVEREIRO:1,'MARÇO':2,MARCO:2,ABRIL:3,MAIO:4,JUNHO:5,
+                   JULHO:6,AGOSTO:7,SETEMBRO:8,OUTUBRO:9,NOVEMBRO:10,DEZEMBRO:11};
+    let monthNum=new Date().getMonth(), yearNum=new Date().getFullYear();
+    if(period){
+      const [mn,yr]=period.split('/');
+      const mn2=mn.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+      if(MESES[mn2]!==undefined) monthNum=MESES[mn2];
+      if(yr&&parseInt(yr)>2000) yearNum=parseInt(yr);
+    }
+    const dim=new Date(yearNum,monthNum+1,0).getDate();
+    const dateStart=`${yearNum}-${String(monthNum+1).padStart(2,'0')}-01`;
+    const dateEnd  =`${yearNum}-${String(monthNum+1).padStart(2,'0')}-${String(dim).padStart(2,'0')}`;
+
+    // ── Material: nome curto do cliente + título do VT ──
+    // _piEnsureLibItem usa: name=_segLabel||vtClean, title=_firstWord+' — '+vtClean
+    // Para que fique: name=CLIENTE, title=TÍTULO DO VT
+    // passamos title=titleMat e client=client; o _piEnsureLibItem monta corretamente
+    const shortClient = client.split(/\s+/).slice(0,3).join(' ');
+    const matTitle = titleMat || shortClient || '';
+
+    return {
+      piNumber, status:'APROVADO', client,
+      campaign: titleMat||'',
+      title:    matTitle,
+      titles:   matTitle ? [matTitle] : [],
+      period, duration, totalInsertions,
+      lines: faixas, dateStart, dateEnd,
+      materialSeq: piNumber ? `PI-${piNumber}` : '',
+      source: 'pdf-recordnews'
+    };
+  }
+
+
   function _isRecordNewsPdf(lines){
     const txt=lines.slice(0,30).join(' ');
     return /RECORD\s*NEWS/i.test(txt)
@@ -8114,6 +8170,17 @@ function piManualLink(){ if(window.piManualLink) window.piManualLink(); }
       if(_isPartidariaPdf(lines)){
         piShowLoading('Interpretando PI…','Calendário Partidário detectado');
         pi=await piParsePartidaria(file);
+        if(pi&&pi.totalInsertions>0){
+          // OK
+        } else {
+          pi=null;
+        }
+      }
+
+      // Detectar formato Pen6 (DETRAN, mini-tabela por faixa) — usar parser de linhas
+      if(!pi && _isPen6Pdf(lines)){
+        piShowLoading('Interpretando PI…','Formato Pen6 detectado');
+        pi=piParseLines(lines);
         if(pi&&pi.totalInsertions>0){
           // OK
         } else {
